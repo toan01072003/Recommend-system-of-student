@@ -23,6 +23,16 @@ Chạy web demo Python:
 python backend/app.py
 ```
 
+Chạy React frontend trong lúc phát triển:
+
+```powershell
+cd frontend
+npm.cmd run dev
+```
+
+Vite sẽ proxy các request `/api/*` sang backend mặc định ở `http://127.0.0.1:8001`.
+Khi đã build `frontend/dist`, backend sẽ tự phục vụ bản build React.
+
 ## Build career vector thật từ O*NET 30.3
 
 Bạn đã có thư mục `db_30_3_text`, nên chạy thẳng:

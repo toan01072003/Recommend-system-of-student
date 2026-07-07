@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import argparse
+import mimetypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
@@ -30,7 +31,9 @@ QUESTION_JSON = DATA / "onet_interest_profiler_questions.json"
 QUESTION_MAP_ONET = DATA / "question_map_onet.csv"
 QUESTION_MAP_TEMPLATE = DATA / "question_map_template.csv"
 CAREER_VECTORS = DATA / "career_vectors_onet.csv"
-INDEX_HTML = PROJECT_ROOT / "web" / "index.html"
+FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
+LEGACY_WEB = PROJECT_ROOT / "web"
+INDEX_HTML = LEGACY_WEB / "index.html"
 
 DEMO_TEXT = {
     "R": "Toi thich lam viec voi vat lieu, may moc, cong cu hoac hoat dong thuc hanh.",
@@ -100,12 +103,39 @@ def recommend(payload: dict) -> dict:
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
         path = urlparse(self.path).path
-        if path == "/":
-            self.send_file(INDEX_HTML, "text/html; charset=utf-8")
-            return
         if path == "/api/questions":
             self.send_json({"questions": load_questions()})
             return
+        if path.startswith("/api/"):
+            self.send_error(404)
+            return
+        self.send_static(path)
+
+    def send_static(self, request_path: str) -> None:
+        if (FRONTEND_DIST / "index.html").exists():
+            static_root = FRONTEND_DIST
+            relative_path = "index.html" if request_path == "/" else request_path.lstrip("/")
+            file_path = (static_root / relative_path).resolve()
+
+            try:
+                file_path.relative_to(static_root.resolve())
+            except ValueError:
+                self.send_error(404)
+                return
+
+            if not file_path.is_file():
+                file_path = static_root / "index.html"
+
+            content_type = mimetypes.guess_type(file_path.name)[0] or "application/octet-stream"
+            if file_path.suffix == ".html":
+                content_type = "text/html; charset=utf-8"
+            self.send_file(file_path, content_type)
+            return
+
+        if request_path == "/":
+            self.send_file(INDEX_HTML, "text/html; charset=utf-8")
+            return
+
         self.send_error(404)
 
     def do_POST(self) -> None:
