@@ -14,7 +14,13 @@ Engine này nhận câu trả lời assessment của học sinh, chấm thành v
 ## Chạy demo
 
 ```powershell
-python recommend_engine.py --answers data/student_answers_example.json --top 10
+python backend/recommend_engine.py --answers data/student_answers_example.json --top 10
+```
+
+Chạy web demo Python:
+
+```powershell
+python backend/app.py
 ```
 
 ## Build career vector thật từ O*NET 30.3
@@ -22,7 +28,7 @@ python recommend_engine.py --answers data/student_answers_example.json --top 10
 Bạn đã có thư mục `db_30_3_text`, nên chạy thẳng:
 
 ```powershell
-& 'C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' recommend_engine.py `
+& 'C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' backend/recommend_engine.py `
   --build-onet `
   --interests "db_30_3_text\Career Interest Types.txt" `
   --occupation-data "db_30_3_text\Occupation Data.txt" `
@@ -32,7 +38,7 @@ Bạn đã có thư mục `db_30_3_text`, nên chạy thẳng:
 Sau đó dùng file thật:
 
 ```powershell
-& 'C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' recommend_engine.py `
+& 'C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' backend/recommend_engine.py `
   --answers data/student_answers_example.json `
   --question-map data/question_map_template.csv `
   --career-vectors data/career_vectors_onet.csv `
@@ -47,7 +53,7 @@ Fetch câu hỏi thật một lần:
 
 ```powershell
 $env:ONET_API_KEY = "<your_key>"
-& 'C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' fetch_onet_questions.py `
+& 'C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' backend/fetch_onet_questions.py `
   --out data/onet_interest_profiler_questions.json `
   --question-map-out data/question_map_onet.csv
 ```

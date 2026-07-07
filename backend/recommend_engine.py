@@ -27,6 +27,7 @@ from typing import Iterable
 
 
 RIASEC_ORDER = ["R", "I", "A", "S", "E", "C"]
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 ONET_TO_SHORT = {
     "Realistic": "R",
     "Investigative": "I",
@@ -217,13 +218,13 @@ def print_ranked(ranked: list[RankedCareer], student_vector: list[float]) -> Non
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Rank careers from student RIASEC/Holland answers.")
     parser.add_argument("--answers", help="JSON answers file. Accepts [1..5] list or {question_id: score}.")
-    parser.add_argument("--question-map", default="data/question_map_template.csv")
-    parser.add_argument("--career-vectors", default="data/career_vectors_sample.csv")
+    parser.add_argument("--question-map", default=PROJECT_ROOT / "data" / "question_map_template.csv")
+    parser.add_argument("--career-vectors", default=PROJECT_ROOT / "data" / "career_vectors_sample.csv")
     parser.add_argument("--top", type=int, default=10)
     parser.add_argument("--build-onet", action="store_true", help="Build career vector CSV from O*NET files.")
     parser.add_argument("--interests", help="Path to O*NET Career Interest Types.txt, or older Interests.txt")
     parser.add_argument("--occupation-data", help="Path to O*NET Occupation Data.txt")
-    parser.add_argument("--out", default="data/career_vectors_onet.csv")
+    parser.add_argument("--out", default=PROJECT_ROOT / "data" / "career_vectors_onet.csv")
     return parser.parse_args()
 
 

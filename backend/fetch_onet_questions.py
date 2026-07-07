@@ -18,6 +18,7 @@ from pathlib import Path
 
 
 API_URL = "https://api-v2.onetcenter.org/mnm/interestprofiler/questions?start=1&end=60"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
 def fetch_questions(api_key: str) -> dict:
@@ -37,8 +38,8 @@ def write_question_map(payload: dict, path: Path) -> None:
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description="Fetch and cache O*NET Interest Profiler questions.")
-    parser.add_argument("--out", default="data/onet_interest_profiler_questions.json")
-    parser.add_argument("--question-map-out", default="data/question_map_onet.csv")
+    parser.add_argument("--out", default=PROJECT_ROOT / "data" / "onet_interest_profiler_questions.json")
+    parser.add_argument("--question-map-out", default=PROJECT_ROOT / "data" / "question_map_onet.csv")
     return parser.parse_args()
 
 

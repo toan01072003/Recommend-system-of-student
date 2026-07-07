@@ -6,22 +6,31 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import urlparse
 
-from recommend_engine import (
-    RIASEC_ORDER,
-    load_career_vectors,
-    load_question_map,
-    rank_careers,
-    score_student_answers,
-)
+try:
+    from .recommend_engine import (
+        RIASEC_ORDER,
+        load_career_vectors,
+        load_question_map,
+        rank_careers,
+        score_student_answers,
+    )
+except ImportError:
+    from recommend_engine import (
+        RIASEC_ORDER,
+        load_career_vectors,
+        load_question_map,
+        rank_careers,
+        score_student_answers,
+    )
 
 
-ROOT = Path(__file__).parent
-DATA = ROOT / "data"
+PROJECT_ROOT = Path(__file__).resolve().parents[1]
+DATA = PROJECT_ROOT / "data"
 QUESTION_JSON = DATA / "onet_interest_profiler_questions.json"
 QUESTION_MAP_ONET = DATA / "question_map_onet.csv"
 QUESTION_MAP_TEMPLATE = DATA / "question_map_template.csv"
 CAREER_VECTORS = DATA / "career_vectors_onet.csv"
-INDEX_HTML = ROOT / "web" / "index.html"
+INDEX_HTML = PROJECT_ROOT / "web" / "index.html"
 
 DEMO_TEXT = {
     "R": "Toi thich lam viec voi vat lieu, may moc, cong cu hoac hoat dong thuc hanh.",
