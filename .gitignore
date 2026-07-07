@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local server/runtime logs
+*.log
+server.out.log
+server.err.log
+
+# O*NET raw download dump.
+# Keep generated demo-ready files under data/.
+db_30_3_text/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

@@ -1,0 +1,312 @@
+<!doctype html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Career Recommendation Demo</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #17202a;
+      --muted: #637083;
+      --line: #d8dee8;
+      --soft: #f6f8fb;
+      --brand: #0f766e;
+      --brand-weak: #e6f4f1;
+      --warn: #9a3412;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: var(--ink);
+      background: #ffffff;
+    }
+    header {
+      position: sticky;
+      top: 0;
+      z-index: 2;
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+      padding: 14px 22px;
+      border-bottom: 1px solid var(--line);
+      background: rgba(255,255,255,.96);
+    }
+    h1 {
+      margin: 0;
+      font-size: 20px;
+      letter-spacing: 0;
+    }
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 390px;
+      gap: 22px;
+      max-width: 1280px;
+      margin: 0 auto;
+      padding: 22px;
+    }
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+    .toolbar {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+    }
+    button {
+      border: 1px solid var(--brand);
+      border-radius: 6px;
+      padding: 9px 12px;
+      background: var(--brand);
+      color: white;
+      font-weight: 700;
+      cursor: pointer;
+    }
+    button.secondary {
+      background: #fff;
+      color: var(--brand);
+    }
+    button:disabled {
+      opacity: .55;
+      cursor: not-allowed;
+    }
+    .meta {
+      color: var(--muted);
+      font-size: 13px;
+    }
+    .questions {
+      display: grid;
+      gap: 12px;
+    }
+    .question {
+      padding: 14px;
+    }
+    .question-head {
+      display: flex;
+      gap: 10px;
+      align-items: baseline;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .question-title {
+      font-weight: 700;
+      line-height: 1.35;
+    }
+    .pill {
+      min-width: 30px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: var(--brand-weak);
+      color: #115e59;
+      text-align: center;
+      font-size: 12px;
+      font-weight: 700;
+    }
+    .scale {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(88px, 1fr));
+      gap: 8px;
+    }
+    label.option {
+      display: flex;
+      min-height: 40px;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--soft);
+      cursor: pointer;
+      text-align: center;
+      font-size: 13px;
+    }
+    label.option:has(input:checked) {
+      border-color: var(--brand);
+      background: var(--brand-weak);
+      color: #115e59;
+      font-weight: 700;
+    }
+    input[type="radio"] { margin: 0; }
+    aside {
+      position: sticky;
+      top: 70px;
+      align-self: start;
+      padding: 16px;
+    }
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 8px;
+      margin: 12px 0 16px;
+    }
+    .score {
+      padding: 10px;
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      background: var(--soft);
+    }
+    .score strong {
+      display: block;
+      font-size: 18px;
+    }
+    .results {
+      display: grid;
+      gap: 10px;
+    }
+    .career {
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+    .career-top {
+      display: flex;
+      gap: 10px;
+      justify-content: space-between;
+      align-items: start;
+    }
+    .career h3 {
+      margin: 0;
+      font-size: 15px;
+      line-height: 1.35;
+    }
+    .error {
+      color: var(--warn);
+      font-weight: 700;
+    }
+    @media (max-width: 900px) {
+      main { grid-template-columns: 1fr; padding: 14px; }
+      aside { position: static; }
+      .scale { grid-template-columns: 1fr; }
+      header { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div>
+      <h1>Career Recommendation Demo</h1>
+      <div id="source" class="meta">Loading questions...</div>
+    </div>
+    <div class="toolbar">
+      <button class="secondary" id="fill">Auto fill</button>
+      <button id="submit">Show top 10</button>
+    </div>
+  </header>
+  <main>
+    <section>
+      <div id="questions" class="questions"></div>
+    </section>
+    <aside class="panel">
+      <div class="meta" id="status">Answer all questions, then submit.</div>
+      <div class="summary" id="vector"></div>
+      <div class="results" id="results"></div>
+    </aside>
+  </main>
+
+  <script>
+    const labels = {
+      1: "Strongly dislike",
+      2: "Dislike",
+      3: "Unsure",
+      4: "Like",
+      5: "Strongly like",
+    };
+    let questions = [];
+
+    function selectedAnswers() {
+      return questions.map((q) => {
+        const input = document.querySelector(`input[name="q${q.id}"]:checked`);
+        return input ? Number(input.value) : null;
+      });
+    }
+
+    function renderQuestions() {
+      const root = document.getElementById("questions");
+      root.innerHTML = questions.map((q) => `
+        <article class="panel question">
+          <div class="question-head">
+            <div class="question-title">${q.id}. ${q.text}</div>
+            <div class="pill">${q.area[0].toUpperCase()}</div>
+          </div>
+          <div class="scale">
+            ${[1,2,3,4,5].map((value) => `
+              <label class="option">
+                <input type="radio" name="q${q.id}" value="${value}">
+                <span>${labels[value]}</span>
+              </label>
+            `).join("")}
+          </div>
+        </article>
+      `).join("");
+    }
+
+    function renderVector(vector) {
+      document.getElementById("vector").innerHTML = Object.entries(vector).map(([key, value]) => `
+        <div class="score"><span>${key}</span><strong>${value}</strong></div>
+      `).join("");
+    }
+
+    function renderResults(results) {
+      document.getElementById("results").innerHTML = results.map((item) => `
+        <article class="career">
+          <div class="career-top">
+            <h3>${item.rank}. ${item.title}</h3>
+            <span class="pill">${Math.round(item.score * 100)}%</span>
+          </div>
+          <div class="meta">${item.soc_code}</div>
+        </article>
+      `).join("");
+    }
+
+    async function loadQuestions() {
+      const res = await fetch("/api/questions");
+      const data = await res.json();
+      questions = data.questions;
+      renderQuestions();
+      const source = questions[0]?.source === "onet" ? "O*NET questions" : "Demo questions";
+      document.getElementById("source").textContent = `${questions.length} questions · ${source}`;
+    }
+
+    async function submitAnswers() {
+      const answers = selectedAnswers();
+      const missing = answers.filter((value) => value === null).length;
+      if (missing) {
+        document.getElementById("status").innerHTML = `<span class="error">Missing ${missing} answers.</span>`;
+        return;
+      }
+      document.getElementById("submit").disabled = true;
+      document.getElementById("status").textContent = "Ranking careers...";
+      try {
+        const res = await fetch("/api/recommend", {
+          method: "POST",
+          headers: {"Content-Type": "application/json"},
+          body: JSON.stringify({answers}),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Request failed");
+        renderVector(data.student_vector);
+        renderResults(data.results);
+        document.getElementById("status").textContent = "Top 10 career matches";
+      } catch (err) {
+        document.getElementById("status").innerHTML = `<span class="error">${err.message}</span>`;
+      } finally {
+        document.getElementById("submit").disabled = false;
+      }
+    }
+
+    document.getElementById("fill").addEventListener("click", () => {
+      questions.forEach((q, idx) => {
+        const value = (idx % 6 === 1 || idx % 6 === 5) ? 5 : ((idx % 3) + 2);
+        document.querySelector(`input[name="q${q.id}"][value="${value}"]`).checked = true;
+      });
+    });
+    document.getElementById("submit").addEventListener("click", submitAnswers);
+    loadQuestions();
+  </script>
+</body>
+</html>
