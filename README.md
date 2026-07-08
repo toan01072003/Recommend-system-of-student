@@ -45,6 +45,10 @@ API hiện có:
 ```text
 GET  /api/questions
 POST /api/recommend
+GET  /api/dashboard
+GET  /api/app-data
+GET  /api/students
+GET  /api/students/<student_id>
 ```
 
 Payload mẫu cho `/api/recommend`:
@@ -56,6 +60,29 @@ Payload mẫu cho `/api/recommend`:
 ```
 
 Trong thực tế mảng `answers` cần đủ 60 điểm, mỗi điểm từ `1..5`.
+
+## Database học sinh
+
+Dữ liệu học sinh synthetic được import từ Excel vào SQLite:
+
+```text
+data/synthetic_student_profiles_50_v2_names_score_history.xlsx
+data/recommend_system.db
+```
+
+Tạo lại database sau khi file Excel thay đổi:
+
+```powershell
+python backend/import_student_profiles.py
+```
+
+Script sẽ đọc các sheet `Wide_Profile_50` và `Score_History_Long`, rồi ghi vào:
+
+```text
+data/recommend_system.db
+```
+
+Các API `GET /api/dashboard`, `GET /api/app-data`, `GET /api/students`, `GET /api/students/<student_id>` đọc dữ liệu từ SQLite này. Frontend sẽ gọi `/api/app-data` khi backend đang chạy; nếu API chưa sẵn sàng thì tạm dùng snapshot local trong `frontend/src/app/data.ts`.
 
 ## Chạy React frontend khi phát triển
 

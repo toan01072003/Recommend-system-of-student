@@ -5,106 +5,42 @@ import argparse
 import mimetypes
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, unquote, urlparse
 
 try:
-    from .recommend_engine import (
-        RIASEC_ORDER,
-        load_career_vectors,
-        load_question_map,
-        rank_careers,
-        score_student_answers,
-    )
+    from . import api
 except ImportError:
-    from recommend_engine import (
-        RIASEC_ORDER,
-        load_career_vectors,
-        load_question_map,
-        rank_careers,
-        score_student_answers,
-    )
+    import api
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATA = PROJECT_ROOT / "data"
-QUESTION_JSON = DATA / "onet_interest_profiler_questions.json"
-QUESTION_MAP_ONET = DATA / "question_map_onet.csv"
-QUESTION_MAP_TEMPLATE = DATA / "question_map_template.csv"
-CAREER_VECTORS = DATA / "career_vectors_onet.csv"
+PROJECT_ROOT = api.PROJECT_ROOT
 FRONTEND_DIST = PROJECT_ROOT / "frontend" / "dist"
 LEGACY_WEB = PROJECT_ROOT / "web"
 INDEX_HTML = LEGACY_WEB / "index.html"
 
-DEMO_TEXT = {
-    "R": "Toi thich lam viec voi vat lieu, may moc, cong cu hoac hoat dong thuc hanh.",
-    "I": "Toi thich phan tich du lieu, nghien cuu, tim loi giai cho van de phuc tap.",
-    "A": "Toi thich sang tao noi dung, thiet ke, viet, ve hoac bieu dat y tuong.",
-    "S": "Toi thich giup do, huong dan, day hoc hoac lam viec truc tiep voi con nguoi.",
-    "E": "Toi thich thuyet phuc, lanh dao, kinh doanh hoac khoi xuong du an.",
-    "C": "Toi thich sap xep thong tin, lam viec voi quy trinh, so lieu va chi tiet.",
-}
-
-
-def active_question_map_path() -> Path:
-    return QUESTION_MAP_ONET if QUESTION_MAP_ONET.exists() else QUESTION_MAP_TEMPLATE
-
-
-def load_questions() -> list[dict]:
-    if QUESTION_JSON.exists():
-        payload = json.loads(QUESTION_JSON.read_text(encoding="utf-8"))
-        return [
-            {
-                "id": int(item["index"]),
-                "area": item["area"],
-                "text": item["text"],
-                "source": "onet",
-            }
-            for item in payload["question"]
-        ]
-
-    question_map = load_question_map(active_question_map_path())
-    return [
-        {
-            "id": question_id,
-            "area": dimension.lower(),
-            "text": f"{DEMO_TEXT[dimension]} ({question_id})",
-            "source": "demo",
-        }
-        for question_id, dimension in sorted(question_map.items())
-    ]
-
-
-def recommend(payload: dict) -> dict:
-    answers_list = payload.get("answers")
-    if not isinstance(answers_list, list):
-        raise ValueError("answers must be a list of 60 scores")
-
-    answers = {idx + 1: int(value) for idx, value in enumerate(answers_list)}
-    question_map = load_question_map(active_question_map_path())
-    careers = load_career_vectors(CAREER_VECTORS)
-    student_vector = score_student_answers(answers, question_map)
-    ranked = rank_careers(student_vector, careers, top_n=10)
-
-    return {
-        "student_vector": dict(zip(RIASEC_ORDER, student_vector)),
-        "results": [
-            {
-                "rank": item.rank,
-                "soc_code": item.soc_code,
-                "title": item.title,
-                "score": round(item.score, 4),
-                "vector": dict(zip(RIASEC_ORDER, item.vector)),
-            }
-            for item in ranked
-        ],
-    }
-
 
 class Handler(BaseHTTPRequestHandler):
     def do_GET(self) -> None:
-        path = urlparse(self.path).path
+        parsed = urlparse(self.path)
+        path = parsed.path
         if path == "/api/questions":
-            self.send_json({"questions": load_questions()})
+            self.send_json_or_api_error(api.questions_payload)
+            return
+        if path == "/api/dashboard":
+            self.send_json_or_api_error(api.dashboard_payload)
+            return
+        if path == "/api/app-data":
+            self.send_json_or_api_error(api.app_data_payload)
+            return
+        if path == "/api/students":
+            query = parse_qs(parsed.query)
+            grade = query["grade"][0] if query.get("grade") else None
+            class_name = query["class"][0] if query.get("class") else None
+            self.send_json_or_api_error(lambda: api.students_payload(grade, class_name))
+            return
+        if path.startswith("/api/students/"):
+            student_id = unquote(path.removeprefix("/api/students/"))
+            self.send_json_or_api_error(lambda: api.student_payload(student_id))
             return
         if path.startswith("/api/"):
             self.send_error(404)
@@ -147,7 +83,7 @@ class Handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
-            self.send_json(recommend(payload))
+            self.send_json(api.recommend_payload(payload))
         except Exception as exc:
             self.send_json({"error": str(exc)}, status=400)
 
@@ -166,6 +102,18 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def send_json_or_api_error(self, loader) -> None:
+        try:
+            self.send_json(loader())
+        except ValueError as exc:
+            self.send_json({"error": str(exc)}, status=400)
+        except FileNotFoundError as exc:
+            self.send_json({"error": str(exc)}, status=503)
+        except LookupError as exc:
+            self.send_json({"error": str(exc)}, status=404)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, status=500)
 
 
 def main() -> None:

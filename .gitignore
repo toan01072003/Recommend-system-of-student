@@ -34,6 +34,12 @@ yarn-error.log*
 # Keep generated demo-ready files under data/.
 db_30_3_text/
 
+# Local/generated databases
+*.db
+*.sqlite
+*.sqlite3
+data/recommend_system.db
+
 # OS/editor noise
 .DS_Store
 Thumbs.db
