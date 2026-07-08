@@ -1,44 +1,131 @@
 # RIASEC Career Recommendation MVP
 
-Engine này nhận câu trả lời assessment của học sinh, chấm thành vector Holland/RIASEC, rồi so cosine similarity với vector nghề để trả về top career.
+Hệ thống gợi ý nghề nghiệp dựa trên Holland/RIASEC. Backend nhận câu trả lời assessment của học sinh, chấm thành vector `R/I/A/S/E/C`, rồi so cosine similarity với vector nghề từ O*NET để trả về danh sách nghề phù hợp nhất.
 
-## Pipeline
+## Cấu trúc dự án
 
-1. Học sinh trả lời 60 câu, mỗi câu điểm `1..5`.
-2. `question_map_template.csv` map mỗi câu vào một chiều `R/I/A/S/E/C`.
-3. Engine cộng điểm theo nhóm để ra `student_vector = [R, I, A, S, E, C]`.
-4. Career vector lấy từ O*NET `Career Interest Types.txt` trong bản 30.3, chỉ dùng dòng `Scale ID == OI`.
-5. Cosine similarity giữa `student_vector` và từng career vector.
-6. Sort giảm dần, trả top 10.
+```text
+backend/                 Python backend, API, recommendation engine
+data/                    Dữ liệu mẫu, câu hỏi O*NET, career vectors
+frontend/                React + Vite frontend
+web/                     HTML demo cũ do backend Python phục vụ khi chưa build React
+ONET_PIPELINE_NOTES.md   Ghi chú chi tiết về pipeline O*NET
+```
 
-## Chạy demo
+## Môi trường
+
+- Python `3.12+`
+- Node.js `24+`
+- npm `11+`
+
+Trên PowerShell Windows, nếu `npm` bị chặn bởi Execution Policy, dùng `npm.cmd`.
+
+## Chạy nhanh backend engine
 
 ```powershell
 python backend/recommend_engine.py --answers data/student_answers_example.json --top 10
 ```
 
-Chạy web demo Python:
+Kết quả sẽ in `student_vector` và top nghề phù hợp theo cosine similarity.
+
+## Chạy backend API
 
 ```powershell
 python backend/app.py
 ```
 
-Chạy React frontend trong lúc phát triển:
+Mặc định server chạy tại:
+
+```text
+http://127.0.0.1:8001
+```
+
+API hiện có:
+
+```text
+GET  /api/questions
+POST /api/recommend
+```
+
+Payload mẫu cho `/api/recommend`:
+
+```json
+{
+  "answers": [3, 4, 5, 2, 1]
+}
+```
+
+Trong thực tế mảng `answers` cần đủ 60 điểm, mỗi điểm từ `1..5`.
+
+## Chạy React frontend khi phát triển
+
+Cài dependencies nếu chưa có:
+
+```powershell
+cd frontend
+npm.cmd install
+```
+
+Chạy dev server:
+
+```powershell
+npm.cmd run dev
+```
+
+Vite proxy mọi request `/api/*` sang backend mặc định ở:
+
+```text
+http://127.0.0.1:8001
+```
+
+Vì vậy khi dev cần mở 2 terminal:
+
+```powershell
+python backend/app.py
+```
 
 ```powershell
 cd frontend
 npm.cmd run dev
 ```
 
-Vite sẽ proxy các request `/api/*` sang backend mặc định ở `http://127.0.0.1:8001`.
-Khi đã build `frontend/dist`, backend sẽ tự phục vụ bản build React.
+## Build và chạy production local
 
-## Build career vector thật từ O*NET 30.3
-
-Bạn đã có thư mục `db_30_3_text`, nên chạy thẳng:
+Build frontend:
 
 ```powershell
-& 'C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' backend/recommend_engine.py `
+cd frontend
+npm.cmd run build
+```
+
+Sau khi có `frontend/dist`, backend Python sẽ tự phục vụ bản React build:
+
+```powershell
+cd ..
+python backend/app.py
+```
+
+Mở:
+
+```text
+http://127.0.0.1:8001
+```
+
+## Pipeline recommendation
+
+1. Học sinh trả lời 60 câu, mỗi câu điểm `1..5`.
+2. `data/question_map_onet.csv` hoặc `data/question_map_template.csv` map mỗi câu vào một chiều `R/I/A/S/E/C`.
+3. Backend cộng điểm theo nhóm để tạo `student_vector = [R, I, A, S, E, C]`.
+4. Career vector lấy từ O*NET `Career Interest Types.txt`, chỉ dùng dòng `Scale ID == OI`.
+5. Engine tính cosine similarity giữa `student_vector` và từng career vector.
+6. Sort giảm dần và trả top nghề phù hợp.
+
+## Build career vector từ O*NET 30.3
+
+Nếu đã có thư mục raw O*NET `db_30_3_text/`, chạy:
+
+```powershell
+python backend/recommend_engine.py `
   --build-onet `
   --interests "db_30_3_text\Career Interest Types.txt" `
   --occupation-data "db_30_3_text\Occupation Data.txt" `
@@ -48,24 +135,40 @@ Bạn đã có thư mục `db_30_3_text`, nên chạy thẳng:
 Sau đó dùng file thật:
 
 ```powershell
-& 'C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' backend/recommend_engine.py `
+python backend/recommend_engine.py `
   --answers data/student_answers_example.json `
-  --question-map data/question_map_template.csv `
+  --question-map data/question_map_onet.csv `
   --career-vectors data/career_vectors_onet.csv `
   --top 10
 ```
 
-## Việc cần làm tiếp
+## Fetch câu hỏi O*NET
 
-`data/question_map_template.csv` chỉ là template để code chạy end-to-end. Khi dùng assessment thật, lấy 60 câu từ O*NET Web Services endpoint `/mnm/interestprofiler/questions`, lưu text câu hỏi trong DB/app của mình, và giữ `index -> area` làm mapping chuẩn.
-
-Fetch câu hỏi thật một lần:
+Không gọi O*NET API trực tiếp từ frontend. Fetch một lần ở backend/admin tooling rồi cache vào `data/`.
 
 ```powershell
 $env:ONET_API_KEY = "<your_key>"
-& 'C:\Users\Administrator\.cache\codex-runtimes\codex-primary-runtime\dependencies\python\python.exe' backend/fetch_onet_questions.py `
+python backend/fetch_onet_questions.py `
   --out data/onet_interest_profiler_questions.json `
   --question-map-out data/question_map_onet.csv
 ```
 
-Sau đó thay `--question-map data/question_map_onet.csv` khi rank career.
+## Lưu ý Git
+
+Các thư mục sinh ra khi chạy local đã nằm trong `.gitignore`, gồm:
+
+```text
+frontend/node_modules/
+frontend/dist/
+backend/__pycache__/
+*.log
+db_30_3_text/
+```
+
+Khi đổi cấu trúc file hoặc move backend, dùng:
+
+```powershell
+git add -A
+```
+
+để Git nhận đúng file rename/delete/add.
