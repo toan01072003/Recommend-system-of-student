@@ -29,6 +29,7 @@ const viewPathMap: Record<string, string> = {
   "co-report-college": "/counselor/reports/college",
   "co-messenger": "/counselor/messenger",
   "co-advice": "/counselor/advice",
+  "co-meeting": "/counselor/meeting",
   "st-dashboard": "/student/dashboard",
   "st-lessons": "/student/lessons",
   "st-surveys": "/student/surveys",
@@ -44,6 +45,7 @@ const viewPathMap: Record<string, string> = {
   "st-plan-pathways": "/student/plan/pathways",
   "st-messenger": "/student/messenger",
   "st-advice": "/student/advice",
+  "st-meeting": "/student/meeting",
 };
 
 const pathViewMap = Object.fromEntries(

@@ -9,6 +9,11 @@ from pathlib import Path
 from zipfile import ZipFile
 import xml.etree.ElementTree as ET
 
+try:
+    from . import student_database
+except ImportError:
+    import student_database
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_EXCEL = PROJECT_ROOT / "data" / "synthetic_student_profiles_50_v2_names_score_history.xlsx"
@@ -184,6 +189,20 @@ def create_schema(conn: sqlite3.Connection) -> None:
         """
         PRAGMA foreign_keys = ON;
 
+        DROP TABLE IF EXISTS survey_results;
+        DROP TABLE IF EXISTS surveys;
+        DROP TABLE IF EXISTS advice_notes;
+        DROP TABLE IF EXISTS messages;
+        DROP TABLE IF EXISTS meetings;
+        DROP TABLE IF EXISTS parent_students;
+        DROP TABLE IF EXISTS counselor_students;
+        DROP TABLE IF EXISTS teacher_classes;
+        DROP TABLE IF EXISTS student_users;
+        DROP TABLE IF EXISTS accounts;
+        DROP TABLE IF EXISTS parents;
+        DROP TABLE IF EXISTS counselors;
+        DROP TABLE IF EXISTS teachers;
+        DROP TABLE IF EXISTS users;
         DROP TABLE IF EXISTS score_history;
         DROP TABLE IF EXISTS students;
         DROP TABLE IF EXISTS import_metadata;
@@ -261,9 +280,61 @@ def create_schema(conn: sqlite3.Connection) -> None:
             score REAL NOT NULL
         );
 
+        CREATE TABLE meetings (
+            meeting_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+            student_name TEXT NOT NULL,
+            class_name TEXT,
+            counselor_id TEXT NOT NULL DEFAULT 'COUNSELOR001' REFERENCES counselors(counselor_id) ON DELETE CASCADE,
+            counselor_name TEXT NOT NULL DEFAULT 'Nguyễn Văn Minh',
+            topic TEXT NOT NULL,
+            meeting_type TEXT NOT NULL CHECK(meeting_type IN ('offline', 'online')),
+            meeting_url TEXT,
+            scheduled_at TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'scheduled',
+            student_seen_at TEXT,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE messages (
+            message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+            student_name TEXT NOT NULL,
+            class_name TEXT,
+            counselor_id TEXT NOT NULL DEFAULT 'COUNSELOR001' REFERENCES counselors(counselor_id) ON DELETE CASCADE,
+            counselor_name TEXT NOT NULL DEFAULT 'Nguyễn Văn Minh',
+            sender_role TEXT NOT NULL CHECK(sender_role IN ('student', 'counselor')),
+            message_text TEXT NOT NULL,
+            sent_at TEXT NOT NULL,
+            student_seen_at TEXT,
+            counselor_seen_at TEXT
+        );
+
+        CREATE TABLE advice_notes (
+            advice_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            student_id TEXT NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+            student_name TEXT NOT NULL,
+            class_name TEXT,
+            counselor_id TEXT NOT NULL DEFAULT 'COUNSELOR001' REFERENCES counselors(counselor_id) ON DELETE CASCADE,
+            counselor_name TEXT NOT NULL DEFAULT 'Nguyễn Văn Minh',
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            priority TEXT NOT NULL DEFAULT 'medium' CHECK(priority IN ('high', 'medium', 'low')),
+            student_seen_at TEXT,
+            created_at TEXT NOT NULL
+        );
+
         CREATE INDEX idx_students_grade_class ON students(grade, class_name);
         CREATE INDEX idx_students_risk ON students(risk_level);
         CREATE INDEX idx_score_history_student ON score_history(student_id, grade_level, term);
+        CREATE INDEX idx_meetings_student_time ON meetings(student_id, scheduled_at);
+        CREATE INDEX idx_meetings_counselor_time ON meetings(counselor_id, scheduled_at);
+        CREATE INDEX idx_meetings_time ON meetings(scheduled_at);
+        CREATE INDEX idx_messages_student_time ON messages(student_id, sent_at);
+        CREATE INDEX idx_messages_counselor_time ON messages(counselor_id, sent_at);
+        CREATE INDEX idx_advice_notes_student_time ON advice_notes(student_id, created_at);
+        CREATE INDEX idx_advice_notes_counselor_time ON advice_notes(counselor_id, created_at);
+        CREATE INDEX idx_advice_notes_priority ON advice_notes(priority);
         """
     )
 
@@ -388,9 +459,14 @@ def import_workbook(excel_path: Path, db_path: Path) -> dict:
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
     with sqlite3.connect(db_path) as conn:
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.row_factory = sqlite3.Row
         create_schema(conn)
         insert_students(conn, profiles)
         insert_score_history(conn, score_history)
+        student_database.ensure_identity_tables(conn)
+        student_database.seed_identity_data(conn)
+        student_database.ensure_surveys_tables(conn)
         conn.executemany(
             "INSERT INTO import_metadata(key, value) VALUES (?, ?)",
             [

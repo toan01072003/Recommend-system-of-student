@@ -19,6 +19,7 @@ import { ParentPortal } from "./screens/parent/ParentScreens";
 import {
   AdvisementNotesCounselor,
   AdvisementNotesStudent,
+  MeetingCenter,
   MessengerView,
   StudentApplicationResults,
   StudentAssignment,
@@ -189,6 +190,8 @@ export default function AppShell() {
         return <MessengerView role="student" />;
       case "st-advice":
         return <AdvisementNotesStudent />;
+      case "st-meeting":
+        return <MeetingCenter role="student" />;
 
       // COUNSELOR READ/CREATE/UPDATE: dashboards, student detail, lessons, surveys, reports
       case "co-dashboard":
@@ -283,6 +286,8 @@ export default function AppShell() {
         return <MessengerView role="counselor" />;
       case "co-advice":
         return <AdvisementNotesCounselor />;
+      case "co-meeting":
+        return <MeetingCenter role="counselor" />;
       default:
         return <SchoolOverview navigate={navigate} />;
     }

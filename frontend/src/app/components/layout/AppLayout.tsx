@@ -7,6 +7,7 @@ import {
   Bell,
   BookMarked,
   BookOpen,
+  CalendarDays,
   ChevronDown,
   ClipboardList,
   Compass,
@@ -86,6 +87,7 @@ const counselorNavGroups: NavGroup[] = [
     items: [
       { id: "co-messenger", label: "Messenger", icon: MessageSquare },
       { id: "co-advice", label: "Advice Notes", icon: BookMarked },
+      { id: "co-meeting", label: "Meeting", icon: CalendarDays },
     ],
   },
 ];
@@ -134,6 +136,7 @@ const studentNavGroups: NavGroup[] = [
     items: [
       { id: "st-messenger", label: "Messenger", icon: MessageSquare },
       { id: "st-advice", label: "Advisement Notes", icon: BookMarked },
+      { id: "st-meeting", label: "Meeting", icon: CalendarDays },
     ],
   },
 ];

@@ -14,7 +14,8 @@ Mục tiêu: tìm code theo domain nghiệp vụ và thao tác CRUD.
 
 - `teacher/TeacherScreens.tsx`
   - `TeacherEntry`: nhập/cập nhật dữ liệu học sinh.
-- `counselor/CounselorScreens.tsx`
+- `counselor/create/CounselorCreateScreens.tsx`
+  - `CounselorFeatureStub`
   - `CounselorLessons`: tạo bài học.
   - `CounselorSurveys`: tạo khảo sát.
 
@@ -39,11 +40,17 @@ Mục tiêu: tìm code theo domain nghiệp vụ và thao tác CRUD.
   - `MessengerView`
   - `AdvisementNotesStudent`
   - `AdvisementNotesCounselor`
-- `counselor/CounselorScreens.tsx`
+- `counselor/CounselorScreens.tsx`: barrel export, giữ API import cũ cho `AppShell`.
+- `counselor/read/CounselorDashboard.tsx`
   - `CounselorDashboard`
+- `counselor/read/CounselorStudentList.tsx`
   - `CounselorStudentList`
+- `counselor/read/CounselorStudentGroups.tsx`
   - `CounselorStudentGroups`
-  - report screens
+- `counselor/read/CounselorFamilies.tsx`
+  - `CounselorFamilies`
+- `counselor/reports/CounselorReports.tsx`
+  - counselor report screens
 
 ### Update
 
@@ -59,6 +66,8 @@ Mục tiêu: tìm code theo domain nghiệp vụ và thao tác CRUD.
   - `StudentPortfolio`
   - `StudentPlanGrade`
   - `StudentPlanPathways`
+- `counselor/update/CounselorStudentDetail.tsx`
+  - `CounselorStudentDetail`: cập nhật/tạo support actions như meeting, message, advice note, alumni recommendation.
 - `components/counselor/StudentRecommendationPanel.tsx`
   - lấy và hiển thị gợi ý/đánh giá cho từng học sinh.
 

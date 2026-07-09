@@ -74,6 +74,33 @@ def questions_payload() -> dict:
     return {"questions": load_questions()}
 
 
+def surveys_payload(
+    role: str | None = None,
+    counselor_id: str | None = None,
+    student_id: str | None = None,
+) -> dict:
+    return {
+        "surveys": student_database.list_surveys(
+            STUDENT_DB,
+            role=role,
+            counselor_id=counselor_id,
+            student_id=student_id,
+        )
+    }
+
+
+def survey_payload(survey_id: int) -> dict:
+    return student_database.get_survey(survey_id, STUDENT_DB)
+
+
+def create_survey_payload(payload: dict) -> dict:
+    return {"survey": student_database.create_survey(payload, STUDENT_DB)}
+
+
+def submit_survey_result_payload(survey_id: int, payload: dict) -> dict:
+    return student_database.submit_survey_result(survey_id, payload, STUDENT_DB)
+
+
 def recommend_payload(payload: dict) -> dict:
     answers_list = payload.get("answers")
     if not isinstance(answers_list, list):
@@ -199,6 +226,10 @@ def app_data_payload() -> dict:
     return student_database.app_data(STUDENT_DB)
 
 
+def identity_payload() -> dict:
+    return student_database.identity_data(STUDENT_DB)
+
+
 def students_payload(grade: str | None = None, class_name: str | None = None) -> dict:
     normalized_grade = int(grade) if grade else None
     return {"students": student_database.list_students(STUDENT_DB, normalized_grade, class_name)}
@@ -209,3 +240,80 @@ def student_payload(student_id: str) -> dict:
     if student is None:
         raise LookupError(f"Student not found: {student_id}")
     return {"student": student}
+
+
+def meetings_payload(
+    role: str | None = None,
+    student_id: str | None = None,
+    counselor_id: str | None = None,
+) -> dict:
+    return {
+        "meetings": student_database.list_meetings(
+            STUDENT_DB,
+            role=role,
+            student_id=student_id,
+            counselor_id=counselor_id,
+        )
+    }
+
+
+def create_meeting_payload(payload: dict) -> dict:
+    return {"meeting": student_database.create_meeting(payload, STUDENT_DB)}
+
+
+def messages_payload(
+    role: str | None = None,
+    student_id: str | None = None,
+    counselor_id: str | None = None,
+) -> dict:
+    return {
+        "messages": student_database.list_messages(
+            STUDENT_DB,
+            role=role,
+            student_id=student_id,
+            counselor_id=counselor_id,
+        )
+    }
+
+
+def create_message_payload(payload: dict) -> dict:
+    return {"message": student_database.create_message(payload, STUDENT_DB)}
+
+
+def mark_messages_seen_payload(payload: dict) -> dict:
+    return {
+        "messages": student_database.mark_messages_seen(
+            payload,
+            STUDENT_DB,
+        )
+    }
+
+
+def advice_notes_payload(
+    student_id: str | None = None,
+    counselor_id: str | None = None,
+    sort: str = "newest",
+    page: str | int = 1,
+    page_size: str | int = 25,
+) -> dict:
+    return student_database.list_advice_notes(
+        STUDENT_DB,
+        student_id=student_id,
+        counselor_id=counselor_id,
+        sort=sort,
+        page=int(page or 1),
+        page_size=int(page_size or 25),
+    )
+
+
+def create_advice_note_payload(payload: dict) -> dict:
+    return {"note": student_database.create_advice_note(payload, STUDENT_DB)}
+
+
+def delete_advice_note_payload(advice_id: int, counselor_id: str | None = None) -> dict:
+    student_database.delete_advice_note(
+        advice_id,
+        STUDENT_DB,
+        counselor_id=counselor_id,
+    )
+    return {"deleted": True, "id": advice_id}

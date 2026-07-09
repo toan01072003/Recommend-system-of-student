@@ -20,17 +20,68 @@ INDEX_HTML = LEGACY_WEB / "index.html"
 
 
 class Handler(BaseHTTPRequestHandler):
+    def log_message(self, format: str, *args) -> None:
+        print(
+            f"{self.client_address[0]} - - [{self.log_date_time_string()}] {format % args}",
+            flush=True,
+        )
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
         if path == "/api/questions":
             self.send_json_or_api_error(api.questions_payload)
             return
+        if path == "/api/surveys":
+            query = parse_qs(parsed.query)
+            role = query["role"][0] if query.get("role") else None
+            counselor_id = query["counselor_id"][0] if query.get("counselor_id") else None
+            student_id = query["student_id"][0] if query.get("student_id") else None
+            self.send_json_or_api_error(lambda: api.surveys_payload(role, counselor_id, student_id))
+            return
+        if path.startswith("/api/surveys/"):
+            survey_id = int(unquote(path.removeprefix("/api/surveys/")))
+            self.send_json_or_api_error(lambda: api.survey_payload(survey_id))
+            return
         if path == "/api/dashboard":
             self.send_json_or_api_error(api.dashboard_payload)
             return
         if path == "/api/app-data":
             self.send_json_or_api_error(api.app_data_payload)
+            return
+        if path == "/api/identity-data":
+            self.send_json_or_api_error(api.identity_payload)
+            return
+        if path == "/api/meetings":
+            query = parse_qs(parsed.query)
+            role = query["role"][0] if query.get("role") else None
+            student_id = query["student_id"][0] if query.get("student_id") else None
+            counselor_id = query["counselor_id"][0] if query.get("counselor_id") else None
+            self.send_json_or_api_error(lambda: api.meetings_payload(role, student_id, counselor_id))
+            return
+        if path == "/api/messages":
+            query = parse_qs(parsed.query)
+            role = query["role"][0] if query.get("role") else None
+            student_id = query["student_id"][0] if query.get("student_id") else None
+            counselor_id = query["counselor_id"][0] if query.get("counselor_id") else None
+            self.send_json_or_api_error(lambda: api.messages_payload(role, student_id, counselor_id))
+            return
+        if path == "/api/advice-notes":
+            query = parse_qs(parsed.query)
+            student_id = query["student_id"][0] if query.get("student_id") else None
+            counselor_id = query["counselor_id"][0] if query.get("counselor_id") else None
+            sort = query["sort"][0] if query.get("sort") else "newest"
+            page = query["page"][0] if query.get("page") else 1
+            page_size = query["page_size"][0] if query.get("page_size") else 25
+            self.send_json_or_api_error(
+                lambda: api.advice_notes_payload(
+                    student_id,
+                    counselor_id,
+                    sort,
+                    page,
+                    page_size,
+                )
+            )
             return
         if path == "/api/students":
             query = parse_qs(parsed.query)
@@ -76,13 +127,41 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
-        if path not in {"/api/recommend", "/api/student-recommend"}:
-            self.send_error(404)
-            return
+        if path not in {
+            "/api/recommend",
+            "/api/student-recommend",
+            "/api/meetings",
+            "/api/messages",
+            "/api/messages/seen",
+            "/api/advice-notes",
+            "/api/surveys",
+        }:
+            if not (path.startswith("/api/surveys/") and path.endswith("/results")):
+                self.send_error(404)
+                return
 
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            if path == "/api/surveys":
+                self.send_json(api.create_survey_payload(payload), status=201)
+                return
+            if path.startswith("/api/surveys/") and path.endswith("/results"):
+                survey_id = int(unquote(path.removeprefix("/api/surveys/").removesuffix("/results")))
+                self.send_json(api.submit_survey_result_payload(survey_id, payload), status=201)
+                return
+            if path == "/api/advice-notes":
+                self.send_json(api.create_advice_note_payload(payload), status=201)
+                return
+            if path == "/api/messages/seen":
+                self.send_json(api.mark_messages_seen_payload(payload))
+                return
+            if path == "/api/messages":
+                self.send_json(api.create_message_payload(payload), status=201)
+                return
+            if path == "/api/meetings":
+                self.send_json(api.create_meeting_payload(payload), status=201)
+                return
             if path == "/api/student-recommend":
                 self.send_json(api.student_recommend_payload(payload))
                 return
@@ -90,6 +169,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json(api.recommend_payload(payload))
         except Exception as exc:
             self.send_json({"error": str(exc)}, status=400)
+
+    def do_DELETE(self) -> None:
+        parsed = urlparse(self.path)
+        path = parsed.path
+        if path.startswith("/api/advice-notes/"):
+            query = parse_qs(parsed.query)
+            counselor_id = query["counselor_id"][0] if query.get("counselor_id") else None
+            advice_id = int(unquote(path.removeprefix("/api/advice-notes/")))
+            self.send_json_or_api_error(
+                lambda: api.delete_advice_note_payload(advice_id, counselor_id)
+            )
+            return
+
+        self.send_error(404)
 
     def send_file(self, path: Path, content_type: str) -> None:
         body = path.read_bytes()
@@ -127,7 +220,7 @@ def main() -> None:
     args = parser.parse_args()
 
     server = ThreadingHTTPServer((args.host, args.port), Handler)
-    print(f"Demo server running at http://{args.host}:{args.port}")
+    print(f"Demo server running at http://{args.host}:{args.port}", flush=True)
     server.serve_forever()
 
 
