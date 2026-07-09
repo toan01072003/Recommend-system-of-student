@@ -236,6 +236,9 @@ def create_schema(conn: sqlite3.Connection) -> None:
             favorite_career TEXT,
             disliked_career TEXT,
             explored_careers_json TEXT NOT NULL,
+            current_explored_career TEXT,
+            latest_recommend_career TEXT,
+            recommend_history_json TEXT NOT NULL DEFAULT '[]',
             stress_level TEXT,
             confidence_level TEXT,
             academic_pressure_level TEXT,
@@ -280,9 +283,10 @@ def insert_students(conn: sqlite3.Connection, rows: list[dict[str, str | None]])
                 favorite_subject, least_favorite_subject, preferred_activities, curiosity_topics,
                 intro_extro, work_style, iq_score, eq_score, mbti, disc,
                 expected_salary_million, desired_career_style, career_fit, favorite_career,
-                disliked_career, explored_careers_json, stress_level, confidence_level,
-                academic_pressure_level, medical_history_summary, parent_expectation,
-                parent_finance_level, risk_level, progress
+                disliked_career, explored_careers_json, current_explored_career,
+                latest_recommend_career, recommend_history_json, stress_level,
+                confidence_level, academic_pressure_level, medical_history_summary,
+                parent_expectation, parent_finance_level, risk_level, progress
             ) VALUES (
                 :student_id, :student_name, :father_name, :mother_name, :class_name, :class_type,
                 :province, :gender, :ethnic_group, :grade, :father_occupation, :mother_occupation,
@@ -292,9 +296,10 @@ def insert_students(conn: sqlite3.Connection, rows: list[dict[str, str | None]])
                 :favorite_subject, :least_favorite_subject, :preferred_activities, :curiosity_topics,
                 :intro_extro, :work_style, :iq_score, :eq_score, :mbti, :disc,
                 :expected_salary_million, :desired_career_style, :career_fit, :favorite_career,
-                :disliked_career, :explored_careers_json, :stress_level, :confidence_level,
-                :academic_pressure_level, :medical_history_summary, :parent_expectation,
-                :parent_finance_level, :risk_level, :progress
+                :disliked_career, :explored_careers_json, :current_explored_career,
+                :latest_recommend_career, :recommend_history_json, :stress_level,
+                :confidence_level, :academic_pressure_level, :medical_history_summary,
+                :parent_expectation, :parent_finance_level, :risk_level, :progress
             )
             """,
             {
@@ -340,6 +345,9 @@ def insert_students(conn: sqlite3.Connection, rows: list[dict[str, str | None]])
                 "favorite_career": row.get("Favorite_Career"),
                 "disliked_career": row.get("Disliked_Career"),
                 "explored_careers_json": json.dumps(explored, ensure_ascii=False),
+                "current_explored_career": explored[0] if explored else row.get("Favorite_Career"),
+                "latest_recommend_career": None,
+                "recommend_history_json": "[]",
                 "stress_level": row.get("Stress_Burnout_Level"),
                 "confidence_level": row.get("Confidence_Level"),
                 "academic_pressure_level": row.get("Academic_Pressure_Level"),

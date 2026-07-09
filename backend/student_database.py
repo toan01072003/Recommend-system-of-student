@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections import Counter, defaultdict
+from datetime import datetime, timezone
 from pathlib import Path
 
 
@@ -25,7 +26,40 @@ def connect(db_path: Path = DEFAULT_DB) -> sqlite3.Connection:
         raise FileNotFoundError(f"Database not found: {db_path}. Run backend/import_student_profiles.py first.")
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
+    ensure_recommendation_columns(conn)
     return conn
+
+
+def ensure_recommendation_columns(conn: sqlite3.Connection) -> None:
+    columns = {row["name"] for row in conn.execute("PRAGMA table_info(students)").fetchall()}
+    additions = [
+        ("current_explored_career", "TEXT"),
+        ("latest_recommend_career", "TEXT"),
+        ("recommend_history_json", "TEXT NOT NULL DEFAULT '[]'"),
+    ]
+
+    for column, definition in additions:
+        if column not in columns:
+            conn.execute(f"ALTER TABLE students ADD COLUMN {column} {definition}")
+
+    conn.execute(
+        """
+        UPDATE students
+        SET current_explored_career = COALESCE(
+            NULLIF(current_explored_career, ''),
+            NULLIF(json_extract(explored_careers_json, '$[0]'), ''),
+            favorite_career
+        )
+        WHERE current_explored_career IS NULL OR current_explored_career = ''
+        """
+    )
+    conn.execute(
+        """
+        UPDATE students
+        SET recommend_history_json = '[]'
+        WHERE recommend_history_json IS NULL OR recommend_history_json = ''
+        """
+    )
 
 
 def row_to_student(row: sqlite3.Row, *, include_detail: bool = False) -> dict:
@@ -49,6 +83,9 @@ def row_to_student(row: sqlite3.Row, *, include_detail: bool = False) -> dict:
         "disc": row["disc"],
         "favoriteCareer": row["favorite_career"],
         "exploredCareers": json.loads(row["explored_careers_json"] or "[]"),
+        "currentExploredCareer": row["current_explored_career"],
+        "latestRecommendCareer": row["latest_recommend_career"],
+        "recommendHistory": json.loads(row["recommend_history_json"] or "[]"),
     }
     if not include_detail:
         return student
@@ -151,6 +188,49 @@ def get_student(student_id: str, db_path: Path = DEFAULT_DB) -> dict | None:
         student["academicTrend"] = academic_trend(conn, student_id)
         student["scoreHistory"] = score_history(conn, student_id)
         return student
+
+
+def save_student_recommendation(
+    student_id: str,
+    recommendation: dict,
+    db_path: Path = DEFAULT_DB,
+) -> dict:
+    top_result = (recommendation.get("results") or [{}])[0]
+    latest_career = top_result.get("title") or ""
+    history_entry = {
+        "createdAt": datetime.now(timezone.utc).isoformat(),
+        "latestCareer": latest_career,
+        "studentVector": recommendation.get("student_vector", {}),
+        "results": recommendation.get("results", []),
+    }
+
+    with connect(db_path) as conn:
+        row = conn.execute(
+            "SELECT recommend_history_json FROM students WHERE student_id = ?",
+            (student_id,),
+        ).fetchone()
+        if row is None:
+            raise LookupError(f"Student not found: {student_id}")
+
+        history = json.loads(row["recommend_history_json"] or "[]")
+        history.insert(0, history_entry)
+        history = history[:20]
+
+        conn.execute(
+            """
+            UPDATE students
+            SET latest_recommend_career = ?,
+                recommend_history_json = ?
+            WHERE student_id = ?
+            """,
+            (latest_career, json.dumps(history, ensure_ascii=False), student_id),
+        )
+        conn.commit()
+
+    recommendation["saved"] = True
+    recommendation["latestRecommendCareer"] = latest_career
+    recommendation["recommendHistory"] = history
+    return recommendation
 
 
 def dashboard(db_path: Path = DEFAULT_DB) -> dict:

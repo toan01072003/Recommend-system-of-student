@@ -76,13 +76,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         path = urlparse(self.path).path
-        if path != "/api/recommend":
+        if path not in {"/api/recommend", "/api/student-recommend"}:
             self.send_error(404)
             return
 
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            if path == "/api/student-recommend":
+                self.send_json(api.student_recommend_payload(payload))
+                return
+
             self.send_json(api.recommend_payload(payload))
         except Exception as exc:
             self.send_json({"error": str(exc)}, status=400)

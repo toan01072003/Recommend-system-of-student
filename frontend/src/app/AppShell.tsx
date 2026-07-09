@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { AppDataProvider } from "./context/AppDataContext";
 import {
   CounselorSidebar,
@@ -50,10 +50,16 @@ import {
   CounselorStudentList,
   CounselorSurveys,
 } from "./screens/counselor/CounselorScreens";
+import {
+  appRouteToPath,
+  isRootPath,
+  parseAppRoute,
+  roleFromPath,
+  type AppRole,
+  type AppRoute,
+} from "./routes";
 
-type Role = "admin" | "teacher" | "counselor" | "student" | "parent";
-
-const defaultViewByRole: Record<Role, string> = {
+const defaultViewByRole: Record<AppRole, string> = {
   admin: "school-overview",
   teacher: "class-dashboard",
   counselor: "co-dashboard",
@@ -62,19 +68,56 @@ const defaultViewByRole: Record<Role, string> = {
 };
 
 export default function AppShell() {
-  const [role, setRole] = useState<Role | null>(null);
-  const [view, setView] = useState<string>("school-overview");
+  const [role, setRole] = useState<AppRole | null>(() =>
+    roleFromPath(window.location.pathname),
+  );
+  const [route, setRoute] = useState<AppRoute>(() =>
+    parseAppRoute(window.location.pathname),
+  );
   const [uniToOpen, setUniToOpen] = useState<string | null>(null);
+  const view = route.view;
+
+  useEffect(() => {
+    const handlePopState = () => {
+      const nextRole = roleFromPath(window.location.pathname);
+
+      if (nextRole) setRole(nextRole);
+      setRoute(parseAppRoute(window.location.pathname));
+    };
+
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const setAppRoute = (nextRoute: AppRoute, mode: "push" | "replace" = "push") => {
+    const nextPath = appRouteToPath(nextRoute);
+
+    setRoute(nextRoute);
+    if (window.location.pathname === nextPath) return;
+
+    if (mode === "replace") {
+      window.history.replaceState(null, "", nextPath);
+      return;
+    }
+
+    window.history.pushState(null, "", nextPath);
+  };
 
   const handleLogin = (selectedRole: string) => {
-    const nextRole = selectedRole as Role;
+    const nextRole = selectedRole as AppRole;
+    const shouldKeepRoute = !isRootPath(window.location.pathname);
+    const nextRoute = shouldKeepRoute
+      ? route
+      : { view: defaultViewByRole[nextRole] ?? "school-overview" };
+
     setRole(nextRole);
-    setView(defaultViewByRole[nextRole] ?? "school-overview");
+    setAppRoute(nextRoute, "replace");
   };
 
   if (!role) return <LoginScreen onLogin={handleLogin} />;
 
-  const navigate = (target: string) => setView(target);
+  const navigate = (target: string, params?: Omit<AppRoute, "view">) =>
+    setAppRoute({ view: target, ...params });
 
   const renderView = () => {
     switch (view) {
@@ -84,9 +127,14 @@ export default function AppShell() {
       case "grade-dashboard":
         return <GradeDashboard navigate={navigate} />;
       case "class-dashboard":
-        return <ClassDashboard navigate={navigate} />;
+        return (
+          <ClassDashboard
+            navigate={navigate}
+            className={route.className ?? "9A"}
+          />
+        );
       case "student-profile":
-        return <StudentProfile />;
+        return <StudentProfile studentId={route.studentId} />;
       case "parent-portal":
         return <ParentPortal />;
       case "data-quality":
@@ -100,7 +148,7 @@ export default function AppShell() {
 
       // STUDENT READ/UPDATE: learning, surveys, plans, profile, universities
       case "st-dashboard":
-        return <StudentDashboard setView={setView} />;
+        return <StudentDashboard setView={navigate} />;
       case "st-lessons":
         return <StudentLessons />;
       case "st-surveys":
@@ -114,7 +162,7 @@ export default function AppShell() {
           <StudentExplore
             onNavigateToUni={(id) => {
               setUniToOpen(id);
-              setView("st-universities");
+              navigate("st-universities");
             }}
           />
         );
@@ -146,9 +194,14 @@ export default function AppShell() {
       case "co-dashboard":
         return <CounselorDashboard />;
       case "co-students-list":
-        return <CounselorStudentList />;
+        return (
+          <CounselorStudentList
+            studentId={route.studentId}
+            navigate={navigate}
+          />
+        );
       case "co-student-groups":
-        return <CounselorStudentGroups />;
+        return <CounselorStudentGroups navigate={navigate} />;
       case "co-families":
         return <CounselorFamilies />;
       case "co-lessons":
@@ -245,20 +298,20 @@ export default function AppShell() {
           {role === "student" ? (
             <StudentSidebar
               view={view}
-              setView={setView}
+              setView={navigate}
               onLogout={() => setRole(null)}
             />
           ) : role === "counselor" ? (
             <CounselorSidebar
               view={view}
-              setView={setView}
+              setView={navigate}
               onLogout={() => setRole(null)}
             />
           ) : (
             <Sidebar
               role={role}
               view={view}
-              setView={setView}
+              setView={navigate}
               onLogout={() => setRole(null)}
             />
           )}

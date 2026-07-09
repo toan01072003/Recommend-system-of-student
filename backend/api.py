@@ -80,6 +80,10 @@ def recommend_payload(payload: dict) -> dict:
         raise ValueError("answers must be a list of 60 scores")
 
     answers = {idx + 1: int(value) for idx, value in enumerate(answers_list)}
+    return recommend_from_answers(answers)
+
+
+def recommend_from_answers(answers: dict[int, int]) -> dict:
     question_map = load_question_map(active_question_map_path())
     careers = load_career_vectors(CAREER_VECTORS)
     student_vector = score_student_answers(answers, question_map)
@@ -98,6 +102,93 @@ def recommend_payload(payload: dict) -> dict:
             for item in ranked
         ],
     }
+
+
+def _profile_text(student: dict) -> str:
+    fields = [
+        "careerFit",
+        "favoriteCareer",
+        "desiredCareerStyle",
+        "preferredActivities",
+        "curiosityTopics",
+        "favoriteSubject",
+        "leastFavoriteSubject",
+        "riasecTop3",
+        "mbti",
+        "disc",
+    ]
+    return " ".join(str(student.get(field, "")) for field in fields).lower()
+
+
+def _student_profile_weights(student: dict) -> dict[str, int]:
+    weights = dict.fromkeys(RIASEC_ORDER, 3)
+
+    riasec = str(student.get("riasecTop3", "")).upper()
+    for index, dimension in enumerate([char for char in riasec if char in RIASEC_ORDER][:3]):
+        weights[dimension] = max(weights[dimension], 5 if index == 0 else 4)
+
+    text = _profile_text(student)
+    keyword_weights = [
+        (("technology", "công nghệ", "kỹ thuật", "technical", "building", "robot", "ict", "tin học"), {"R": 4, "I": 5, "C": 4}),
+        (("science", "research", "nghiên cứu", "phân tích", "data", "logic"), {"I": 5, "C": 4}),
+        (("design", "architecture", "art", "nghệ thuật", "creative", "writing", "viết"), {"A": 5, "I": 4}),
+        (("teaching", "education", "giáo dục", "helping", "dịch vụ", "social"), {"S": 5, "E": 4}),
+        (("business", "kinh tế", "finance", "lãnh đạo", "debating", "sales"), {"E": 5, "C": 4}),
+        (("administration", "accounting", "hành chính", "organized", "finance"), {"C": 5, "E": 4}),
+        (("health", "medical", "y tế", "sức khỏe"), {"I": 5, "S": 5}),
+    ]
+    for keywords, additions in keyword_weights:
+        if any(keyword in text for keyword in keywords):
+            for dimension, value in additions.items():
+                weights[dimension] = max(weights[dimension], value)
+
+    iq = student.get("iq")
+    eq = student.get("eq")
+    if isinstance(iq, (int, float)) and iq >= 115:
+        weights["I"] = max(weights["I"], 5)
+    if isinstance(eq, (int, float)) and eq >= 75:
+        weights["S"] = max(weights["S"], 4)
+
+    return weights
+
+
+def student_recommend_payload(payload: dict) -> dict:
+    student = payload.get("student")
+    student_id = payload.get("student_id")
+    if not isinstance(student, dict):
+        if not student_id:
+            raise ValueError("student or student_id is required")
+        student = student_database.get_student(str(student_id), STUDENT_DB)
+        if student is None:
+            raise LookupError(f"Student not found: {student_id}")
+    else:
+        student_id = student.get("id") or student_id
+
+    question_map = load_question_map(active_question_map_path())
+    weights = _student_profile_weights(student)
+    answers = {
+        question_id: weights.get(dimension, 3)
+        for question_id, dimension in question_map.items()
+    }
+    recommendation = recommend_from_answers(answers)
+    recommendation["student"] = {
+        "id": student.get("id"),
+        "name": student.get("name"),
+        "careerFit": student.get("careerFit"),
+        "favoriteCareer": student.get("favoriteCareer"),
+        "riasecTop3": student.get("riasecTop3"),
+    }
+    recommendation["profile_weights"] = weights
+    recommendation["source"] = "student_profile"
+    if payload.get("persist"):
+        if not student_id:
+            raise ValueError("student_id is required when persist is true")
+        recommendation = student_database.save_student_recommendation(
+            str(student_id),
+            recommendation,
+            STUDENT_DB,
+        )
+    return recommendation
 
 
 def dashboard_payload() -> dict:

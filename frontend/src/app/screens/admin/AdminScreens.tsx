@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -111,6 +111,12 @@ import {
   buildStudentSkillRadar,
   scoreTone,
 } from "../../logic/recommendation";
+import {
+  hasStudentProfileDetail,
+  resolveStudentProfile,
+  type StudentProfileRecord,
+} from "../../logic/studentProfile";
+import { fetchStudent } from "../../api/client";
 
 // ── Screen 2: School Overview ────────────────────────────────────────────────
 export const SchoolOverview = ({
@@ -370,7 +376,7 @@ export const SchoolOverview = ({
 export const GradeDashboard = ({
   navigate,
 }: {
-  navigate: (v: string) => void;
+  navigate: (v: string, params?: { className?: string }) => void;
 }) => {
   const { gradeData, classesData, studentsInClass, careerInterestDist } =
     useAppData();
@@ -502,7 +508,9 @@ export const GradeDashboard = ({
             {selectedGradeClasses.map((cls) => (
               <button
                 key={cls.name}
-                onClick={() => navigate("class-dashboard")}
+                onClick={() =>
+                  navigate("class-dashboard", { className: cls.name })
+                }
                 className="w-full flex items-center gap-3 p-3 rounded-xl hover:bg-gray-50 border border-gray-100 transition-colors group text-left"
               >
                 <div className="w-10 h-10 rounded-xl bg-blue-100 flex items-center justify-center text-blue-700 font-bold text-sm flex-shrink-0">
@@ -546,14 +554,19 @@ export const GradeDashboard = ({
 
 // ── Screen 4: Class Dashboard ────────────────────────────────────────────────
 export const ClassDashboard = ({
+  className = "9A",
   navigate,
 }: {
-  navigate: (v: string) => void;
+  className?: string;
+  navigate: (
+    v: string,
+    params?: { className?: string; studentId?: string },
+  ) => void;
 }) => {
   const { studentsInClass } = useAppData();
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
-  const activeClassName = "9A";
+  const activeClassName = className;
   const classStudents = studentsInClass.filter(
     (student) => student.className === activeClassName,
   );
@@ -741,7 +754,12 @@ export const ClassDashboard = ({
                   </td>
                   <td className="py-3 px-4">
                     <button
-                      onClick={() => navigate("student-profile")}
+                      onClick={() =>
+                        navigate("student-profile", {
+                          className: activeClassName,
+                          studentId: s.id,
+                        })
+                      }
                       className="text-xs font-semibold text-orange-600 hover:text-orange-800 whitespace-nowrap flex items-center gap-0.5"
                     >
                       Xem hồ sơ <ArrowRight size={11} />
@@ -758,11 +776,51 @@ export const ClassDashboard = ({
 };
 
 // ── Screen 5: Student 360 Profile ────────────────────────────────────────────
-export const StudentProfile = () => {
+export const StudentProfile = ({ studentId }: { studentId?: string }) => {
   const { studentsInClass } = useAppData();
   const [activeTab, setActiveTab] = useState("academic");
   const [wellbeingRequested, setWellbeingRequested] = useState(false);
-  const profile = studentsInClass[0];
+  const summaryProfile = resolveStudentProfile(studentsInClass, studentId);
+  const profileId = studentId ?? summaryProfile?.id;
+  const [detailProfile, setDetailProfile] =
+    useState<StudentProfileRecord | null>(null);
+  const [detailStatus, setDetailStatus] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
+  const profile = detailProfile ?? summaryProfile;
+
+  useEffect(() => {
+    setDetailProfile(null);
+    setDetailStatus("idle");
+
+    if (!profileId) return;
+    if (
+      summaryProfile?.id === profileId &&
+      hasStudentProfileDetail(summaryProfile)
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    setDetailStatus("loading");
+    fetchStudent<{ student: StudentProfileRecord }>(
+      profileId,
+      controller.signal,
+    )
+      .then((payload) => {
+        setDetailProfile(payload.student);
+        setDetailStatus("idle");
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          console.warn(error.message);
+          setDetailStatus("error");
+        }
+      });
+
+    return () => controller.abort();
+  }, [profileId, summaryProfile]);
 
   const tabs = [
     { id: "academic", label: "Học tập" },
@@ -772,6 +830,34 @@ export const StudentProfile = () => {
     { id: "parent-exp", label: "Phụ huynh" },
     { id: "counseling", label: "Tư vấn" },
   ];
+
+  if (!profile) {
+    return (
+      <div className="bg-white rounded-xl p-10 border border-gray-100 shadow-sm text-center">
+        <h1 className="text-lg font-bold text-gray-800">
+          Không tìm thấy học sinh
+        </h1>
+        <p className="text-sm text-gray-500 mt-2">
+          Vui lòng quay lại danh sách lớp và chọn lại hồ sơ cần xem.
+        </p>
+      </div>
+    );
+  }
+
+  if (!hasStudentProfileDetail(profile)) {
+    return (
+      <div className="bg-white rounded-xl p-10 border border-gray-100 shadow-sm text-center">
+        <h1 className="text-lg font-bold text-gray-800">
+          Đang tải hồ sơ chi tiết
+        </h1>
+        <p className="text-sm text-gray-500 mt-2">
+          {detailStatus === "error"
+            ? "Không tải được dữ liệu chi tiết từ API. Vui lòng thử lại sau."
+            : `Đang lấy dữ liệu đầy đủ cho ${profile.name}.`}
+        </p>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-5">

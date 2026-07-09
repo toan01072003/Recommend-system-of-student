@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -41,6 +41,7 @@ import {
   Layers,
   Flag,
   PieChart,
+  RefreshCw,
   Lightbulb,
   School,
 } from "lucide-react";
@@ -104,13 +105,24 @@ import {
   LineChart,
   Line,
 } from "../../shared";
-import { StudentRecommendationPanel } from "../../components/counselor/StudentRecommendationPanel";
 import { useAppData } from "../../context/AppDataContext";
 import {
+  RIASEC_META,
   buildStudentCareerMatches,
   buildStudentSkillRadar,
   scoreTone,
 } from "../../logic/recommendation";
+import {
+  fetchAppData,
+  fetchStudent,
+  fetchStudentRecommendation,
+  type RecommendationResponse,
+} from "../../api/client";
+import {
+  hasStudentProfileDetail,
+  resolveStudentProfile,
+  type StudentProfileRecord,
+} from "../../logic/studentProfile";
 
 // ── Counselor Views ───────────────────────────────────────────────────────────
 
@@ -386,12 +398,127 @@ export const CounselorStudentDetail = ({
   student,
   onBack,
 }: {
-  student: (typeof studentsInClass)[0];
+  student: StudentProfileRecord;
   onBack: () => void;
 }) => {
   const [tab, setTab] = useState("academic");
+  const [alumniRecommendation, setAlumniRecommendation] =
+    useState<RecommendationResponse | null>(null);
+  const [alumniStatus, setAlumniStatus] = useState<
+    "idle" | "loading" | "success" | "error"
+  >("idle");
+  const [alumniError, setAlumniError] = useState("");
+  const [alumniConfirming, setAlumniConfirming] = useState(false);
+  const [supportAction, setSupportAction] = useState<
+    "schedule" | "message" | "advice"
+  >("schedule");
+  const [supportSchedule, setSupportSchedule] = useState("");
+  const [supportTopic, setSupportTopic] = useState("Định hướng nghề nghiệp");
+  const [messageDraft, setMessageDraft] = useState("");
+  const [advisorMessages, setAdvisorMessages] = useState<
+    { from: "counselor" | "student"; body: string; time: string }[]
+  >([
+    {
+      from: "student",
+      body: "Em muốn trao đổi thêm về ngành phù hợp với điểm mạnh của mình.",
+      time: "09:10",
+    },
+  ]);
+  const [adviceSubject, setAdviceSubject] = useState("Gợi ý bước tiếp theo");
+  const [adviceNote, setAdviceNote] = useState("");
+  const [actionNotice, setActionNotice] = useState("");
 
-  const [wellbeingUnlocked, setWellbeingUnlocked] = useState(false);
+  useEffect(() => {
+    setAlumniRecommendation(null);
+    setAlumniStatus("idle");
+    setAlumniError("");
+    setAlumniConfirming(false);
+    setSupportAction("schedule");
+    setSupportSchedule("");
+    setSupportTopic("Định hướng nghề nghiệp");
+    setMessageDraft("");
+    setAdvisorMessages([
+      {
+        from: "student",
+        body: "Em muốn trao đổi thêm về ngành phù hợp với điểm mạnh của mình.",
+        time: "09:10",
+      },
+    ]);
+    setAdviceSubject("Gợi ý bước tiếp theo");
+    setAdviceNote("");
+    setActionNotice("");
+  }, [student.id]);
+
+  const cachedRecommendation = alumniRecommendation ?? (
+    student.recommendHistory?.[0]
+      ? {
+          student_vector: student.recommendHistory[0].studentVector,
+          results: student.recommendHistory[0].results,
+          recommendHistory: student.recommendHistory,
+          latestRecommendCareer: student.latestRecommendCareer,
+        }
+      : null
+  );
+
+  const handleReloadRecommendation = () => {
+    const controller = new AbortController();
+
+    setAlumniStatus("loading");
+    setAlumniError("");
+    setAlumniConfirming(false);
+    fetchStudentRecommendation(student, controller.signal, { persist: true })
+      .then((payload) => {
+        setAlumniRecommendation(payload);
+        setAlumniStatus("success");
+      })
+      .catch((error) => {
+        if (error.name === "AbortError") return;
+        setAlumniError(
+          error.message || "Không lấy được kết quả recommendation.",
+        );
+        setAlumniStatus("error");
+      });
+  };
+
+  const showActionNotice = (message: string) => {
+    setActionNotice(message);
+    window.setTimeout(() => setActionNotice(""), 2400);
+  };
+
+  const handleSaveSupportSchedule = () => {
+    showActionNotice(
+      supportSchedule
+        ? `Đã lên lịch hỗ trợ cho ${student.name}.`
+        : "Vui lòng chọn thời gian hỗ trợ.",
+    );
+  };
+
+  const handleSendMessage = () => {
+    const body = messageDraft.trim();
+    if (!body) return;
+    setAdvisorMessages((items) => [
+      ...items,
+      {
+        from: "counselor",
+        body,
+        time: new Date().toLocaleTimeString("vi-VN", {
+          hour: "2-digit",
+          minute: "2-digit",
+        }),
+      },
+    ]);
+    setMessageDraft("");
+    showActionNotice(`Đã gửi tin nhắn cho ${student.name}.`);
+  };
+
+  const handleSendAdviceNote = () => {
+    if (!adviceNote.trim()) {
+      showActionNotice("Vui lòng nhập nội dung note advice.");
+      return;
+    }
+    setAdviceNote("");
+    showActionNotice(`Đã gửi note advice cho ${student.name}.`);
+  };
 
   const tabs = [
     { id: "academic", label: "Academic Profile" },
@@ -402,7 +529,7 @@ export const CounselorStudentDetail = ({
 
     { id: "recommendation", label: "Gợi ý & Đánh giá" },
 
-    { id: "wellbeing", label: "Wellbeing", locked: true },
+    { id: "wellbeing", label: "Wellbeing" },
 
     { id: "parent", label: "Kỳ vọng PH" },
 
@@ -488,12 +615,11 @@ export const CounselorStudentDetail = ({
             {tabs.map((t) => (
               <button
                 key={t.id}
-                onClick={() => !t.locked && setTab(t.id)}
+                onClick={() => setTab(t.id)}
 
                 className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors flex-shrink-0 ${tab === t.id ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
               >
                 {t.label}
-                {t.locked && <Lock size={11} className="opacity-60" />}
               </button>
             ))}
           </div>
@@ -589,13 +715,28 @@ export const CounselorStudentDetail = ({
 
           {[
             {
-              label: "Mục tiêu nghề nghiệp",
-              value: `Em quan tâm tới hướng ${student.favoriteCareer} và nhóm ${student.careerFit}.`,
+              label: "Nghề quan tâm",
+              value: student.favoriteCareer,
+            },
+
+            {
+              label: "Nhóm ngành phù hợp",
+              value: student.careerFit,
+            },
+
+            {
+              label: "Phong cách nghề nghiệp mong muốn",
+              value: student.desiredCareerStyle,
             },
 
             {
               label: "Môn yêu thích",
-              value: `${student.favoriteSubject}; môn ít thích hơn: ${student.leastFavoriteSubject}.`,
+              value: student.favoriteSubject,
+            },
+
+            {
+              label: "Môn ít thích hơn",
+              value: student.leastFavoriteSubject,
             },
 
             { label: "Hoạt động ưa thích", value: student.preferredActivities },
@@ -658,7 +799,9 @@ export const CounselorStudentDetail = ({
           </div>
 
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-3">
-            <h3 className="font-bold text-gray-800 mb-2">Kết quả bài test</h3>
+            <h3 className="font-bold text-gray-800 mb-2">
+              Career Profile từ database
+            </h3>
 
             {[
               ["MBTI", student.mbti],
@@ -670,6 +813,10 @@ export const CounselorStudentDetail = ({
               ["Career Match Top 1", student.favoriteCareer],
 
               ["Nhóm ngành", student.careerFit],
+
+              ["Kiểu nghề mong muốn", student.desiredCareerStyle],
+
+              ["Lương kỳ vọng", `${student.expectedSalary} triệu/tháng`],
 
               ["IQ / EQ", `${student.iq} / ${student.eq}`],
             ].map(([k, v]) => (
@@ -713,69 +860,298 @@ export const CounselorStudentDetail = ({
             </div>
 
             <div className="p-3 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700 mt-2">
-              <strong>Lộ trình gợi ý:</strong> Ưu tiên {student.favoriteSubject}{" "}
-              · khám phá {student.exploredCareers.join(", ")} · mục tiêu lương{" "}
-              {student.expectedSalary} triệu/tháng
+              <strong>Nghề đã khám phá:</strong>{" "}
+              {student.exploredCareers.join(", ")}
             </div>
           </div>
         </div>
       )}
 
       {tab === "recommendation" && (
-        <StudentRecommendationPanel student={student} />
+        <div className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {[
+              {
+                id: "schedule",
+                label: "Lên lịch hỗ trợ",
+                sub: student.className,
+                icon: Clock,
+                cls: "bg-blue-50 text-blue-700 border-blue-100",
+              },
+              {
+                id: "message",
+                label: "Bắt đầu nhắn tin",
+                sub: "Mở cửa sổ tin nhắn",
+                icon: MessageSquare,
+                cls: "bg-emerald-50 text-emerald-700 border-emerald-100",
+              },
+              {
+                id: "advice",
+                label: "Gửi note advice",
+                sub: "Advice Notes",
+                icon: BookMarked,
+                cls: "bg-amber-50 text-amber-700 border-amber-100",
+              },
+            ].map((item) => {
+              const Icon = item.icon;
+              const active = supportAction === item.id;
+
+              return (
+                <button
+                  key={item.id}
+                  onClick={() =>
+                    setSupportAction(
+                      item.id as "schedule" | "message" | "advice",
+                    )
+                  }
+                  className={`text-left rounded-2xl border p-4 transition-all ${
+                    active
+                      ? `${item.cls} shadow-sm ring-2 ring-offset-1 ring-blue-100`
+                      : "bg-white text-gray-700 border-gray-100 hover:bg-gray-50"
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div
+                      className={`w-10 h-10 rounded-xl flex items-center justify-center ${
+                        active ? "bg-white/70" : "bg-gray-50"
+                      }`}
+                    >
+                      <Icon size={18} />
+                    </div>
+                    <div>
+                      <p className="font-bold text-sm">{item.label}</p>
+                      <p className="text-xs opacity-75 mt-0.5">{item.sub}</p>
+                    </div>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+
+          {actionNotice && (
+            <div className="rounded-xl bg-emerald-50 border border-emerald-100 px-4 py-3 text-sm font-semibold text-emerald-700">
+              {actionNotice}
+            </div>
+          )}
+
+          {supportAction === "schedule" && (
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="font-bold text-gray-800">Lên lịch hỗ trợ</h3>
+                <span className="text-xs font-mono text-gray-400">
+                  {student.id}
+                </span>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <label className="space-y-1.5">
+                  <span className="text-xs font-bold text-gray-500">
+                    Thời gian
+                  </span>
+                  <input
+                    type="datetime-local"
+                    value={supportSchedule}
+                    onChange={(event) =>
+                      setSupportSchedule(event.target.value)
+                    }
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  />
+                </label>
+
+                <label className="space-y-1.5">
+                  <span className="text-xs font-bold text-gray-500">
+                    Chủ đề
+                  </span>
+                  <select
+                    value={supportTopic}
+                    onChange={(event) => setSupportTopic(event.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                  >
+                    <option>Định hướng nghề nghiệp</option>
+                    <option>Review wellbeing</option>
+                    <option>Trao đổi với phụ huynh</option>
+                    <option>Điều chỉnh kế hoạch học tập</option>
+                  </select>
+                </label>
+              </div>
+
+              <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-gray-50 p-3">
+                <div>
+                  <p className="text-sm font-bold text-gray-800">
+                    {student.name}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {supportTopic} · {student.className}
+                  </p>
+                </div>
+                <button
+                  onClick={handleSaveSupportSchedule}
+                  className="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 flex items-center gap-1.5"
+                >
+                  <Save size={13} /> Lưu lịch
+                </button>
+              </div>
+            </div>
+          )}
+
+          {supportAction === "message" && (
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+              <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Avatar name={student.name} size="sm" />
+                  <div>
+                    <h3 className="font-bold text-gray-800">
+                      Tin nhắn với {student.name}
+                    </h3>
+                    <p className="text-xs text-gray-500">
+                      {student.className} · {student.id}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
+                  Đang mở
+                </span>
+              </div>
+
+              <div className="p-5 space-y-3 bg-gray-50 min-h-56">
+                {advisorMessages.map((message, index) => {
+                  const isCounselor = message.from === "counselor";
+
+                  return (
+                    <div
+                      key={`${message.time}-${index}`}
+                      className={`flex ${isCounselor ? "justify-end" : "justify-start"}`}
+                    >
+                      <div
+                        className={`max-w-[78%] rounded-2xl px-4 py-2 shadow-sm ${
+                          isCounselor
+                            ? "bg-blue-600 text-white"
+                            : "bg-white text-gray-700 border border-gray-100"
+                        }`}
+                      >
+                        <p className="text-sm">{message.body}</p>
+                        <p
+                          className={`text-[11px] mt-1 ${
+                            isCounselor ? "text-blue-100" : "text-gray-400"
+                          }`}
+                        >
+                          {message.time}
+                        </p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+
+              <div className="p-4 border-t border-gray-100 flex gap-2">
+                <input
+                  value={messageDraft}
+                  onChange={(event) => setMessageDraft(event.target.value)}
+                  onKeyDown={(event) => {
+                    if (event.key === "Enter") handleSendMessage();
+                  }}
+                  placeholder="Nhập tin nhắn..."
+                  className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
+                />
+                <button
+                  onClick={handleSendMessage}
+                  className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5"
+                >
+                  <MessageSquare size={13} /> Gửi
+                </button>
+              </div>
+            </div>
+          )}
+
+          {supportAction === "advice" && (
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+              <div className="flex items-center justify-between gap-3 mb-4">
+                <h3 className="font-bold text-gray-800">Gửi note advice</h3>
+                <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">
+                  {student.name}
+                </span>
+              </div>
+
+              <div className="space-y-3">
+                <label className="space-y-1.5 block">
+                  <span className="text-xs font-bold text-gray-500">
+                    Tiêu đề
+                  </span>
+                  <input
+                    value={adviceSubject}
+                    onChange={(event) => setAdviceSubject(event.target.value)}
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-100 focus:border-amber-400"
+                  />
+                </label>
+
+                <label className="space-y-1.5 block">
+                  <span className="text-xs font-bold text-gray-500">
+                    Nội dung
+                  </span>
+                  <textarea
+                    value={adviceNote}
+                    onChange={(event) => setAdviceNote(event.target.value)}
+                    rows={6}
+                    placeholder="Nhập lời khuyên gửi cho học sinh..."
+                    className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-100 focus:border-amber-400"
+                  />
+                </label>
+
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-amber-50 border border-amber-100 p-3">
+                  <div>
+                    <p className="text-sm font-bold text-amber-900">
+                      {adviceSubject || "Note advice"}
+                    </p>
+                    <p className="text-xs text-amber-700">
+                      Gửi tới {student.name} · {student.className}
+                    </p>
+                  </div>
+                  <button
+                    onClick={handleSendAdviceNote}
+                    className="px-3 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 flex items-center gap-1.5"
+                  >
+                    <BookMarked size={13} /> Gửi note
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       )}
 
       {tab === "wellbeing" && (
-        <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
-          <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mx-auto mb-4">
-            <Lock size={22} className="text-gray-400" />
+        <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
+          <div className="flex items-center justify-between gap-3 mb-4">
+            <div>
+              <h3 className="font-bold text-gray-800">Wellbeing</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Dữ liệu sức khỏe/tâm lý từ hồ sơ database
+              </p>
+            </div>
+
+            <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-blue-50 text-blue-700 rounded-xl text-xs border border-blue-100 font-bold">
+              <Shield size={13} /> Cố vấn được phép xem
+            </div>
           </div>
 
-          <h3 className="font-bold text-gray-700 mb-2">
-            Dữ liệu Wellbeing — Bảo mật
-          </h3>
-
-          <p className="text-sm text-gray-500 max-w-sm mx-auto mb-5">
-            Thông tin sức khỏe tinh thần chỉ hiển thị với cố vấn được cấp quyền
-            đặc biệt.
-          </p>
-
-          <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm border border-red-100 mb-5">
-            <AlertTriangle size={14} /> Học sinh này cần hỗ trợ thêm
-          </div>
-
-          <div>
-            {wellbeingUnlocked ? (
-              <div className="space-y-3 text-left max-w-md mx-auto">
-                {[
-                  ["Mức stress/burnout", student.stressLevel],
-
-                  ["Áp lực học tập", student.academicPressureLevel],
-
-                  ["Mức tự tin", student.confidenceLevel],
-
-                  ["Ghi chú sức khỏe", student.medicalHistory],
-                ].map(([k, v]) => (
-                  <div
-                    key={k as string}
-                    className="p-3 bg-red-50 rounded-xl border border-red-100"
-                  >
-                    <p className="text-xs font-bold text-red-700 mb-0.5">
-                      {k as string}
-                    </p>
-
-                    <p className="text-sm text-gray-700">{v as string}</p>
-                  </div>
-                ))}
-              </div>
-            ) : (
-              <button
-                onClick={() => setWellbeingUnlocked(true)}
-                className="px-5 py-2.5 bg-blue-600 text-white rounded-xl text-sm font-bold hover:bg-blue-700"
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {[
+              ["Mức stress/burnout", student.stressLevel],
+              ["Áp lực học tập", student.academicPressureLevel],
+              ["Mức tự tin", student.confidenceLevel],
+              ["Ghi chú sức khỏe", student.medicalHistory],
+            ].map(([k, v]) => (
+              <div
+                key={k as string}
+                className="p-3 bg-red-50 rounded-xl border border-red-100"
               >
-                Xem với quyền Cố vấn
-              </button>
-            )}
+                <p className="text-xs font-bold text-red-700 mb-0.5">
+                  {k as string}
+                </p>
+
+                <p className="text-sm text-gray-700">{v as string}</p>
+              </div>
+            ))}
           </div>
         </div>
       )}
@@ -821,74 +1197,201 @@ export const CounselorStudentDetail = ({
 
       {tab === "alumni" && (
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-4">
-            Alumni phù hợp để tham khảo
-          </h3>
+          <div className="flex items-start justify-between gap-3 mb-4">
+            <div>
+              <h3 className="font-bold text-gray-800">
+                Recommendation từ mô hình
+              </h3>
+              <p className="text-xs text-gray-500 mt-1">
+                Hiển thị kết quả recommend gần nhất đã lưu trong database.
+              </p>
+            </div>
 
-          <p className="text-xs text-gray-500 mb-4">
-            Cựu học sinh có hành trình học tập tương tự — có thể dùng để gợi ý
-            pathway
-          </p>
+            <button
+              onClick={() => setAlumniConfirming(true)}
+              disabled={alumniStatus === "loading"}
+              className="px-3 py-2 bg-indigo-600 text-white rounded-xl text-xs font-bold hover:bg-indigo-700 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <RefreshCw size={13} /> Reload recommend
+            </button>
+          </div>
 
-          <div className="space-y-3">
-            {[
-              {
-                name: "Lê Minh Đức",
-                year: "K2018",
-                school: "ĐH Bách Khoa HCM",
-                major: "Kỹ thuật Máy tính",
-                job: "Software Engineer tại VNG",
-                match: 91,
-              },
+          {alumniConfirming && (
+            <div className="p-4 rounded-xl bg-amber-50 border border-amber-100 mb-4">
+              <p className="text-sm font-bold text-amber-900">
+                Chạy lại recommendation engine cho {student.name}?
+              </p>
+              <p className="text-xs text-amber-700 mt-1">
+                Kết quả mới sẽ được lưu vào database và thêm vào lịch sử.
+              </p>
+              <div className="flex gap-2 mt-3">
+                <button
+                  onClick={handleReloadRecommendation}
+                  className="px-3 py-2 rounded-lg bg-indigo-600 text-white text-xs font-bold hover:bg-indigo-700"
+                >
+                  Xác nhận
+                </button>
+                <button
+                  onClick={() => setAlumniConfirming(false)}
+                  className="px-3 py-2 rounded-lg bg-white border border-amber-200 text-amber-800 text-xs font-bold hover:bg-amber-100"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          )}
 
-              {
-                name: "Phạm Thị Hương",
-                year: "K2019",
-                school: "ĐH FPT",
-                major: "Kỹ thuật Phần mềm",
-                job: "Frontend Dev tại Shopee",
-                match: 85,
-              },
+          {alumniStatus === "loading" && (
+            <div className="p-8 text-center">
+              <div className="w-10 h-10 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin mx-auto mb-3" />
+              <p className="text-sm font-semibold text-gray-700">
+                Đang gửi hồ sơ học sinh vào recommendation engine...
+              </p>
+            </div>
+          )}
 
-              {
-                name: "Nguyễn Văn Khoa",
-                year: "K2017",
-                school: "UIT",
-                major: "KTPM",
-                job: "Data Engineer tại MoMo",
-                match: 78,
-              },
-            ].map((a) => (
-              <div
-                key={a.name}
-                className="flex items-center gap-4 p-3.5 rounded-xl border border-gray-100 hover:bg-blue-50 transition-colors"
-              >
-                <Avatar name={a.name} size="sm" />
-
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 mb-0.5">
-                    <span className="font-bold text-sm text-gray-800">
-                      {a.name}
-                    </span>
-
-                    <span className="text-xs text-gray-400 font-mono">
-                      {a.year}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-blue-600 font-semibold">
-                    {a.school} · {a.major}
+          {alumniStatus === "error" && (
+            <div className="p-4 rounded-xl bg-red-50 border border-red-100">
+              <div className="flex items-start gap-3">
+                <AlertTriangle
+                  size={18}
+                  className="text-red-600 mt-0.5 flex-shrink-0"
+                />
+                <div>
+                  <p className="font-bold text-gray-800">
+                    Không lấy được kết quả model
                   </p>
+                  <p className="text-sm text-red-600 mt-1">{alumniError}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
-                  <p className="text-xs text-gray-500">{a.job}</p>
+          {!cachedRecommendation && alumniStatus !== "loading" && (
+            <div className="p-5 rounded-xl bg-gray-50 border border-gray-100 text-sm text-gray-500">
+              Chưa có kết quả recommend đã lưu. Bấm Reload recommend để chạy
+              engine và lưu kết quả vào database.
+            </div>
+          )}
+
+          {cachedRecommendation && alumniStatus !== "loading" && (
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
+              <div className="lg:col-span-2 space-y-3">
+                {cachedRecommendation.results.slice(0, 6).map((career) => (
+                  <div
+                    key={career.soc_code}
+                    className="p-3.5 rounded-xl border border-gray-100 hover:bg-indigo-50 transition-colors"
+                  >
+                    <div className="flex items-start gap-3">
+                      <div className="w-8 h-8 rounded-lg bg-indigo-100 text-indigo-700 flex items-center justify-center text-sm font-black flex-shrink-0">
+                        {career.rank}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-bold text-gray-800 leading-snug">
+                              {career.title}
+                            </p>
+                            <p className="text-xs text-gray-400 font-mono mt-0.5">
+                              {career.soc_code}
+                            </p>
+                          </div>
+                          <span className="text-sm font-black text-emerald-700 bg-emerald-100 px-2 py-1 rounded-lg">
+                            {Math.round(career.score * 100)}%
+                          </span>
+                        </div>
+
+                        <div className="mt-3 grid grid-cols-6 gap-1.5">
+                          {Object.entries(career.vector).map(([key, value]) => (
+                            <div
+                              key={key}
+                              className="bg-white border border-gray-100 rounded-lg px-2 py-1.5 text-center"
+                            >
+                              <p
+                                className="text-xs font-bold"
+                                style={{ color: RIASEC_META[key]?.color }}
+                              >
+                                {key}
+                              </p>
+                              <p className="text-xs font-mono text-gray-600">
+                                {Number(value).toFixed(1)}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-gray-50 border border-gray-100">
+                  <h4 className="font-bold text-gray-800 mb-3">
+                    Profile gửi vào model
+                  </h4>
+                  {[
+                    ["Học sinh", `${student.name} · ${student.id}`],
+                    ["Nhóm ngành", student.careerFit],
+                    ["Nghề quan tâm", student.favoriteCareer],
+                    ["RIASEC", student.riasecTop3],
+                    ["MBTI / DISC", `${student.mbti} / ${student.disc}`],
+                  ].map(([label, value]) => (
+                    <div
+                      key={label as string}
+                      className="flex justify-between gap-3 py-1.5 border-b border-gray-100 last:border-0"
+                    >
+                      <span className="text-xs text-gray-500 font-medium">
+                        {label as string}
+                      </span>
+                      <span className="text-xs text-gray-800 font-bold text-right">
+                        {value as string}
+                      </span>
+                    </div>
+                  ))}
                 </div>
 
-                <span className="text-xs font-black text-emerald-700 bg-emerald-100 px-2 py-0.5 rounded-full">
-                  {a.match}%
-                </span>
+                <div className="p-4 rounded-xl bg-blue-50 border border-blue-100">
+                  <h4 className="font-bold text-blue-900 mb-3">
+                    Vector học sinh
+                  </h4>
+                  <div className="space-y-2.5">
+                    {Object.entries(cachedRecommendation.student_vector).map(
+                      ([key, value]) => {
+                        const maxValue = Math.max(
+                          ...Object.values(
+                            cachedRecommendation.student_vector,
+                          ),
+                        );
+
+                        return (
+                          <div key={key}>
+                            <div className="flex items-center justify-between mb-1">
+                              <span className="text-xs font-bold text-blue-900">
+                                {key} · {RIASEC_META[key]?.label}
+                              </span>
+                              <span className="text-xs font-mono font-bold text-blue-900">
+                                {value}
+                              </span>
+                            </div>
+                            <div className="h-2 bg-white rounded-full overflow-hidden">
+                              <div
+                                className="h-2 rounded-full"
+                                style={{
+                                  width: `${Math.max(8, (value / maxValue) * 100)}%`,
+                                  backgroundColor: RIASEC_META[key]?.color,
+                                }}
+                              />
+                            </div>
+                          </div>
+                        );
+                      },
+                    )}
+                  </div>
+                </div>
               </div>
-            ))}
-          </div>
+            </div>
+          )}
         </div>
       )}
     </div>
@@ -897,24 +1400,85 @@ export const CounselorStudentDetail = ({
 
 /* ── Students List ── */
 
-export const CounselorStudentList = () => {
+export const CounselorStudentList = ({
+  studentId,
+  navigate,
+}: {
+  studentId?: string;
+  navigate: (v: string, params?: { studentId?: string }) => void;
+}) => {
   const { studentsInClass } = useAppData();
-
-  const [selected, setSelected] = useState<(typeof studentsInClass)[0] | null>(
-    null,
-  );
-
   const [search, setSearch] = useState("");
-
   const [filter, setFilter] = useState("all");
+  const summaryProfile = resolveStudentProfile(studentsInClass, studentId);
+  const [detailProfile, setDetailProfile] =
+    useState<StudentProfileRecord | null>(null);
+  const [detailStatus, setDetailStatus] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
+  const selected = detailProfile ?? summaryProfile;
 
-  if (selected)
+  useEffect(() => {
+    setDetailProfile(null);
+    setDetailStatus("idle");
+
+    if (!studentId) return;
+    if (
+      summaryProfile?.id === studentId &&
+      hasStudentProfileDetail(summaryProfile)
+    ) {
+      return;
+    }
+
+    const controller = new AbortController();
+
+    setDetailStatus("loading");
+    fetchStudent<{ student: StudentProfileRecord }>(
+      studentId,
+      controller.signal,
+    )
+      .then((payload) => {
+        setDetailProfile(payload.student);
+        setDetailStatus("idle");
+      })
+      .catch((error) => {
+        if (error.name !== "AbortError") {
+          console.warn(error.message);
+          setDetailStatus("error");
+        }
+      });
+
+    return () => controller.abort();
+  }, [studentId, summaryProfile]);
+
+  if (studentId && selected && hasStudentProfileDetail(selected))
     return (
       <CounselorStudentDetail
         student={selected}
-        onBack={() => setSelected(null)}
+        onBack={() => navigate("co-students-list")}
       />
     );
+
+  if (studentId) {
+    return (
+      <div className="bg-white rounded-2xl p-10 border border-gray-100 shadow-sm text-center">
+        <h1 className="text-lg font-bold text-gray-800">
+          Đang tải hồ sơ học sinh
+        </h1>
+        <p className="text-sm text-gray-500 mt-2">
+          {detailStatus === "error"
+            ? "Không tải được hồ sơ chi tiết từ API. Vui lòng thử lại sau."
+            : `Đang lấy dữ liệu chi tiết cho ${selected?.name ?? studentId}.`}
+        </p>
+        <button
+          onClick={() => navigate("co-students-list")}
+          className="mt-5 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700"
+        >
+          Quay lại danh sách
+        </button>
+      </div>
+    );
+  }
 
   const filtered = studentsInClass.filter((s) => {
     if (filter === "risk" && s.risk === "none") return false;
@@ -1031,7 +1595,9 @@ export const CounselorStudentList = () => {
 
                 <td className="py-3 px-4">
                   <button
-                    onClick={() => setSelected(s)}
+                    onClick={() =>
+                      navigate("co-students-list", { studentId: s.id })
+                    }
                     className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
                   >
                     Chi tiết <ArrowRight size={11} />
@@ -1048,113 +1614,470 @@ export const CounselorStudentList = () => {
 
 /* ── Student Groups ── */
 
-export const CounselorStudentGroups = () => {
-  const groups = [
-    {
-      field: "Khoa học & Công nghệ",
-      color: "from-blue-500 to-indigo-500",
-      emoji: "💻",
-      count: 42,
-      students: ["Nguyễn Minh Anh", "Bùi Minh Tuấn", "Võ Thanh Nam"],
-    },
+type StudentGroupRow = {
+  student: StudentProfileRecord;
+  exploredCareer: string;
+  recommendedCareer: string;
+  exploredGroup?: RiasecGroupId;
+  recommendedGroup?: RiasecGroupId;
+  groupId?: RiasecGroupId;
+  status: "ok" | "conflict" | "missing-explore" | "missing-recommend" | "missing-both";
+  error?: string;
+};
 
-    {
-      field: "Y tế & Sức khỏe",
-      color: "from-red-400 to-rose-500",
-      emoji: "🩺",
-      count: 18,
-      students: ["Hoàng Thị Mai", "Lê Thu Hương"],
-    },
+type RiasecGroupId = "R" | "I" | "A" | "S" | "E" | "C";
 
-    {
-      field: "Kinh tế & Tài chính",
-      color: "from-emerald-500 to-teal-500",
-      emoji: "💰",
-      count: 25,
-      students: ["Trần Đức Huy"],
-    },
+const RIASEC_GROUPS: Array<{
+  id: RiasecGroupId;
+  name: string;
+  label: string;
+  color: string;
+}> = [
+  {
+    id: "R",
+    name: "Realistic",
+    label: "Thực tế / kỹ thuật",
+    color: "from-orange-500 to-amber-500",
+  },
+  {
+    id: "I",
+    name: "Investigative",
+    label: "Nghiên cứu / phân tích",
+    color: "from-blue-500 to-cyan-500",
+  },
+  {
+    id: "A",
+    name: "Artistic",
+    label: "Sáng tạo / thiết kế",
+    color: "from-purple-500 to-pink-500",
+  },
+  {
+    id: "S",
+    name: "Social",
+    label: "Xã hội / hỗ trợ",
+    color: "from-rose-500 to-red-500",
+  },
+  {
+    id: "E",
+    name: "Enterprising",
+    label: "Kinh doanh / lãnh đạo",
+    color: "from-emerald-500 to-teal-500",
+  },
+  {
+    id: "C",
+    name: "Conventional",
+    label: "Quy trình / dữ liệu",
+    color: "from-slate-500 to-gray-600",
+  },
+];
 
-    {
-      field: "Nghệ thuật & Thiết kế",
-      color: "from-purple-500 to-pink-500",
-      emoji: "🎨",
-      count: 12,
-      students: ["Đặng Lan Anh"],
-    },
+const CAREER_RIASEC_MAP: Record<string, RiasecGroupId> = {
+  "accountant": "C",
+  "agritech specialist": "R",
+  "animator": "A",
+  "architect": "A",
+  "bank officer": "C",
+  "business analyst": "E",
+  "civil servant": "C",
+  "content creator": "A",
+  "cybersecurity analyst": "I",
+  "data analyst": "I",
+  "designer": "A",
+  "doctor": "S",
+  "economist": "I",
+  "entrepreneur": "E",
+  "environmental officer": "R",
+  "factory operator": "R",
+  "hr specialist": "S",
+  "lawyer": "E",
+  "logistics operator": "R",
+  "market researcher": "I",
+  "mechanical engineer": "R",
+  "medical technologist": "I",
+  "nurse": "S",
+  "operations coordinator": "C",
+  "pharmacist": "I",
+  "police officer": "R",
+  "product manager": "E",
+  "programmer": "I",
+  "psychologist": "S",
+  "robotics engineer": "R",
+  "sales manager": "E",
+  "salesperson": "E",
+  "scientist": "I",
+  "social worker": "S",
+  "software engineer": "I",
+  "sports coach": "S",
+  "surgeon": "S",
+  "teacher": "S",
+  "ux designer": "A",
+};
 
-    {
-      field: "Kỹ thuật & Cơ khí",
-      color: "from-orange-500 to-amber-500",
-      emoji: "⚙️",
-      count: 15,
-      students: [],
-    },
+const normalizeCareer = (career: string) => career.trim().toLowerCase();
 
-    {
-      field: "Chưa xác định",
-      color: "from-gray-400 to-gray-500",
-      emoji: "❓",
-      count: 16,
-      students: ["Phạm Văn Long"],
-    },
-  ];
+const firstExploredCareer = (student: StudentProfileRecord) =>
+  student.exploredCareers?.find(Boolean)?.trim() ||
+  student.favoriteCareer?.trim() ||
+  "";
+
+const careerToRiasecGroup = (career: string): RiasecGroupId | undefined =>
+  CAREER_RIASEC_MAP[normalizeCareer(career)];
+
+const strongestRiasecDimension = (
+  vector?: Record<string, number>,
+): RiasecGroupId | undefined => {
+  if (!vector) return undefined;
+
+  const strongest = Object.entries(vector)
+    .filter(([key]) => RIASEC_GROUPS.some((group) => group.id === key))
+    .sort((a, b) => b[1] - a[1])[0]?.[0];
+
+  return strongest as RiasecGroupId | undefined;
+};
+
+const studentGroupStatus = (
+  exploredCareer: string,
+  recommendedCareer: string,
+  exploredGroup?: RiasecGroupId,
+  recommendedGroup?: RiasecGroupId,
+): StudentGroupRow["status"] => {
+  if (!exploredCareer && !recommendedCareer) return "missing-both";
+  if (!exploredCareer) return "missing-explore";
+  if (!recommendedCareer) return "missing-recommend";
+  return exploredGroup && recommendedGroup && exploredGroup === recommendedGroup
+    ? "ok"
+    : "conflict";
+};
+
+export const CounselorStudentGroups = ({
+  navigate,
+}: {
+  navigate: (v: string, params?: { studentId?: string }) => void;
+}) => {
+  const { studentsInClass } = useAppData();
+  const [groupStudents, setGroupStudents] =
+    useState<StudentProfileRecord[]>(studentsInClass);
+  const [selectedGroup, setSelectedGroup] = useState<RiasecGroupId | null>(
+    null,
+  );
+  const [status, setStatus] = useState<"idle" | "loading" | "success" | "error">(
+    "idle",
+  );
+  const [error, setError] = useState("");
+
+  useEffect(() => {
+    const controller = new AbortController();
+
+    setStatus("loading");
+    setError("");
+
+    fetchAppData<{ studentsInClass?: StudentProfileRecord[] }>(
+      controller.signal,
+    )
+      .then((payload) => {
+        setGroupStudents(payload.studentsInClass ?? studentsInClass);
+        setStatus("success");
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") return;
+        setError(err.message || "Không tải được student groups.");
+        setStatus("error");
+      });
+
+    return () => controller.abort();
+  }, [studentsInClass]);
+
+  const rows = groupStudents.map((student) => {
+    const exploredCareer =
+      student.currentExploredCareer?.trim() || firstExploredCareer(student);
+    const recommendedCareer = student.latestRecommendCareer?.trim() || "";
+    const exploredGroup = careerToRiasecGroup(exploredCareer);
+    const recommendedGroup =
+      careerToRiasecGroup(recommendedCareer) ||
+      strongestRiasecDimension(student.recommendHistory?.[0]?.results?.[0]?.vector) ||
+      strongestRiasecDimension(student.recommendHistory?.[0]?.studentVector);
+
+    return {
+      student,
+      exploredCareer,
+      recommendedCareer,
+      exploredGroup,
+      recommendedGroup,
+      groupId: exploredGroup || recommendedGroup,
+      status: studentGroupStatus(
+        exploredCareer,
+        recommendedCareer,
+        exploredGroup,
+        recommendedGroup,
+      ),
+    } satisfies StudentGroupRow;
+  });
+
+  const groups = RIASEC_GROUPS.map((group) => {
+    const items = rows.filter((row) => row.groupId === group.id);
+
+    return {
+      ...group,
+      items,
+      count: items.length,
+      conflicts: items.filter((item) => item.status === "conflict").length,
+      warnings: items.filter((item) => item.status !== "ok").length,
+    };
+  });
+  const selectedGroupMeta = groups.find((group) => group.id === selectedGroup);
+  const selectedRows = selectedGroupMeta?.items ?? [];
+  const ungroupedRows = rows.filter((row) => !row.groupId);
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-bold text-gray-900">
-        Nhóm Học sinh theo Ngành nghề 🗂️
-      </h1>
+      <div className="flex items-start justify-between gap-3 flex-wrap">
+        <div>
+          <h1 className="text-xl font-bold text-gray-900">
+            {selectedGroupMeta
+              ? `Danh sách học sinh nhóm ${selectedGroupMeta.name}`
+              : "Nhóm Học sinh theo RIASEC"}
+          </h1>
+        </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-        {groups.map((g) => (
-          <div
-            key={g.field}
-            className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden hover:shadow-md transition-shadow"
+        {selectedGroupMeta ? (
+          <button
+            onClick={() => setSelectedGroup(null)}
+            className="px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-gray-700 text-xs font-bold hover:bg-gray-50 flex items-center gap-1.5"
           >
-            <div className={`h-2 bg-gradient-to-r ${g.color}`} />
+            <ArrowRight size={12} className="rotate-180" /> Quay lại 6 nhóm
+          </button>
+        ) : null}
+      </div>
 
-            <div className="p-5">
-              <div className="flex items-center gap-3 mb-3">
-                <div
-                  className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${g.color} flex items-center justify-center text-2xl text-white flex-shrink-0`}
-                >
-                  {g.emoji}
+      {status === "error" && (
+        <div className="p-4 rounded-xl bg-red-50 border border-red-100 text-sm text-red-700">
+          {error}
+        </div>
+      )}
+
+      {status === "loading" && rows.length === 0 && (
+        <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
+          <div className="w-10 h-10 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin mx-auto mb-3" />
+          <p className="text-sm font-semibold text-gray-700">
+            Đang tải dữ liệu nhóm học sinh từ database...
+          </p>
+        </div>
+      )}
+
+      {!selectedGroupMeta && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+          {groups.map((g) => (
+            <button
+              key={g.id}
+              onClick={() => setSelectedGroup(g.id)}
+              className="bg-white rounded-2xl border border-gray-100 text-left shadow-sm overflow-hidden hover:shadow-md transition-all hover:-translate-y-0.5"
+            >
+              <div className={`h-2 bg-gradient-to-r ${g.color}`} />
+
+              <div className="p-5">
+                <div className="flex items-center gap-3 mb-3">
+                  <div
+                    className={`w-12 h-12 rounded-2xl bg-gradient-to-br ${g.color} flex items-center justify-center text-white flex-shrink-0`}
+                  >
+                    <Briefcase size={20} />
+                  </div>
+
+                  <div className="min-w-0">
+                    <h3 className="font-bold text-gray-800 text-sm truncate">
+                      {g.id} - {g.name}
+                    </h3>
+                    <p className="text-xs text-gray-500 mt-0.5">{g.label}</p>
+
+                    <p className="text-2xl font-black text-gray-900">
+                      {g.count}{" "}
+                      <span className="text-sm font-normal text-gray-500">
+                        học sinh
+                      </span>
+                    </p>
+                  </div>
                 </div>
 
-                <div>
-                  <h3 className="font-bold text-gray-800 text-sm">{g.field}</h3>
-
-                  <p className="text-2xl font-black text-gray-900">
-                    {g.count}{" "}
-                    <span className="text-sm font-normal text-gray-500">
-                      học sinh
+                <div className="flex items-center gap-2 mb-3">
+                  {g.conflicts > 0 && (
+                    <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">
+                      {g.conflicts} conflict
                     </span>
-                  </p>
-                </div>
-              </div>
-
-              {g.students.length > 0 && (
-                <div className="flex flex-wrap gap-1.5 pt-3 border-t border-gray-100">
-                  {g.students.slice(0, 3).map((n) => (
-                    <span
-                      key={n}
-                      className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
-                    >
-                      {n.split(" ").pop()}
-                    </span>
-                  ))}
-
-                  {g.count > 3 && (
-                    <span className="text-xs text-gray-400 px-1">
-                      +{g.count - 3} khác
+                  )}
+                  {g.warnings > g.conflicts && (
+                    <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">
+                      {g.warnings - g.conflicts} thiếu dữ liệu
                     </span>
                   )}
                 </div>
+
+                {g.items.length > 0 && (
+                  <div className="flex flex-wrap gap-1.5 pt-3 border-t border-gray-100">
+                    {g.items.slice(0, 3).map((row) => (
+                      <span
+                        key={row.student.id}
+                        className="text-xs bg-gray-100 text-gray-600 px-2 py-0.5 rounded-full"
+                      >
+                        {row.student.name.split(" ").pop()}
+                      </span>
+                    ))}
+
+                    {g.count > 3 && (
+                      <span className="text-xs text-gray-400 px-1">
+                        +{g.count - 3} khác
+                      </span>
+                    )}
+                  </div>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      )}
+
+      {selectedGroupMeta && (
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="p-4 border-b border-gray-100">
+          <h3 className="font-bold text-gray-800">
+            Danh sách học sinh nhóm {selectedGroupMeta?.name}
+          </h3>
+        </div>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50">
+              <tr>
+                {[
+                  "Học sinh",
+                  "Nghề đang explore",
+                  "Nghề kq recommend",
+                  "Nhóm",
+                  "",
+                ].map((header) => (
+                  <th
+                    key={header}
+                    className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide"
+                  >
+                    {header}
+                  </th>
+                ))}
+              </tr>
+            </thead>
+
+            <tbody className="divide-y divide-gray-50">
+              {selectedRows.map((row) => {
+                return (
+                  <tr key={row.student.id} className="hover:bg-gray-50">
+                    <td className="py-3 px-4">
+                      <div className="flex items-center gap-2.5">
+                        <Avatar name={row.student.name} size="sm" />
+                        <div>
+                          <p className="font-semibold text-gray-800">
+                            {row.student.name}
+                          </p>
+                          <p className="text-xs text-gray-400 font-mono">
+                            {row.student.id}
+                          </p>
+                        </div>
+                      </div>
+                    </td>
+                    <td className="py-3 px-4 text-gray-700">
+                      {row.exploredCareer || (
+                        <span className="text-gray-400">Chưa có</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-4 text-gray-700">
+                      <span
+                        className={
+                          row.status === "conflict"
+                            ? "text-red-600 font-bold"
+                            : ""
+                        }
+                      >
+                        {row.recommendedCareer || (
+                          <span className="text-gray-400">
+                            {row.error ? "Lỗi recommend" : "Chưa có"}
+                          </span>
+                        )}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4">
+                      <span className="text-xs font-bold text-indigo-700 bg-indigo-100 px-2 py-1 rounded-lg">
+                        {row.groupId
+                          ? `${row.groupId} - ${
+                              RIASEC_GROUPS.find(
+                                (group) => group.id === row.groupId,
+                              )?.name
+                            }`
+                          : "Chưa xác định"}
+                      </span>
+                    </td>
+                    <td className="py-3 px-4 text-right">
+                      <button
+                        onClick={() =>
+                          navigate("co-students-list", {
+                            studentId: row.student.id,
+                          })
+                        }
+                        className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100"
+                        title="Xem chi tiết học sinh"
+                      >
+                        <UserCheck size={15} />
+                      </button>
+                    </td>
+                  </tr>
+                );
+              })}
+              {selectedRows.length === 0 && (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="py-8 px-4 text-center text-sm text-gray-400"
+                  >
+                    Chưa có học sinh trong nhóm này.
+                  </td>
+                </tr>
               )}
-            </div>
-          </div>
-        ))}
+            </tbody>
+          </table>
+        </div>
       </div>
+      )}
+
+      {!selectedGroupMeta && ungroupedRows.length > 0 && (
+        <div className="bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden">
+          <div className="p-4 border-b border-amber-100 bg-amber-50">
+            <h3 className="font-bold text-amber-800">
+              Học sinh chưa phân được vào 6 nhóm
+            </h3>
+            <p className="text-xs text-amber-700 mt-0.5">
+              Các học sinh này thiếu cả nghề explore và nhóm recommend hợp lệ.
+            </p>
+          </div>
+          <div className="divide-y divide-gray-50">
+            {ungroupedRows.map((row) => (
+              <div
+                key={row.student.id}
+                className="p-3 flex items-center justify-between gap-3"
+              >
+                <div className="flex items-center gap-2.5">
+                  <Avatar name={row.student.name} size="sm" />
+                  <div>
+                    <p className="font-semibold text-gray-800">
+                      {row.student.name}
+                    </p>
+                    <p className="text-xs text-gray-400 font-mono">
+                      {row.student.id}
+                    </p>
+                  </div>
+                </div>
+                <span className="text-xs font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-700">
+                  Thiếu dữ liệu phân nhóm
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 };
