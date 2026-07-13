@@ -220,7 +220,13 @@ type MessageContact = ChatContact & {
   className?: string;
 };
 
-export const MessengerView = ({ role }: { role: string }) => {
+export const MessengerView = ({
+  role,
+  initialStudentId,
+}: {
+  role: string;
+  initialStudentId?: string;
+}) => {
   const currentRole: MessageRole = role === "student" ? "student" : "counselor";
   const { studentsInClass: appStudents } = useAppData();
   const [studentPortalId] = useState(() =>
@@ -228,7 +234,7 @@ export const MessengerView = ({ role }: { role: string }) => {
     STUDENT_PORTAL_FALLBACK_ID,
   );
   const [activeStudentId, setActiveStudentId] = useState(
-    currentRole === "student" ? studentPortalId : "",
+    currentRole === "student" ? studentPortalId : initialStudentId || "",
   );
   const [messages, setMessages] = useState<MessageRecord[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
@@ -350,10 +356,14 @@ export const MessengerView = ({ role }: { role: string }) => {
 
   React.useEffect(() => {
     if (currentRole === "student") return;
+    if (initialStudentId && activeStudentId !== initialStudentId) {
+      setActiveStudentId(initialStudentId);
+      return;
+    }
     if (!activeStudentId && contacts.length > 0) {
       setActiveStudentId(contacts[0].studentId);
     }
-  }, [activeStudentId, contacts, currentRole]);
+  }, [activeStudentId, contacts, currentRole, initialStudentId]);
 
   const activeContact =
     contacts.find((contact) => contact.studentId === activeStudentId) ||

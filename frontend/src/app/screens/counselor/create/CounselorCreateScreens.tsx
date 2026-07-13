@@ -127,8 +127,10 @@ import {
   type AdviceNoteRecord,
   type AdvicePriority,
   type MeetingRecord,
+  type SurveyAnswerOption,
   type RecommendationResponse,
   type SurveyQuestion,
+  type SurveyQuestionType,
   type SurveyRecord,
 } from "../../../api/client";
 import {
@@ -299,14 +301,99 @@ const surveyStatusStyle: Record<string, string> = {
   closed: "bg-rose-100 text-rose-700",
 };
 
-const suggestedSurveyQuestions: SurveyQuestion[] = [
-  { id: "ai-1", text: "Em thích làm việc với dữ liệu, biểu đồ hoặc số liệu.", type: "scale", area: "I" },
-  { id: "ai-2", text: "Em thích thiết kế, viết, vẽ hoặc tạo sản phẩm sáng tạo.", type: "scale", area: "A" },
-  { id: "ai-3", text: "Em thích giúp đỡ, hướng dẫn hoặc chăm sóc người khác.", type: "scale", area: "S" },
-  { id: "ai-4", text: "Em thích thuyết phục, lãnh đạo hoặc khởi xướng dự án.", type: "scale", area: "E" },
-  { id: "ai-5", text: "Em thích công việc rõ quy trình, sắp xếp và kiểm tra chi tiết.", type: "scale", area: "C" },
-  { id: "ai-6", text: "Em thích thực hành, sửa chữa, vận hành máy móc hoặc làm ngoài trời.", type: "scale", area: "R" },
+const defaultSurveyAnswerOptions: SurveyAnswerOption[] = [
+  { value: 1, label: "Rất không thích" },
+  { value: 2, label: "Không thích" },
+  { value: 3, label: "Phân vân" },
+  { value: 4, label: "Thích" },
+  { value: 5, label: "Rất thích" },
 ];
+
+const questionTypeOptions: Array<{ value: SurveyQuestionType; label: string }> = [
+  { value: "scale", label: "Thang điểm" },
+  { value: "single_choice", label: "Trắc nghiệm 1 đáp án" },
+  { value: "multiple_choice", label: "Trắc nghiệm nhiều đáp án" },
+  { value: "text", label: "Tự luận" },
+];
+
+const riasecAreas = ["R", "I", "A", "S", "E", "C"];
+
+type SurveyQuestionDraft = {
+  id?: string;
+  text: string;
+  type: SurveyQuestionType;
+  area: string;
+  options: SurveyAnswerOption[];
+};
+
+const questionTypeLabel = (type: string) =>
+  questionTypeOptions.find((item) => item.value === type)?.label || "Thang điểm";
+
+const normalizeQuestionType = (type?: string): SurveyQuestionType => {
+  if (type === "single_choice" || type === "multiple_choice" || type === "text") return type;
+  return "scale";
+};
+
+const normalizeOptionValue = (value: string | number) => {
+  if (typeof value === "number") return value;
+  const trimmed = value.trim();
+  if (trimmed !== "" && Number.isFinite(Number(trimmed))) return Number(trimmed);
+  return trimmed;
+};
+
+const normalizeQuestionOptions = (options?: SurveyAnswerOption[]) =>
+  (options ?? [])
+    .map((option) => ({
+      value: normalizeOptionValue(option.value),
+      label: String(option.label || "").trim(),
+    }))
+    .filter((option) => option.label);
+
+const defaultChoiceOptions = (): SurveyAnswerOption[] => [
+  { value: 1, label: "Lựa chọn 1" },
+  { value: 2, label: "Lựa chọn 2" },
+];
+
+const ensureQuestionOptions = (
+  type: SurveyQuestionType,
+  options?: SurveyAnswerOption[],
+) => {
+  if (type === "text") return [];
+  const normalized = normalizeQuestionOptions(options);
+  if (normalized.length > 0) return normalized;
+  return type === "scale" ? defaultSurveyAnswerOptions : defaultChoiceOptions();
+};
+
+const createQuestionDraft = (question?: SurveyQuestion): SurveyQuestionDraft => {
+  const type = normalizeQuestionType(question?.type);
+  return {
+    id: question?.id,
+    text: question?.text ?? "",
+    type,
+    area: question?.area || "R",
+    options: ensureQuestionOptions(type, question?.options),
+  };
+};
+
+const toRiasecArea = (value?: string) => {
+  const text = String(value || "").trim().toUpperCase();
+  const first = text.slice(0, 1);
+  return riasecAreas.includes(first) ? first : "R";
+};
+
+const formatSurveyAnswerValue = (
+  question: SurveyQuestion | undefined,
+  fallbackOptions: SurveyAnswerOption[],
+  value: unknown,
+) => {
+  const options = question?.options?.length ? question.options : fallbackOptions;
+  const labelFor = (item: unknown) => {
+    const option = options.find((candidate) => String(candidate.value) === String(item));
+    return option?.label || String(item);
+  };
+  if (Array.isArray(value)) return value.map(labelFor).join(", ");
+  return labelFor(value);
+};
 
 export const CounselorSurveys = () => {
   const { studentsInClass: students } = useAppData();
@@ -322,9 +409,10 @@ export const CounselorSurveys = () => {
   const [closeAt, setCloseAt] = useState(
     toDateTimeLocalValue(new Date(Date.now() + 7 * 24 * 60 * 60 * 1000)),
   );
-  const [questions, setQuestions] = useState<SurveyQuestion[]>(suggestedSurveyQuestions);
-  const [questionText, setQuestionText] = useState("");
-  const [questionArea, setQuestionArea] = useState("R");
+  const [questions, setQuestions] = useState<SurveyQuestion[]>([]);
+  const [questionModalOpen, setQuestionModalOpen] = useState(false);
+  const [editingQuestionId, setEditingQuestionId] = useState<string | null>(null);
+  const [questionDraft, setQuestionDraft] = useState<SurveyQuestionDraft>(createQuestionDraft());
   const [accessMode, setAccessMode] = useState<"class" | "grade" | "student">("class");
   const [selectedClasses, setSelectedClasses] = useState<string[]>(["9A"]);
   const [selectedGrades, setSelectedGrades] = useState<number[]>([]);
@@ -374,55 +462,220 @@ export const CounselorSurveys = () => {
       ? items.filter((item) => item !== value)
       : [...items, value];
 
-  const addManualQuestion = () => {
-    const text = questionText.trim();
-    if (!text) return;
-    setQuestions((items) => [
-      ...items,
-      {
-        id: `manual-${Date.now()}`,
-        text,
-        area: questionArea,
-        type: "scale",
-      },
-    ]);
-    setQuestionText("");
+  const openQuestionModal = (question?: SurveyQuestion) => {
+    setEditingQuestionId(question?.id ?? null);
+    setQuestionDraft(createQuestionDraft(question));
+    setQuestionModalOpen(true);
+    setNotice("");
   };
 
-  const importCsv = (file?: File) => {
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = () => {
-      const text = String(reader.result || "");
-      const rows = text
-        .split(/\r?\n/)
-        .map((row) => row.trim())
-        .filter(Boolean);
-      const imported = rows
-        .slice(rows[0]?.toLowerCase().includes("question") ? 1 : 0)
-        .map((row, index) => {
-          const [question, area = ""] = row.split(",").map((cell) => cell.trim());
-          return {
-            id: `csv-${Date.now()}-${index}`,
-            text: question,
-            area,
-            type: "scale",
-          } as SurveyQuestion;
-        })
-        .filter((question) => question.text);
-      if (imported.length > 0) setQuestions(imported);
+  const updateQuestionType = (type: SurveyQuestionType) => {
+    setQuestionDraft((current) => ({
+      ...current,
+      type,
+      options: ensureQuestionOptions(type, current.options),
+    }));
+  };
+
+  const updateQuestionOption = (
+    index: number,
+    field: keyof SurveyAnswerOption,
+    value: string,
+  ) => {
+    setQuestionDraft((current) => ({
+      ...current,
+      options: current.options.map((option, optionIndex) =>
+        optionIndex === index
+          ? field === "value"
+            ? { ...option, value: normalizeOptionValue(value) }
+            : { ...option, label: value }
+          : option,
+      ),
+    }));
+  };
+
+  const addQuestionOption = () => {
+    setQuestionDraft((current) => ({
+      ...current,
+      options: [
+        ...current.options,
+        {
+          value: current.options.length + 1,
+          label: `Lựa chọn ${current.options.length + 1}`,
+        },
+      ],
+    }));
+  };
+
+  const removeQuestionOption = (index: number) => {
+    setQuestionDraft((current) => ({
+      ...current,
+      options: current.options.filter((_option, optionIndex) => optionIndex !== index),
+    }));
+  };
+
+  const saveQuestionDraft = () => {
+    const text = questionDraft.text.trim();
+    if (!text) {
+      setNotice("Vui lòng nhập nội dung câu hỏi.");
+      return;
+    }
+
+    const type = questionDraft.type;
+    const options =
+      type === "scale" && normalizeQuestionOptions(questionDraft.options).length === 0
+        ? defaultSurveyAnswerOptions
+        : normalizeQuestionOptions(questionDraft.options);
+    if (type !== "text" && options.length < 2) {
+      setNotice("Vui lòng nhập ít nhất 2 câu trả lời cho câu hỏi này.");
+      return;
+    }
+
+    const question: SurveyQuestion = {
+      id: editingQuestionId || `question-${Date.now()}`,
+      text,
+      type,
+      area: questionDraft.area,
+      options: type === "text" ? [] : options,
     };
-    reader.readAsText(file, "utf-8");
+
+    setQuestions((items) =>
+      editingQuestionId
+        ? items.map((item) => (item.id === editingQuestionId ? question : item))
+        : [...items, question],
+    );
+    setQuestionModalOpen(false);
+    setEditingQuestionId(null);
+    setQuestionDraft(createQuestionDraft());
+    setNotice("");
+  };
+
+  const normalizeImportKey = (key: string) =>
+    key
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .trim()
+      .toLowerCase()
+      .replace(/\s+/g, "_");
+
+  const parseImportedType = (value: unknown): SurveyQuestionType => {
+    const text = normalizeImportKey(String(value || "scale"));
+    if (text.includes("multiple") || text.includes("nhieu") || text.includes("checkbox")) {
+      return "multiple_choice";
+    }
+    if (text.includes("single") || text.includes("trac_nghiem") || text.includes("mot")) {
+      return "single_choice";
+    }
+    if (text.includes("text") || text.includes("tu_luan") || text.includes("essay")) {
+      return "text";
+    }
+    return "scale";
+  };
+
+  const parseImportedQuestions = (rows: Record<string, unknown>[]) => {
+    const errors: string[] = [];
+    const imported = rows
+      .map((row, index) => {
+        const normalizedRow = Object.fromEntries(
+          Object.entries(row).map(([key, value]) => [normalizeImportKey(key), value]),
+        );
+        const cell = (...keys: string[]) =>
+          keys
+            .map((key) => normalizedRow[normalizeImportKey(key)])
+            .find((value) => String(value ?? "").trim() !== "");
+
+        const text = String(cell("question", "text", "cau_hoi") || "").trim();
+        if (!text) {
+          errors.push(`Dòng ${index + 2}: thiếu question.`);
+          return null;
+        }
+
+        const type = parseImportedType(cell("type", "loai"));
+        const options: SurveyAnswerOption[] = [];
+        for (let optionIndex = 1; optionIndex <= 20; optionIndex += 1) {
+          const label = String(
+            cell(
+              `option${optionIndex}_label`,
+              `answer${optionIndex}_label`,
+              `option${optionIndex}`,
+              `answer${optionIndex}`,
+            ) || "",
+          ).trim();
+          if (!label) continue;
+          const rawValue = cell(`option${optionIndex}_value`, `answer${optionIndex}_value`);
+          options.push({
+            value: normalizeOptionValue(
+              rawValue === undefined || rawValue === null || String(rawValue).trim() === ""
+                ? optionIndex
+                : String(rawValue),
+            ),
+            label,
+          });
+        }
+
+        const finalOptions =
+          type === "text"
+            ? []
+            : type === "scale" && options.length === 0
+              ? defaultSurveyAnswerOptions
+              : normalizeQuestionOptions(options);
+        if ((type === "single_choice" || type === "multiple_choice") && finalOptions.length < 2) {
+          errors.push(`Dòng ${index + 2}: câu trắc nghiệm cần ít nhất 2 đáp án.`);
+          return null;
+        }
+
+        return {
+          id: `import-${Date.now()}-${index}`,
+          text,
+          type,
+          area: toRiasecArea(String(cell("area", "dimension", "nhom") || "")),
+          options: finalOptions,
+        } as SurveyQuestion;
+      })
+      .filter((question): question is SurveyQuestion => Boolean(question));
+
+    if (errors.length > 0) {
+      setNotice(`Không import được: ${errors.slice(0, 3).join(" ")}`);
+      return;
+    }
+    if (imported.length === 0) {
+      setNotice("File import không có câu hỏi hợp lệ.");
+      return;
+    }
+    setQuestions(imported);
+    setNotice(`Đã import ${imported.length} câu hỏi.`);
+  };
+
+  const importQuestionFile = (file?: File) => {
+    if (!file) return;
+    file
+      .arrayBuffer()
+      .then(async (buffer) => {
+        const XLSX = await import("xlsx");
+        const workbook = XLSX.read(buffer, { type: "array" });
+        const firstSheet = workbook.SheetNames[0];
+        if (!firstSheet) {
+          setNotice("File import không có sheet dữ liệu.");
+          return;
+        }
+        const rows = XLSX.utils.sheet_to_json<Record<string, unknown>>(
+          workbook.Sheets[firstSheet],
+          { defval: "" },
+        );
+        parseImportedQuestions(rows);
+      })
+      .catch((error) => setNotice(error.message || "Không đọc được file import."));
   };
 
   const useOnetQuestions = () => {
     fetchQuestions()
       .then((payload) => {
         const imported = (payload.questions ?? []).map((question) => ({
-          id: String(question.id),
+          id: `onet-${question.id}`,
           text: question.text,
-          area: question.area,
-          type: "scale",
+          area: toRiasecArea(question.area),
+          type: "scale" as const,
+          options: defaultSurveyAnswerOptions,
         }));
         if (imported.length > 0) setQuestions(imported);
       })
@@ -438,13 +691,26 @@ export const CounselorSurveys = () => {
       setNotice("Vui lòng thêm ít nhất một câu hỏi.");
       return;
     }
+    const normalizedQuestions = questions.map((question) => {
+      const type = normalizeQuestionType(question.type);
+      const options = type === "text" ? [] : ensureQuestionOptions(type, question.options);
+      return { ...question, type, options };
+    });
+    const invalidQuestion = normalizedQuestions.find(
+      (question) => question.type !== "text" && (question.options?.length ?? 0) < 2,
+    );
+    if (invalidQuestion) {
+      setNotice(`Câu "${invalidQuestion.text}" cần ít nhất 2 câu trả lời.`);
+      return;
+    }
     const payload = {
       counselorId: DEFAULT_COUNSELOR_ID,
       title: title.trim(),
       description: description.trim(),
       openAt: new Date(openAt).toISOString(),
       closeAt: new Date(closeAt).toISOString(),
-      questions,
+      questions: normalizedQuestions,
+      answerOptions: defaultSurveyAnswerOptions,
       classNames: accessMode === "class" ? selectedClasses : [],
       grades: accessMode === "grade" ? selectedGrades : [],
       studentIds: accessMode === "student" ? selectedStudents : [],
@@ -615,56 +881,196 @@ export const CounselorSurveys = () => {
             <div className="flex flex-wrap items-center justify-between gap-2">
               <h2 className="font-bold text-gray-900">Danh sách câu hỏi</h2>
               <div className="flex flex-wrap gap-2">
-                <button onClick={() => setQuestions(suggestedSurveyQuestions)} className="px-3 py-2 rounded-lg border border-gray-200 text-xs font-bold text-gray-700">
-                  Gợi ý AI
+                <button onClick={() => openQuestionModal()} className="px-3 py-2 rounded-lg bg-gray-900 text-white text-xs font-bold flex items-center gap-1.5">
+                  <Plus size={14} />
+                  Tạo câu hỏi
                 </button>
                 <button onClick={useOnetQuestions} className="px-3 py-2 rounded-lg border border-gray-200 text-xs font-bold text-gray-700">
-                  Dùng O*NET
+                  Load O*NET+
                 </button>
                 <label className="px-3 py-2 rounded-lg border border-gray-200 text-xs font-bold text-gray-700 cursor-pointer">
-                  Import CSV
-                  <input type="file" accept=".csv,text/csv" className="hidden" onChange={(event) => importCsv(event.target.files?.[0])} />
+                  Import Excel/CSV
+                  <input
+                    type="file"
+                    accept=".csv,text/csv,.xlsx,.xls"
+                    className="hidden"
+                    onChange={(event) => {
+                      importQuestionFile(event.target.files?.[0]);
+                      event.currentTarget.value = "";
+                    }}
+                  />
                 </label>
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-[1fr_120px_auto] gap-2">
-              <input
-                value={questionText}
-                onChange={(event) => setQuestionText(event.target.value)}
-                placeholder="Nhập câu hỏi thủ công"
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
-              />
-              <select
-                value={questionArea}
-                onChange={(event) => setQuestionArea(event.target.value)}
-                className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
-              >
-                {["R", "I", "A", "S", "E", "C"].map((area) => (
-                  <option key={area} value={area}>{area}</option>
+            {questions.length === 0 ? (
+              <div className="rounded-lg border border-dashed border-gray-200 p-5 text-sm text-gray-500">
+                Chưa có câu hỏi nào. Chọn Load O*NET+ hoặc tạo câu hỏi mới để bắt đầu.
+              </div>
+            ) : (
+              <div className="max-h-80 overflow-y-auto divide-y divide-gray-100 rounded-lg border border-gray-100">
+                {questions.map((question, index) => (
+                  <div key={question.id} className="p-3 text-sm">
+                    <div className="flex flex-wrap items-start gap-3">
+                      <span className="font-mono text-xs text-gray-400 w-8">{index + 1}</span>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex flex-wrap gap-2 mb-1.5">
+                          <span className="px-2 py-1 rounded-full bg-gray-100 text-xs font-bold text-gray-600">
+                            {questionTypeLabel(question.type)}
+                          </span>
+                          <span className="px-2 py-1 rounded-full bg-pink-50 text-xs font-bold text-pink-700">
+                            {question.area || "-"}
+                          </span>
+                        </div>
+                        <p className="font-semibold text-gray-900">{question.text}</p>
+                        <div className="flex flex-wrap gap-1.5 mt-2">
+                          {question.type === "text" ? (
+                            <span className="text-xs font-semibold text-gray-500">Tự luận</span>
+                          ) : (
+                            (question.options ?? []).map((option) => (
+                              <span key={`${question.id}-${option.value}`} className="px-2 py-1 rounded bg-gray-50 text-xs text-gray-600">
+                                {String(option.value)}. {option.label}
+                              </span>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex gap-2">
+                        <button
+                          onClick={() => openQuestionModal(question)}
+                          className="text-xs font-bold text-pink-700"
+                        >
+                          Sửa
+                        </button>
+                        <button
+                          onClick={() => setQuestions((items) => items.filter((item) => item.id !== question.id))}
+                          className="text-xs font-bold text-rose-600"
+                        >
+                          Xóa
+                        </button>
+                      </div>
+                    </div>
+                  </div>
                 ))}
-              </select>
-              <button onClick={addManualQuestion} className="px-3 py-2 rounded-lg bg-gray-900 text-white text-sm font-bold">
-                Thêm
-              </button>
-            </div>
+              </div>
+            )}
+          </div>
 
-            <div className="max-h-64 overflow-y-auto divide-y divide-gray-100 rounded-lg border border-gray-100">
-              {questions.map((question, index) => (
-                <div key={question.id} className="flex gap-3 px-3 py-2 text-sm">
-                  <span className="font-mono text-xs text-gray-400 w-8">{index + 1}</span>
-                  <span className="flex-1 text-gray-800">{question.text}</span>
-                  <span className="text-xs font-bold text-pink-700">{question.area || "-"}</span>
+          {questionModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 px-4">
+              <div className="w-full max-w-2xl max-h-[90vh] overflow-y-auto rounded-xl bg-white border border-gray-100 shadow-xl p-5 space-y-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div>
+                    <h2 className="text-lg font-bold text-gray-900">
+                      {editingQuestionId ? "Sửa câu hỏi" : "Tạo câu hỏi"}
+                    </h2>
+                    <p className="text-xs text-gray-500 mt-1">Thiết lập nội dung, loại câu hỏi và đáp án.</p>
+                  </div>
                   <button
-                    onClick={() => setQuestions((items) => items.filter((item) => item.id !== question.id))}
-                    className="text-xs font-bold text-rose-600"
+                    onClick={() => setQuestionModalOpen(false)}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-600"
                   >
-                    Xóa
+                    Đóng
                   </button>
                 </div>
-              ))}
+
+                <label className="space-y-1.5 block">
+                  <span className="text-xs font-bold text-gray-600">Câu hỏi</span>
+                  <textarea
+                    value={questionDraft.text}
+                    onChange={(event) =>
+                      setQuestionDraft((current) => ({ ...current, text: event.target.value }))
+                    }
+                    rows={3}
+                    className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                  />
+                </label>
+
+                <div className="grid grid-cols-1 sm:grid-cols-[1fr_120px] gap-3">
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-bold text-gray-600">Loại câu hỏi</span>
+                    <select
+                      value={questionDraft.type}
+                      onChange={(event) => updateQuestionType(event.target.value as SurveyQuestionType)}
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    >
+                      {questionTypeOptions.map((type) => (
+                        <option key={type.value} value={type.value}>{type.label}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <label className="space-y-1.5">
+                    <span className="text-xs font-bold text-gray-600">Nhóm</span>
+                    <select
+                      value={questionDraft.area}
+                      onChange={(event) =>
+                        setQuestionDraft((current) => ({ ...current, area: event.target.value }))
+                      }
+                      className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                    >
+                      {riasecAreas.map((area) => (
+                        <option key={area} value={area}>{area}</option>
+                      ))}
+                    </select>
+                  </label>
+                </div>
+
+                {questionDraft.type !== "text" && (
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-bold text-gray-900">Câu trả lời</h3>
+                      <button
+                        onClick={addQuestionOption}
+                        className="px-3 py-2 rounded-lg border border-gray-200 text-xs font-bold text-gray-700"
+                      >
+                        Thêm đáp án
+                      </button>
+                    </div>
+                    <div className="space-y-2">
+                      {questionDraft.options.map((option, index) => (
+                        <div key={index} className="grid grid-cols-[90px_1fr_auto] gap-2">
+                          <input
+                            value={option.value}
+                            onChange={(event) => updateQuestionOption(index, "value", event.target.value)}
+                            className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                            aria-label={`Giá trị đáp án ${index + 1}`}
+                          />
+                          <input
+                            value={option.label}
+                            onChange={(event) => updateQuestionOption(index, "label", event.target.value)}
+                            className="rounded-lg border border-gray-200 px-3 py-2 text-sm"
+                            aria-label={`Nhãn đáp án ${index + 1}`}
+                          />
+                          <button
+                            onClick={() => removeQuestionOption(index)}
+                            disabled={questionDraft.options.length <= 2}
+                            className="px-3 py-2 rounded-lg border border-gray-200 text-xs font-bold text-rose-600 disabled:opacity-40"
+                          >
+                            Xóa
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex justify-end gap-2">
+                  <button
+                    onClick={() => setQuestionModalOpen(false)}
+                    className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-bold text-gray-700"
+                  >
+                    Hủy
+                  </button>
+                  <button
+                    onClick={saveQuestionDraft}
+                    className="px-4 py-2 rounded-lg bg-pink-600 text-white text-sm font-bold"
+                  >
+                    Lưu câu hỏi
+                  </button>
+                </div>
+              </div>
             </div>
-          </div>
+          )}
 
           <div className="rounded-xl border border-gray-100 p-4">
             <h2 className="font-bold text-gray-900 mb-3">Access</h2>
@@ -810,7 +1216,9 @@ export const CounselorSurveys = () => {
                       <div key={`${answer.questionId}-${index}`} className="rounded-lg border border-gray-100 p-3">
                         <p className="text-xs font-bold text-gray-400 mb-1">Câu {index + 1}</p>
                         <p className="text-sm font-semibold text-gray-800">{question?.text || answer.questionId}</p>
-                        <p className="text-sm text-pink-700 font-bold mt-2">Trả lời: {String(answer.value)}</p>
+                        <p className="text-sm text-pink-700 font-bold mt-2">
+                          Trả lời: {formatSurveyAnswerValue(question, selectedSurvey.answerOptions, answer.value)}
+                        </p>
                       </div>
                     );
                   })}

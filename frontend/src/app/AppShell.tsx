@@ -31,6 +31,7 @@ import {
   StudentPlanGrade,
   StudentPlanPathways,
   StudentPortfolio,
+  StudentReferences,
   StudentResume,
   StudentSurveys,
   StudentUniversities,
@@ -152,6 +153,8 @@ export default function AppShell() {
         return <StudentDashboard setView={navigate} />;
       case "st-lessons":
         return <StudentLessons />;
+      case "st-references":
+        return <StudentReferences />;
       case "st-surveys":
         return <StudentSurveys />;
       case "st-assignment":
@@ -195,7 +198,7 @@ export default function AppShell() {
 
       // COUNSELOR READ/CREATE/UPDATE: dashboards, student detail, lessons, surveys, reports
       case "co-dashboard":
-        return <CounselorDashboard />;
+        return <CounselorDashboard navigate={navigate} />;
       case "co-students-list":
         return (
           <CounselorStudentList
@@ -283,7 +286,7 @@ export default function AppShell() {
       case "co-report-college":
         return <CounselorReportCollegePlanning />;
       case "co-messenger":
-        return <MessengerView role="counselor" />;
+        return <MessengerView role="counselor" initialStudentId={route.studentId} />;
       case "co-advice":
         return <AdvisementNotesCounselor />;
       case "co-meeting":

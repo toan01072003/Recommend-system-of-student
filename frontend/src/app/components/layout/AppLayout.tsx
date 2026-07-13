@@ -99,6 +99,7 @@ const studentNavGroups: NavGroup[] = [
     items: [
       { id: "st-dashboard", label: "Dashboard", icon: LayoutDashboard },
       { id: "st-lessons", label: "Lessons", icon: BookMarked },
+      { id: "st-references", label: "References", icon: BookOpen },
       { id: "st-surveys", label: "Surveys", icon: ClipboardList },
       { id: "st-assignment", label: "Assignment", icon: FileText },
       { id: "st-games", label: "Real Games", icon: Gamepad2 },

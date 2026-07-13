@@ -34,6 +34,7 @@ def connect(db_path: Path = DEFAULT_DB) -> sqlite3.Connection:
     ensure_messages_table(conn)
     ensure_advice_notes_table(conn)
     ensure_surveys_tables(conn)
+    ensure_reference_tables(conn)
     return conn
 
 
@@ -480,10 +481,291 @@ DEFAULT_SURVEY_ANSWER_OPTIONS = [
 ]
 
 
+SURVEY_QUESTION_TYPES = {"scale", "single_choice", "multiple_choice", "text"}
+
+
 def ensure_surveys_tables(conn: sqlite3.Connection) -> None:
     conn.executescript(SURVEYS_TABLE_SQL)
     conn.executescript(SURVEY_RESULTS_TABLE_SQL)
     conn.executescript(SURVEYS_INDEX_SQL)
+
+
+REFERENCE_ACTIONS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS career_actions (
+    action_id TEXT PRIMARY KEY,
+    career_id TEXT NOT NULL,
+    career_name TEXT NOT NULL,
+    field TEXT,
+    label TEXT NOT NULL,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+"""
+
+
+STUDENT_REFERENCES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS student_action_references (
+    student_id TEXT PRIMARY KEY REFERENCES students(student_id) ON DELETE CASCADE,
+    reactions_json TEXT NOT NULL DEFAULT '[]',
+    updated_at TEXT NOT NULL
+);
+"""
+
+
+REFERENCE_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_career_actions_career_order
+    ON career_actions(career_id, sort_order);
+"""
+
+
+REFERENCE_EMOTIONS = {"hate", "dislike", "neutral", "like", "passion"}
+
+
+def ensure_reference_tables(conn: sqlite3.Connection) -> None:
+    conn.executescript(REFERENCE_ACTIONS_TABLE_SQL)
+    conn.executescript(STUDENT_REFERENCES_TABLE_SQL)
+    conn.executescript(REFERENCE_INDEX_SQL)
+
+
+def _normalize_reference_action(raw_action: dict, index: int = 0) -> dict:
+    action_id = str(raw_action.get("actionId") or raw_action.get("action_id") or raw_action.get("id") or "").strip()
+    career_id = str(raw_action.get("careerId") or raw_action.get("career_id") or "").strip()
+    career_name = str(raw_action.get("careerName") or raw_action.get("career_name") or "").strip()
+    label = str(raw_action.get("label") or raw_action.get("text") or "").strip()
+    if not action_id:
+        raise ValueError("actionId is required")
+    if not career_id:
+        raise ValueError("careerId is required")
+    if not career_name:
+        raise ValueError("careerName is required")
+    if not label:
+        raise ValueError("label is required")
+    try:
+        sort_order = int(raw_action.get("sortOrder") or raw_action.get("sort_order") or index)
+    except (TypeError, ValueError):
+        sort_order = index
+    return {
+        "actionId": action_id,
+        "careerId": career_id,
+        "careerName": career_name,
+        "field": str(raw_action.get("field") or "").strip(),
+        "label": label,
+        "sortOrder": sort_order,
+    }
+
+
+def _upsert_reference_action(conn: sqlite3.Connection, action: dict, now: str) -> dict:
+    normalized = _normalize_reference_action(action)
+    conn.execute(
+        """
+        INSERT INTO career_actions (
+            action_id, career_id, career_name, field, label, sort_order, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(action_id) DO UPDATE SET
+            career_id = excluded.career_id,
+            career_name = excluded.career_name,
+            field = excluded.field,
+            label = excluded.label,
+            sort_order = excluded.sort_order,
+            updated_at = excluded.updated_at
+        """,
+        (
+            normalized["actionId"],
+            normalized["careerId"],
+            normalized["careerName"],
+            normalized["field"],
+            normalized["label"],
+            normalized["sortOrder"],
+            now,
+        ),
+    )
+    return normalized
+
+
+def row_to_reference_action(row: sqlite3.Row | dict) -> dict:
+    return {
+        "actionId": row["action_id"],
+        "careerId": row["career_id"],
+        "careerName": row["career_name"],
+        "field": row["field"],
+        "label": row["label"],
+        "sortOrder": row["sort_order"],
+    }
+
+
+def list_reference_actions(db_path: Path = DEFAULT_DB) -> list[dict]:
+    conn = connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM career_actions
+            ORDER BY career_name ASC, sort_order ASC, action_id ASC
+            """
+        ).fetchall()
+        return [row_to_reference_action(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def sync_reference_actions(actions: object, db_path: Path = DEFAULT_DB) -> list[dict]:
+    if not isinstance(actions, list):
+        raise ValueError("actions must be a list")
+    now = datetime.now(timezone.utc).isoformat()
+    conn = connect(db_path)
+    try:
+        normalized = [
+            _upsert_reference_action(conn, action, now)
+            for action in actions
+            if isinstance(action, dict)
+        ]
+        conn.commit()
+        return normalized
+    finally:
+        conn.close()
+
+
+def _student_reference_reactions(conn: sqlite3.Connection, student_id: str) -> list[dict]:
+    row = conn.execute(
+        "SELECT reactions_json FROM student_action_references WHERE student_id = ?",
+        (student_id,),
+    ).fetchone()
+    if row is None:
+        return []
+    value = _json_value(row["reactions_json"], [])
+    return value if isinstance(value, list) else []
+
+
+def get_student_references(student_id: str, db_path: Path = DEFAULT_DB) -> dict:
+    conn = connect(db_path)
+    try:
+        student = conn.execute(
+            "SELECT student_id, student_name, class_name FROM students WHERE student_id = ?",
+            (student_id,),
+        ).fetchone()
+        if student is None:
+            raise LookupError(f"Student not found: {student_id}")
+
+        actions = [
+            row_to_reference_action(row)
+            for row in conn.execute(
+                """
+                SELECT *
+                FROM career_actions
+                ORDER BY career_name ASC, sort_order ASC, action_id ASC
+                """
+            ).fetchall()
+        ]
+        reactions = _student_reference_reactions(conn, student_id)
+        reaction_by_action = {
+            str(item.get("actionId") or item.get("action_id")): item
+            for item in reactions
+            if isinstance(item, dict)
+        }
+        references = [
+            {
+                **action,
+                "emotion": reaction_by_action.get(action["actionId"], {}).get("emotion"),
+                "updatedAt": reaction_by_action.get(action["actionId"], {}).get("updatedAt"),
+            }
+            for action in actions
+        ]
+        return {
+            "student": {
+                "id": student["student_id"],
+                "name": student["student_name"],
+                "className": student["class_name"],
+            },
+            "actions": actions,
+            "references": references,
+        }
+    finally:
+        conn.close()
+
+
+def save_student_reference(payload: dict, db_path: Path = DEFAULT_DB) -> dict:
+    student_id = str(payload.get("studentId") or payload.get("student_id") or "").strip()
+    action_payload = payload.get("action")
+    action_id = str(payload.get("actionId") or payload.get("action_id") or "").strip()
+    emotion = str(payload.get("emotion") or "").strip()
+    if not student_id:
+        raise ValueError("studentId is required")
+    if not action_id and isinstance(action_payload, dict):
+        action_id = str(action_payload.get("actionId") or action_payload.get("action_id") or "").strip()
+    if not action_id:
+        raise ValueError("actionId is required")
+    if emotion not in REFERENCE_EMOTIONS:
+        raise ValueError("emotion must be one of hate, dislike, neutral, like, passion")
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn = connect(db_path)
+    try:
+        student = conn.execute(
+            "SELECT student_id FROM students WHERE student_id = ?",
+            (student_id,),
+        ).fetchone()
+        if student is None:
+            raise LookupError(f"Student not found: {student_id}")
+
+        action = None
+        if isinstance(action_payload, dict):
+            action = _upsert_reference_action(conn, action_payload, now)
+        else:
+            row = conn.execute(
+                "SELECT * FROM career_actions WHERE action_id = ?",
+                (action_id,),
+            ).fetchone()
+            if row is None:
+                raise LookupError(f"Reference action not found: {action_id}")
+            action = row_to_reference_action(row)
+
+        reactions = _student_reference_reactions(conn, student_id)
+        next_reaction = {
+            "actionId": action_id,
+            "emotion": emotion,
+            "updatedAt": now,
+        }
+        found = False
+        normalized_reactions = []
+        for item in reactions:
+            if not isinstance(item, dict):
+                continue
+            if str(item.get("actionId") or item.get("action_id")) == action_id:
+                normalized_reactions.append(next_reaction)
+                found = True
+            else:
+                normalized_reactions.append(
+                    {
+                        "actionId": str(item.get("actionId") or item.get("action_id") or ""),
+                        "emotion": item.get("emotion"),
+                        "updatedAt": item.get("updatedAt"),
+                    }
+                )
+        if not found:
+            normalized_reactions.append(next_reaction)
+
+        conn.execute(
+            """
+            INSERT INTO student_action_references (student_id, reactions_json, updated_at)
+            VALUES (?, ?, ?)
+            ON CONFLICT(student_id) DO UPDATE SET
+                reactions_json = excluded.reactions_json,
+                updated_at = excluded.updated_at
+            """,
+            (
+                student_id,
+                json.dumps(normalized_reactions, ensure_ascii=False),
+                now,
+            ),
+        )
+        conn.commit()
+        return {
+            "studentId": student_id,
+            "action": action,
+            "reference": next_reaction,
+        }
+    finally:
+        conn.close()
 
 
 def _json_value(value: str | None, default):
@@ -528,14 +810,28 @@ def _normalize_question(raw_question: dict, index: int) -> dict:
     if not text:
         raise ValueError(f"Question {index + 1} is missing text")
 
-    options = raw_question.get("options")
-    if not isinstance(options, list):
-        options = []
+    raw_options = raw_question.get("options")
+    options = []
+    if isinstance(raw_options, list):
+        for option in raw_options:
+            if isinstance(option, dict):
+                label = str(option.get("label") or option.get("text") or option.get("name") or "").strip()
+                value = option.get("value", label)
+                if label:
+                    options.append({"value": value, "label": label})
+            else:
+                label = str(option).strip()
+                if label:
+                    options.append({"value": label, "label": label})
+
+    question_type = str(raw_question.get("type") or ("single_choice" if options else "scale")).strip()
+    if question_type not in SURVEY_QUESTION_TYPES:
+        question_type = "scale"
 
     return {
         "id": question_id,
         "text": text,
-        "type": raw_question.get("type") or ("single_choice" if options else "scale"),
+        "type": question_type,
         "area": raw_question.get("area") or raw_question.get("dimension") or "",
         "options": options,
     }
@@ -682,13 +978,16 @@ def compute_survey_result(questions: list[dict], answers: list[dict]) -> dict:
             continue
         question_id = str(answer.get("questionId") or answer.get("id") or "")
         value = _answer_value(answer)
+        question = question_by_id.get(question_id)
+        question_type = str(question.get("type") if question else "").strip()
+        if question_type in {"text", "multiple_choice"} or isinstance(value, list):
+            continue
         try:
             numeric_value = float(value)
         except (TypeError, ValueError):
             continue
 
         numeric_values.append(numeric_value)
-        question = question_by_id.get(question_id)
         if not question:
             continue
         area = str(question.get("area") or "").strip().upper()

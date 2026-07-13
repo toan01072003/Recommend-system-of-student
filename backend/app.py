@@ -52,6 +52,14 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/identity-data":
             self.send_json_or_api_error(api.identity_payload)
             return
+        if path == "/api/reference-actions":
+            self.send_json_or_api_error(api.reference_actions_payload)
+            return
+        if path == "/api/student-references":
+            query = parse_qs(parsed.query)
+            student_id = query["student_id"][0] if query.get("student_id") else ""
+            self.send_json_or_api_error(lambda: api.student_references_payload(student_id))
+            return
         if path == "/api/meetings":
             query = parse_qs(parsed.query)
             role = query["role"][0] if query.get("role") else None
@@ -135,6 +143,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/messages/seen",
             "/api/advice-notes",
             "/api/surveys",
+            "/api/reference-actions/sync",
+            "/api/student-references",
         }:
             if not (path.startswith("/api/surveys/") and path.endswith("/results")):
                 self.send_error(404)
@@ -145,6 +155,12 @@ class Handler(BaseHTTPRequestHandler):
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
             if path == "/api/surveys":
                 self.send_json(api.create_survey_payload(payload), status=201)
+                return
+            if path == "/api/reference-actions/sync":
+                self.send_json(api.sync_reference_actions_payload(payload))
+                return
+            if path == "/api/student-references":
+                self.send_json(api.save_student_reference_payload(payload))
                 return
             if path.startswith("/api/surveys/") and path.endswith("/results"):
                 survey_id = int(unquote(path.removeprefix("/api/surveys/").removesuffix("/results")))

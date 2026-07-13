@@ -129,17 +129,47 @@ export type CreateAdviceNotePayload = {
   priority: AdvicePriority;
 };
 
-export type SurveyQuestion = {
-  id: string;
-  text: string;
-  type: "scale" | "single_choice" | string;
-  area?: string;
-  options?: Array<string | { value: string | number; label: string }>;
+export type ReferenceEmotion = "hate" | "dislike" | "neutral" | "like" | "passion";
+
+export type ReferenceAction = {
+  actionId: string;
+  careerId: string;
+  careerName: string;
+  field?: string;
+  label: string;
+  sortOrder: number;
 };
+
+export type StudentReferenceItem = ReferenceAction & {
+  emotion?: ReferenceEmotion | null;
+  updatedAt?: string | null;
+};
+
+export type StudentReferencesResponse = {
+  student?: {
+    id: string;
+    name: string;
+    className?: string;
+  };
+  actions: ReferenceAction[];
+  references: StudentReferenceItem[];
+};
+
+export type SurveyQuestionType = "scale" | "single_choice" | "multiple_choice" | "text";
+
+export type SurveyAnswerValue = string | number | Array<string | number>;
 
 export type SurveyAnswerOption = {
   value: string | number;
   label: string;
+};
+
+export type SurveyQuestion = {
+  id: string;
+  text: string;
+  type: SurveyQuestionType | string;
+  area?: string;
+  options?: SurveyAnswerOption[];
 };
 
 export type SurveyStatus = "draft" | "scheduled" | "active" | "closed";
@@ -150,7 +180,7 @@ export type SurveyResultRecord = {
   studentId: string;
   studentName: string;
   className?: string;
-  answers: Array<{ questionId: string; value: string | number }>;
+  answers: Array<{ questionId: string; value: SurveyAnswerValue }>;
   result: {
     answeredCount?: number;
     totalQuestions?: number;
@@ -220,7 +250,7 @@ export type CreateSurveyPayload = {
 
 export type SubmitSurveyPayload = {
   studentId: string;
-  answers: Array<{ questionId: string; value: string | number }>;
+  answers: Array<{ questionId: string; value: SurveyAnswerValue }>;
 };
 
 async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
@@ -236,6 +266,56 @@ async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
 
 export function fetchAppData<T>(signal?: AbortSignal): Promise<T> {
   return requestJson<T>("/api/app-data", { signal });
+}
+
+export function fetchReferenceActions(
+  signal?: AbortSignal,
+): Promise<{ actions: ReferenceAction[] }> {
+  return requestJson<{ actions: ReferenceAction[] }>("/api/reference-actions", {
+    signal,
+  });
+}
+
+export function syncReferenceActions(
+  actions: ReferenceAction[],
+  signal?: AbortSignal,
+): Promise<{ actions: ReferenceAction[] }> {
+  return requestJson<{ actions: ReferenceAction[] }>("/api/reference-actions/sync", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ actions }),
+    signal,
+  });
+}
+
+export function fetchStudentReferences(
+  studentId: string,
+  signal?: AbortSignal,
+): Promise<StudentReferencesResponse> {
+  return requestJson<StudentReferencesResponse>(
+    `/api/student-references?student_id=${encodeURIComponent(studentId)}`,
+    { signal },
+  );
+}
+
+export function saveStudentReference(
+  payload: {
+    studentId: string;
+    actionId: string;
+    emotion: ReferenceEmotion;
+    action?: ReferenceAction;
+  },
+  signal?: AbortSignal,
+): Promise<{ studentId: string; action: ReferenceAction; reference: { actionId: string; emotion: ReferenceEmotion; updatedAt: string } }> {
+  return requestJson<{ studentId: string; action: ReferenceAction; reference: { actionId: string; emotion: ReferenceEmotion; updatedAt: string } }>(
+    "/api/student-references",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    },
+  );
 }
 
 export function fetchStudent<T>(

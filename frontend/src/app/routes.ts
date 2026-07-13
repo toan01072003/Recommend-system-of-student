@@ -32,6 +32,7 @@ const viewPathMap: Record<string, string> = {
   "co-meeting": "/counselor/meeting",
   "st-dashboard": "/student/dashboard",
   "st-lessons": "/student/lessons",
+  "st-references": "/student/references",
   "st-surveys": "/student/surveys",
   "st-assignment": "/student/assignment",
   "st-games": "/student/games",
@@ -60,6 +61,14 @@ export const parseAppRoute = (pathname: string): AppRoute => {
     return {
       view: "co-students-list",
       studentId: decodeURIComponent(counselorStudentMatch[1]),
+    };
+  }
+
+  const counselorMessengerMatch = normalized.match(/^\/counselor\/messenger\/([^/]+)$/);
+  if (counselorMessengerMatch) {
+    return {
+      view: "co-messenger",
+      studentId: decodeURIComponent(counselorMessengerMatch[1]),
     };
   }
 
@@ -112,6 +121,12 @@ export const appRouteToPath = (route: AppRoute): string => {
     return route.studentId
       ? `/counselor/students/${encodeURIComponent(route.studentId)}`
       : "/counselor/students";
+  }
+
+  if (route.view === "co-messenger") {
+    return route.studentId
+      ? `/counselor/messenger/${encodeURIComponent(route.studentId)}`
+      : "/counselor/messenger";
   }
 
   if (route.view === "class-dashboard") {

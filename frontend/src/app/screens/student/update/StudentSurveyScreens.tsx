@@ -114,6 +114,8 @@ import {
 import {
   fetchSurveys,
   submitSurveyResult,
+  type SurveyAnswerOption,
+  type SurveyAnswerValue,
   type SurveyQuestion,
   type SurveyRecord,
   type SurveyResultRecord,
@@ -125,7 +127,7 @@ export const StudentSurveys = () => {
   const [activeSurvey, setActiveSurvey] = useState<SurveyRecord | null>(null);
   const [activeResult, setActiveResult] = useState<SurveyResultRecord | null>(null);
   const [qIdx, setQIdx] = useState(0);
-  const [answers, setAnswers] = useState<Record<string, string | number>>({});
+  const [answers, setAnswers] = useState<Record<string, SurveyAnswerValue>>({});
   const [status, setStatus] = useState<"loading" | "idle" | "saving" | "error">("loading");
   const [notice, setNotice] = useState("");
   const studentId =
@@ -162,17 +164,45 @@ export const StudentSurveys = () => {
     });
   };
 
+  const questionOptions = (
+    survey: SurveyRecord,
+    question: SurveyQuestion,
+  ): SurveyAnswerOption[] =>
+    question.options && question.options.length > 0
+      ? question.options
+      : survey.answerOptions;
+
   const answerLabel = (
     survey: SurveyRecord,
     question: SurveyQuestion,
-    value: string | number,
+    value: SurveyAnswerValue,
   ) => {
-    const option = question.options?.find((item) =>
-      typeof item === "object" ? item.value === value : item === value,
-    );
-    if (typeof option === "object") return option.label;
-    if (typeof option === "string") return option;
-    return survey.answerOptions.find((item) => item.value === value)?.label || String(value);
+    const options = questionOptions(survey, question);
+    const labelFor = (item: string | number) =>
+      options.find((option) => String(option.value) === String(item))?.label || String(item);
+    if (Array.isArray(value)) return value.map(labelFor).join(", ");
+    return labelFor(value);
+  };
+
+  const isAnswerMissing = (question: SurveyQuestion, value: SurveyAnswerValue | undefined) => {
+    if (value === undefined) return true;
+    if (question.type === "text") return String(value).trim() === "";
+    if (question.type === "multiple_choice") return !Array.isArray(value) || value.length === 0;
+    return false;
+  };
+
+  const toggleMultipleAnswer = (questionId: string, value: string | number) => {
+    setAnswers((current) => {
+      const selected = current[questionId];
+      const list = Array.isArray(selected) ? selected : [];
+      const exists = list.some((item) => String(item) === String(value));
+      return {
+        ...current,
+        [questionId]: exists
+          ? list.filter((item) => String(item) !== String(value))
+          : [...list, value],
+      };
+    });
   };
 
   const startSurvey = (survey: SurveyRecord) => {
@@ -192,8 +222,8 @@ export const StudentSurveys = () => {
 
   const submitActiveSurvey = () => {
     if (!activeSurvey) return;
-    const missing = activeSurvey.questions.some(
-      (question) => answers[String(question.id)] === undefined,
+    const missing = activeSurvey.questions.some((question) =>
+      isAnswerMissing(question, answers[String(question.id)]),
     );
     if (missing) {
       setNotice("Bạn cần trả lời đủ các câu hỏi trước khi nộp.");
@@ -231,12 +261,8 @@ export const StudentSurveys = () => {
   if (step === "quiz" && activeSurvey) {
     const question = activeSurvey.questions[qIdx];
     const selected = answers[String(question.id)];
-    const options =
-      question.options && question.options.length > 0
-        ? question.options.map((item) =>
-            typeof item === "object" ? item : { value: item, label: item },
-          )
-        : activeSurvey.answerOptions;
+    const options = questionOptions(activeSurvey, question);
+    const selectedList = Array.isArray(selected) ? selected : [];
 
     return (
       <div className="max-w-2xl mx-auto space-y-5">
@@ -276,26 +302,64 @@ export const StudentSurveys = () => {
           {question.area && (
             <p className="text-xs font-bold text-pink-700 mt-2">Nhóm: {question.area}</p>
           )}
-          <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 mt-5">
-            {options.map((option) => (
-              <button
-                key={String(option.value)}
-                onClick={() =>
-                  setAnswers((current) => ({
-                    ...current,
-                    [String(question.id)]: option.value,
-                  }))
-                }
-                className={`px-3 py-3 rounded-lg border text-sm font-bold ${
-                  selected === option.value
-                    ? "border-pink-400 bg-pink-50 text-pink-700"
-                    : "border-gray-200 bg-white text-gray-700 hover:border-pink-200"
-                }`}
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
+          {question.type === "text" ? (
+            <textarea
+              value={typeof selected === "string" || typeof selected === "number" ? String(selected) : ""}
+              onChange={(event) =>
+                setAnswers((current) => ({
+                  ...current,
+                  [String(question.id)]: event.target.value,
+                }))
+              }
+              rows={5}
+              className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm mt-5"
+              placeholder="Nhập câu trả lời của bạn"
+            />
+          ) : question.type === "multiple_choice" ? (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-5">
+              {options.map((option) => {
+                const checked = selectedList.some((item) => String(item) === String(option.value));
+                return (
+                  <label
+                    key={String(option.value)}
+                    className={`flex items-center gap-2 px-3 py-3 rounded-lg border text-sm font-bold cursor-pointer ${
+                      checked
+                        ? "border-pink-400 bg-pink-50 text-pink-700"
+                        : "border-gray-200 bg-white text-gray-700 hover:border-pink-200"
+                    }`}
+                  >
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleMultipleAnswer(String(question.id), option.value)}
+                    />
+                    <span>{option.label}</span>
+                  </label>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-5 gap-2 mt-5">
+              {options.map((option) => (
+                <button
+                  key={String(option.value)}
+                  onClick={() =>
+                    setAnswers((current) => ({
+                      ...current,
+                      [String(question.id)]: option.value,
+                    }))
+                  }
+                  className={`px-3 py-3 rounded-lg border text-sm font-bold ${
+                    String(selected) === String(option.value)
+                      ? "border-pink-400 bg-pink-50 text-pink-700"
+                      : "border-gray-200 bg-white text-gray-700 hover:border-pink-200"
+                  }`}
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex justify-between gap-2">

@@ -118,20 +118,27 @@ import {
   fetchAdviceNotes,
   fetchAppData,
   fetchMeetings,
+  fetchStudentReferences,
   fetchStudent,
   fetchStudentRecommendation,
+  syncReferenceActions,
   type AdviceNoteRecord,
   type AdvicePriority,
   type MeetingRecord,
   type RecommendationResponse,
+  type StudentReferenceItem,
 } from "../../../api/client";
+import {
+  careerReferenceActions,
+  referenceEmotionMeta,
+} from "../../../logic/referenceActions";
 import {
   hasStudentProfileDetail,
   resolveStudentProfile,
   type StudentProfileRecord,
 } from "../../../logic/studentProfile";
 
-/* ── Student Detail (7 tabs) ── */
+/* ── Student Detail ── */
 
 export const CounselorStudentDetail = ({
   student,
@@ -182,6 +189,13 @@ export const CounselorStudentDetail = ({
     "idle" | "loading" | "saving" | "error"
   >("idle");
   const [actionNotice, setActionNotice] = useState("");
+  const [referenceItems, setReferenceItems] = useState<StudentReferenceItem[]>(
+    [],
+  );
+  const [referenceStatus, setReferenceStatus] = useState<
+    "idle" | "loading" | "error"
+  >("idle");
+  const [referenceError, setReferenceError] = useState("");
 
   useEffect(() => {
     setAlumniRecommendation(null);
@@ -209,6 +223,42 @@ export const CounselorStudentDetail = ({
     setAdviceHistory([]);
     setAdviceStatus("idle");
     setActionNotice("");
+    setReferenceItems([]);
+    setReferenceStatus("idle");
+    setReferenceError("");
+  }, [student.id]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    const actions = careerReferenceActions();
+
+    setReferenceStatus("loading");
+    setReferenceError("");
+    syncReferenceActions(actions, controller.signal)
+      .then(() => fetchStudentReferences(student.id, controller.signal))
+      .then((payload) => {
+        const byId = new Map(
+          payload.references.map((item) => [item.actionId, item]),
+        );
+        setReferenceItems(
+          actions.map((action) => {
+            const saved = byId.get(action.actionId);
+            return {
+              ...action,
+              emotion: saved?.emotion ?? null,
+              updatedAt: saved?.updatedAt ?? null,
+            };
+          }),
+        );
+        setReferenceStatus("idle");
+      })
+      .catch((error) => {
+        if (error.name === "AbortError") return;
+        setReferenceStatus("error");
+        setReferenceError(error.message || "Không tải được References.");
+      });
+
+    return () => controller.abort();
   }, [student.id]);
 
   useEffect(() => {
@@ -399,12 +449,42 @@ export const CounselorStudentDetail = ({
       });
   };
 
+  const referenceGroups = Object.values(
+    referenceItems.reduce<
+      Record<
+        string,
+        {
+          careerId: string;
+          careerName: string;
+          field?: string;
+          items: StudentReferenceItem[];
+        }
+      >
+    >((groups, item) => {
+      if (!groups[item.careerId]) {
+        groups[item.careerId] = {
+          careerId: item.careerId,
+          careerName: item.careerName,
+          field: item.field,
+          items: [],
+        };
+      }
+      groups[item.careerId].items.push(item);
+      return groups;
+    }, {}),
+  );
+  const selectedReferenceCount = referenceItems.filter(
+    (item) => item.emotion,
+  ).length;
+
   const tabs = [
     { id: "academic", label: "Academic Profile" },
 
     { id: "personal", label: "Personal Statement" },
 
     { id: "career", label: "Career Profile" },
+
+    { id: "references", label: "References" },
 
     { id: "recommendation", label: "Gợi ý & Đánh giá" },
 
@@ -742,6 +822,96 @@ export const CounselorStudentDetail = ({
               <strong>Nghề đã khám phá:</strong>{" "}
               {student.exploredCareers.join(", ")}
             </div>
+          </div>
+        </div>
+      )}
+
+      {tab === "references" && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+            <div>
+              <h3 className="font-bold text-gray-800">References</h3>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Cảm xúc của {student.name} với từng hành động trong Explore
+                ngành nghề.
+              </p>
+            </div>
+            <div className="text-right">
+              <p className="text-xl font-black text-orange-600">
+                {selectedReferenceCount}/{referenceItems.length}
+              </p>
+              <p className="text-xs text-gray-400 font-semibold">
+                đã chọn cảm xúc
+              </p>
+            </div>
+          </div>
+
+          {referenceStatus === "loading" && (
+            <div className="p-5 text-sm text-gray-500">
+              Đang tải References...
+            </div>
+          )}
+
+          {referenceStatus === "error" && (
+            <div className="m-5 rounded-xl bg-red-50 border border-red-100 p-4 text-sm text-red-700">
+              {referenceError}
+            </div>
+          )}
+
+          {referenceStatus !== "loading" && referenceGroups.length === 0 && (
+            <div className="p-5 text-sm text-gray-500">
+              Chưa có danh sách hành động nghề nghiệp.
+            </div>
+          )}
+
+          <div className="divide-y divide-gray-100">
+            {referenceGroups.map((group) => (
+              <div key={group.careerId} className="p-5">
+                <div className="flex items-start justify-between gap-3 mb-3">
+                  <div>
+                    <h4 className="font-bold text-gray-900">
+                      {group.careerName}
+                    </h4>
+                    <p className="text-xs text-gray-500 mt-0.5">
+                      {group.field || "Explore ngành nghề"} ·{" "}
+                      {group.items.length} hành động
+                    </p>
+                  </div>
+                  <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
+                    {group.items.filter((item) => item.emotion).length} đã chọn
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+                  {group.items.map((item) => {
+                    const emotion = referenceEmotionMeta(item.emotion);
+
+                    return (
+                      <div
+                        key={item.actionId}
+                        className="rounded-xl border border-gray-100 bg-gray-50 p-3 flex items-start justify-between gap-3"
+                      >
+                        <p className="text-sm text-gray-700 leading-relaxed">
+                          {item.label}
+                        </p>
+                        {emotion ? (
+                          <span
+                            className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border flex-shrink-0 ${emotion.color}`}
+                          >
+                            <span>{emotion.icon}</span>
+                            {emotion.label}
+                          </span>
+                        ) : (
+                          <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-white border border-gray-200 text-gray-400 flex-shrink-0">
+                            Chưa chọn
+                          </span>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}

@@ -111,6 +111,18 @@ import {
   buildStudentSkillRadar,
   scoreTone,
 } from "../../../logic/recommendation";
+import {
+  fetchStudentReferences,
+  saveStudentReference,
+  syncReferenceActions,
+  type ReferenceEmotion,
+} from "../../../api/client";
+import {
+  REFERENCE_EMOTIONS,
+  actionKey,
+  careerReferenceActions,
+  currentStudentReferenceId,
+} from "../../../logic/referenceActions";
 
 export const ExploreCareerDetail = ({
   career,
@@ -126,16 +138,16 @@ export const ExploreCareerDetail = ({
   onBack: () => void;
   favorites: string[];
   onToggleFav: () => void;
-  reactions: Record<string, string>;
-  onReact: (actId: string, emoji: string) => void;
+  reactions: Record<string, ReferenceEmotion>;
+  onReact: (activity: CareerActivity, emotion: ReferenceEmotion) => void;
   onSelectRelated: (id: string) => void;
   onNavigateToUni?: (uniId: string) => void;
 }) => {
   const [videoPlaying, setVideoPlaying] = useState(false);
   const [showWhy, setShowWhy] = useState(false);
   const likedActivities = Object.entries(reactions)
-    .filter(([, e]) => e === "😍" || e === "👍")
-    .map(([id]) => career.activities.find((a) => a.id === id)?.label)
+    .filter(([, emotion]) => emotion === "passion" || emotion === "like")
+    .map(([id]) => career.activities.find((a) => actionKey(career.id, a.id) === id)?.label)
     .filter(Boolean);
   const relatedData = EXPLORE_CAREERS.filter(
     (c) =>
@@ -482,10 +494,13 @@ export const ExploreCareerDetail = ({
               </div>{" "}
               <div className="p-4 space-y-2 max-h-80 overflow-y-auto">
                 {" "}
-                {career.activities.map((act) => (
+                {career.activities.map((act) => {
+                  const key = actionKey(career.id, act.id);
+                  const selectedEmotion = reactions[key];
+                  return (
                   <div
                     key={act.id}
-                    className={`p-3 rounded-xl border-2 transition-all ${reactions[act.id] ? "border-orange-200 bg-orange-50" : "border-gray-100 bg-gray-50"}`}
+                    className={`p-3 rounded-xl border-2 transition-all ${selectedEmotion ? "border-orange-200 bg-orange-50" : "border-gray-100 bg-gray-50"}`}
                   >
                     {" "}
                     <p className="text-xs font-medium text-gray-700 mb-2 leading-snug">
@@ -493,25 +508,21 @@ export const ExploreCareerDetail = ({
                     </p>{" "}
                     <div className="flex gap-1.5">
                       {" "}
-                      {REACTIONS.map((r) => (
+                      {REFERENCE_EMOTIONS.map((r) => (
                         <button
-                          key={r.emoji}
-                          onClick={() =>
-                            onReact(
-                              act.id,
-                              reactions[act.id] === r.emoji ? "" : r.emoji,
-                            )
-                          }
+                          key={r.value}
+                          onClick={() => onReact(act, r.value)}
                           title={r.label}
-                          className={`w-8 h-8 rounded-lg text-base flex items-center justify-center transition-all hover:scale-110 ${reactions[act.id] === r.emoji ? "bg-orange-200 ring-2 ring-orange-400 scale-110" : "bg-white border border-gray-200 hover:border-orange-300"}`}
+                          className={`w-8 h-8 rounded-lg text-base flex items-center justify-center transition-all hover:scale-110 ${selectedEmotion === r.value ? "bg-orange-200 ring-2 ring-orange-400 scale-110" : "bg-white border border-gray-200 hover:border-orange-300"}`}
                         >
                           {" "}
-                          {r.emoji}{" "}
+                          {r.icon}{" "}
                         </button>
                       ))}{" "}
                     </div>{" "}
                   </div>
-                ))}{" "}
+                );
+                })}{" "}
               </div>{" "}
               {likedActivities.length > 0 && (
                 <div className="p-3 border-t border-orange-100 bg-amber-50">
@@ -1100,14 +1111,46 @@ export const StudentExplore = ({
   const [favorites, setFavorites] = useState<string[]>([]);
   const [selected, setSelected] = useState<ExploreCareer | null>(null);
   const [showFavs, setShowFavs] = useState(false);
-  const [reactions, setReactions] = useState<Record<string, string>>({});
+  const [reactions, setReactions] = useState<Record<string, ReferenceEmotion>>({});
   const [showTest, setShowTest] = useState(false);
+  const studentId = currentStudentReferenceId();
+  const referenceActions = careerReferenceActions();
+
+  React.useEffect(() => {
+    const controller = new AbortController();
+    syncReferenceActions(referenceActions, controller.signal).catch(() => undefined);
+    fetchStudentReferences(studentId, controller.signal)
+      .then((payload) => {
+        const next = Object.fromEntries(
+          payload.references
+            .filter((item) => item.emotion)
+            .map((item) => [item.actionId, item.emotion as ReferenceEmotion]),
+        );
+        setReactions(next);
+      })
+      .catch(() => undefined);
+
+    return () => controller.abort();
+  }, [studentId]);
+
   const toggleFav = (id: string) =>
     setFavorites((p) =>
       p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
     );
-  const handleReact = (actId: string, emoji: string) =>
-    setReactions((p) => ({ ...p, [actId]: emoji }));
+  const handleReact = (activity: CareerActivity, emotion: ReferenceEmotion) => {
+    if (!selected) return;
+    const key = actionKey(selected.id, activity.id);
+    const action = referenceActions.find((item) => item.actionId === key);
+    setReactions((current) => ({ ...current, [key]: emotion }));
+    if (action) {
+      saveStudentReference({
+        studentId,
+        actionId: key,
+        emotion,
+        action,
+      }).catch(() => undefined);
+    }
+  };
   const filtered = EXPLORE_CAREERS.filter((c) => {
     if (showFavs && !favorites.includes(c.id)) return false;
     if (activeField !== "Tất cả" && c.field !== activeField) return false;

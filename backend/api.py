@@ -230,6 +230,25 @@ def identity_payload() -> dict:
     return student_database.identity_data(STUDENT_DB)
 
 
+def reference_actions_payload() -> dict:
+    return {"actions": student_database.list_reference_actions(STUDENT_DB)}
+
+
+def sync_reference_actions_payload(payload: dict) -> dict:
+    actions = student_database.sync_reference_actions(payload.get("actions"), STUDENT_DB)
+    return {"actions": actions}
+
+
+def student_references_payload(student_id: str) -> dict:
+    if not student_id:
+        raise ValueError("student_id is required")
+    return student_database.get_student_references(student_id, STUDENT_DB)
+
+
+def save_student_reference_payload(payload: dict) -> dict:
+    return student_database.save_student_reference(payload, STUDENT_DB)
+
+
 def students_payload(grade: str | None = None, class_name: str | None = None) -> dict:
     normalized_grade = int(grade) if grade else None
     return {"students": student_database.list_students(STUDENT_DB, normalized_grade, class_name)}
