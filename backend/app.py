@@ -143,6 +143,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/messages/seen",
             "/api/advice-notes",
             "/api/surveys",
+            "/api/students",
             "/api/reference-actions/sync",
             "/api/student-references",
         }:
@@ -153,6 +154,9 @@ class Handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            if path == "/api/students":
+                self.send_json(api.create_student_payload(payload), status=201)
+                return
             if path == "/api/surveys":
                 self.send_json(api.create_survey_payload(payload), status=201)
                 return
@@ -186,9 +190,40 @@ class Handler(BaseHTTPRequestHandler):
         except Exception as exc:
             self.send_json({"error": str(exc)}, status=400)
 
+    def do_PUT(self) -> None:
+        self.handle_student_update()
+
+    def do_PATCH(self) -> None:
+        self.handle_student_update()
+
+    def handle_student_update(self) -> None:
+        path = urlparse(self.path).path
+        if not path.startswith("/api/students/"):
+            self.send_error(404)
+            return
+
+        try:
+            student_id = unquote(path.removeprefix("/api/students/"))
+            length = int(self.headers.get("Content-Length", "0"))
+            payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            self.send_json(api.update_student_payload(student_id, payload))
+        except ValueError as exc:
+            self.send_json({"error": str(exc)}, status=400)
+        except LookupError as exc:
+            self.send_json({"error": str(exc)}, status=404)
+        except Exception as exc:
+            self.send_json({"error": str(exc)}, status=500)
+
     def do_DELETE(self) -> None:
         parsed = urlparse(self.path)
         path = parsed.path
+        if path.startswith("/api/students/"):
+            student_id = unquote(path.removeprefix("/api/students/"))
+            self.send_json_or_api_error(
+                lambda: api.delete_student_payload(student_id)
+            )
+            return
+
         if path.startswith("/api/advice-notes/"):
             query = parse_qs(parsed.query)
             counselor_id = query["counselor_id"][0] if query.get("counselor_id") else None

@@ -3,14 +3,32 @@
 ## Runtime/API
 
 - `app.py`: HTTP server, route request, trả JSON/static file.
-- `api.py`: API payload layer, gom endpoint `/api/*`.
+- `api.py`: API payload facade cho `/api/*`, gọi xuống service layer.
 
-## CRUD dữ liệu học sinh
+## Packages
 
-- `student_database.py`: đọc dữ liệu SQLite và build payload cho frontend.
-  - Read list/detail: `list_students`, `get_student`.
-  - Read dashboard/app snapshot: `dashboard`, `app_data`.
-  - Khi thêm Create/Update/Delete thật, thêm hàm ở đây trước rồi route qua `api.py`.
+- `core/`: cấu hình dùng chung như `PROJECT_ROOT`, đường dẫn `data/`, database, file O*NET.
+- `db/`: mở kết nối SQLite qua `connect()`, giữ schema guard hiện có.
+- `repositories/`: thao tác dữ liệu cấp thấp.
+  - `base.py`: `SQLiteCrudRepository` dùng whitelist table/column để CRUD an toàn.
+  - `students.py`: CRUD repository cho bảng `students`, chuẩn hóa camelCase payload sang cột SQLite.
+- `services/`: nghiệp vụ/payload cấp ứng dụng.
+  - `students.py`: list/get/create/update/delete học sinh và trả payload cho API.
+
+## Legacy data adapter
+
+- `student_database.py`: legacy adapter lớn đang giữ schema guard, dashboard/app snapshot, surveys,
+  meetings, messages, advice notes, references và recommendation history.
+- Các package mới gọi lại `student_database.py` khi cần giữ payload cũ để frontend không bị vỡ.
+- Khi tách tiếp, chuyển từng nhóm logic từ `student_database.py` sang `repositories/` + `services/`.
+
+## CRUD học sinh
+
+- `GET /api/students`: list học sinh, hỗ trợ `grade`, `class`.
+- `GET /api/students/<student_id>`: đọc chi tiết học sinh.
+- `POST /api/students`: tạo học sinh mới.
+- `PUT /api/students/<student_id>` hoặc `PATCH /api/students/<student_id>`: cập nhật field được whitelist.
+- `DELETE /api/students/<student_id>`: xóa học sinh.
 
 ## Import/migration
 

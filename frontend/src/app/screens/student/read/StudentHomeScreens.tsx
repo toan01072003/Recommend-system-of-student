@@ -1,4 +1,4 @@
-﻿import React, { useState } from "react";
+﻿import React, { useEffect, useState } from "react";
 import {
   LayoutDashboard,
   Users,
@@ -111,6 +111,15 @@ import {
   buildStudentSkillRadar,
   scoreTone,
 } from "../../../logic/recommendation";
+import {
+  fetchStudentReferences,
+  syncReferenceActions,
+} from "../../../api/client";
+import {
+  careerReferenceActions,
+  currentStudentReferenceId,
+  referenceEmotionMeta,
+} from "../../../logic/referenceActions";
 
 // ── Screen 8: Student Career Portal ─────────────────────────────────────────
 export const StudentPortal = () => {
@@ -461,193 +470,330 @@ export const StudentDashboard = ({
   setView,
 }: {
   setView: (v: string) => void;
-}) => (
-  <div className="space-y-5">
-    {/* Hero */}
-    <div
-      className="rounded-3xl p-6 text-white relative overflow-hidden shadow-lg"
-      style={{
-        background:
-          "linear-gradient(135deg, #F97316 0%, #EC4899 55%, #8B5CF6 100%)",
-      }}
-    >
-      <div className="absolute -top-6 -right-6 w-36 h-36 rounded-full bg-white/10" />
-      <div className="absolute bottom-3 right-20 w-12 h-12 rounded-full bg-white/10" />
-      <div className="relative z-10">
-        <p className="text-white/80 text-sm font-semibold">Xin chào 👋</p>
-        <h1 className="text-2xl font-bold mt-0.5 mb-1">Minh Anh ơi!</h1>
-        <p className="text-white/80 text-sm mb-4">
-          Hôm nay bạn có <strong className="text-white">2 bài học</strong> và{" "}
-          <strong className="text-white">1 khảo sát</strong> cần hoàn thành 🌟
-        </p>
-        <div className="bg-white/20 rounded-2xl p-3.5 backdrop-blur-sm">
-          <div className="flex justify-between mb-1.5">
-            <span className="text-xs font-bold text-white/90">
-              Hồ sơ hướng nghiệp
-            </span>
-            <span className="text-xs font-bold text-white">62%</span>
-          </div>
-          <div className="h-3 bg-white/20 rounded-full overflow-hidden">
-            <div
-              className="h-3 rounded-full bg-white"
-              style={{ width: "62%" }}
-            />
-          </div>
-          <p className="text-xs text-white/70 mt-1.5">
-            Còn 38% nữa là hoàn thiện hồ sơ! 💪
-          </p>
-        </div>
-      </div>
-    </div>
+}) => {
+  const { studentsInClass: appStudents } = useAppData();
+  const selectedStudentId = currentStudentReferenceId();
+  const student =
+    appStudents.find((item) => item.id === selectedStudentId) ??
+    appStudents[0] ??
+    null;
+  const studentId = student?.id ?? selectedStudentId;
+  const studentName = student?.name ?? "Học sinh";
+  const shortName = studentName.split(/\s+/).slice(-2).join(" ") || studentName;
+  const profileProgress = Math.max(
+    0,
+    Math.min(100, Math.round(Number(student?.progress ?? 0))),
+  );
+  const remainingProgress = Math.max(0, 100 - profileProgress);
+  const surveyDone = student?.testStatus === "Hoàn thành";
+  const exploredCareers = student?.exploredCareers ?? [];
+  const exploredCount = exploredCareers.length;
+  const topCareer =
+    student?.latestRecommendCareer ||
+    student?.currentExploredCareer ||
+    student?.favoriteCareer ||
+    student?.careerFit ||
+    "ngành phù hợp";
+  const averageScore =
+    student?.avg !== undefined ? Number(student.avg).toFixed(1) : "-";
+  const [referenceSummary, setReferenceSummary] = useState({
+    selected: 0,
+    total: careerReferenceActions().length,
+    highlight: "Chưa chọn cảm xúc nào",
+    loading: true,
+  });
 
-    {/* To-do nudge */}
-    <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
-      <span className="text-2xl flex-shrink-0">⚡</span>
-      <div className="flex-1">
-        <p className="text-sm font-bold text-amber-800">
-          Bạn chưa làm bài khảo sát MBTI!
-        </p>
-        <p className="text-xs text-amber-600 mt-0.5">
-          Chỉ 5 phút — biết ngay bạn phù hợp với nghề nào nhé!
-        </p>
-      </div>
-      <button
-        onClick={() => setView("st-surveys")}
-        className="px-3.5 py-2 bg-amber-400 hover:bg-amber-500 text-white rounded-xl text-xs font-bold whitespace-nowrap shadow-sm transition-colors"
+  useEffect(() => {
+    const controller = new AbortController();
+    const actions = careerReferenceActions();
+
+    setReferenceSummary((current) => ({
+      ...current,
+      total: actions.length,
+      loading: true,
+    }));
+    syncReferenceActions(actions, controller.signal)
+      .then(() => fetchStudentReferences(studentId, controller.signal))
+      .then((payload) => {
+        const references = payload.references.length
+          ? payload.references
+          : actions.map((action) => ({ ...action, emotion: null }));
+        const selected = references.filter((item) => item.emotion).length;
+        const highlighted =
+          references.find((item) => item.emotion === "passion") ??
+          references.find((item) => item.emotion === "like") ??
+          references.find((item) => item.emotion);
+        const emotion = referenceEmotionMeta(highlighted?.emotion);
+
+        setReferenceSummary({
+          selected,
+          total: references.length,
+          highlight: highlighted
+            ? `${emotion?.label ?? "Đã chọn"}: ${highlighted.label}`
+            : "Chưa chọn cảm xúc nào",
+          loading: false,
+        });
+      })
+      .catch((error) => {
+        if (error.name === "AbortError") return;
+        setReferenceSummary({
+          selected: 0,
+          total: actions.length,
+          highlight: "Không tải được References",
+          loading: false,
+        });
+      });
+
+    return () => controller.abort();
+  }, [studentId]);
+
+  const shouldCompleteReferences =
+    referenceSummary.total > 0 &&
+    referenceSummary.selected < referenceSummary.total;
+  const nudge = shouldCompleteReferences
+    ? {
+        title: "Bạn còn hành động nghề nghiệp chưa chọn cảm xúc.",
+        body: `Đã chọn ${referenceSummary.selected}/${referenceSummary.total}. Mở References để xem và tiếp tục cập nhật.`,
+        action: "Mở References",
+        view: "st-references",
+      }
+    : surveyDone
+      ? {
+          title: "Dữ liệu hướng nghiệp đã được cập nhật.",
+          body: `Hồ sơ ${studentId} đang ghi nhận ${topCareer} là hướng quan tâm hiện tại.`,
+          action: "Khám phá thêm",
+          view: "st-explore",
+        }
+      : {
+          title: "Bạn chưa làm bài khảo sát hướng nghiệp.",
+          body: "Hoàn thành khảo sát để cố vấn có dữ liệu mới nhất từ database.",
+          action: "Làm ngay",
+          view: "st-surveys",
+        };
+
+  const quickStats = [
+    {
+      emoji: "🧑‍🎓",
+      label: "Hồ sơ",
+      value: `${profileProgress}%`,
+      sub: student?.riasecTop3 ? `RIASEC ${student.riasecTop3}` : "Từ database",
+      bg: "from-orange-400 to-amber-400",
+    },
+    {
+      emoji: "📝",
+      label: "Khảo sát",
+      value: surveyDone ? "Đã làm" : "Cần làm",
+      sub: student?.testStatus ?? "Chưa có dữ liệu",
+      bg: "from-pink-500 to-rose-400",
+    },
+    {
+      emoji: "🧭",
+      label: "Khám phá",
+      value: `${exploredCount}`,
+      sub: topCareer,
+      bg: "from-emerald-500 to-teal-400",
+    },
+    {
+      emoji: "📌",
+      label: "References",
+      value: referenceSummary.loading
+        ? "..."
+        : `${referenceSummary.selected}/${referenceSummary.total}`,
+      sub: referenceSummary.highlight,
+      bg: "from-violet-500 to-indigo-500",
+    },
+  ];
+  const todayTasks = [
+    {
+      label: shouldCompleteReferences
+        ? "Chọn cảm xúc cho các hành động nghề nghiệp"
+        : "References đã đồng bộ với database",
+      tag: "References",
+      tagCls: "bg-violet-100 text-violet-700",
+      done: !shouldCompleteReferences,
+      view: "st-references",
+    },
+    {
+      label: surveyDone
+        ? "Khảo sát hướng nghiệp đã hoàn thành"
+        : "Làm khảo sát hướng nghiệp",
+      tag: "Surveys",
+      tagCls: "bg-pink-100 text-pink-700",
+      done: surveyDone,
+      view: "st-surveys",
+    },
+    {
+      label: exploredCount
+        ? `Tiếp tục khám phá ${topCareer}`
+        : "Khám phá ngành nghề đầu tiên",
+      tag: "Explore",
+      tagCls: "bg-orange-100 text-orange-700",
+      done: exploredCount > 0,
+      view: "st-explore",
+    },
+  ];
+
+  return (
+    <div className="space-y-5">
+      <div
+        className="rounded-3xl p-6 text-white relative overflow-hidden shadow-lg"
+        style={{
+          background:
+            "linear-gradient(135deg, #F97316 0%, #EC4899 55%, #8B5CF6 100%)",
+        }}
       >
-        Làm ngay →
-      </button>
-    </div>
-
-    {/* Quick stats */}
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {[
-        {
-          emoji: "📚",
-          label: "Bài học",
-          value: "8",
-          sub: "2 chưa hoàn thành",
-          bg: "from-orange-400 to-amber-400",
-        },
-        {
-          emoji: "📝",
-          label: "Khảo sát",
-          value: "3",
-          sub: "1 đang chờ",
-          bg: "from-pink-500 to-rose-400",
-        },
-        {
-          emoji: "✅",
-          label: "Bài tập",
-          value: "5",
-          sub: "Hoàn thành hết",
-          bg: "from-emerald-500 to-teal-400",
-        },
-        {
-          emoji: "🎮",
-          label: "Games",
-          value: "12",
-          sub: "4 huy hiệu đạt",
-          bg: "from-violet-500 to-indigo-500",
-        },
-      ].map((c) => (
-        <div
-          key={c.label}
-          className={`rounded-2xl p-4 bg-gradient-to-br ${c.bg} text-white shadow-sm`}
-        >
-          <span className="text-2xl block mb-1">{c.emoji}</span>
-          <p className="text-2xl font-bold">{c.value}</p>
-          <p className="text-xs font-bold opacity-90">{c.label}</p>
-          <p className="text-xs opacity-75 mt-0.5">{c.sub}</p>
+        <div className="absolute -top-6 -right-6 w-36 h-36 rounded-full bg-white/10" />
+        <div className="absolute bottom-3 right-20 w-12 h-12 rounded-full bg-white/10" />
+        <div className="relative z-10">
+          <div className="flex items-center justify-between gap-3 flex-wrap mb-2">
+            <p className="text-white/80 text-sm font-semibold">Xin chào 👋</p>
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-white/20 text-white">
+              DB: {studentId}
+            </span>
+          </div>
+          <h1 className="text-2xl font-bold mt-0.5 mb-1">{shortName} ơi!</h1>
+          <p className="text-white/80 text-sm mb-4">
+            Điểm TB <strong className="text-white">{averageScore}</strong> ·{" "}
+            Nhóm quan tâm <strong className="text-white">{topCareer}</strong>
+          </p>
+          <div className="bg-white/20 rounded-2xl p-3.5 backdrop-blur-sm">
+            <div className="flex justify-between mb-1.5">
+              <span className="text-xs font-bold text-white/90">
+                Hồ sơ hướng nghiệp
+              </span>
+              <span className="text-xs font-bold text-white">
+                {profileProgress}%
+              </span>
+            </div>
+            <div className="h-3 bg-white/20 rounded-full overflow-hidden">
+              <div
+                className="h-3 rounded-full bg-white"
+                style={{ width: `${profileProgress}%` }}
+              />
+            </div>
+            <p className="text-xs text-white/70 mt-1.5">
+              {remainingProgress > 0
+                ? `Còn ${remainingProgress}% nữa là hoàn thiện hồ sơ.`
+                : "Hồ sơ đã hoàn thiện theo dữ liệu hiện tại."}
+            </p>
+          </div>
         </div>
-      ))}
-    </div>
+      </div>
 
-    {/* Upcoming */}
-    <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5">
-      <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-        <span>📅</span> Việc cần làm hôm nay
-      </h3>
-      <div className="space-y-2">
+      <div className="bg-amber-50 border-2 border-amber-300 rounded-2xl p-4 flex items-center gap-3 shadow-sm">
+        <span className="text-2xl flex-shrink-0">⚡</span>
+        <div className="flex-1">
+          <p className="text-sm font-bold text-amber-800">{nudge.title}</p>
+          <p className="text-xs text-amber-600 mt-0.5">{nudge.body}</p>
+        </div>
+        <button
+          onClick={() => setView(nudge.view)}
+          className="px-3.5 py-2 bg-amber-400 hover:bg-amber-500 text-white rounded-xl text-xs font-bold whitespace-nowrap shadow-sm transition-colors"
+        >
+          {nudge.action} →
+        </button>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+        {quickStats.map((card) => (
+          <div
+            key={card.label}
+            className={`rounded-2xl p-4 bg-gradient-to-br ${card.bg} text-white shadow-sm min-h-32`}
+          >
+            <span className="text-2xl block mb-1">{card.emoji}</span>
+            <p className="text-2xl font-bold leading-tight">{card.value}</p>
+            <p className="text-xs font-bold opacity-90">{card.label}</p>
+            <p className="text-xs opacity-75 mt-0.5 line-clamp-2">
+              {card.sub}
+            </p>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5">
+        <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
+          <span>📅</span> Việc cần làm hôm nay
+        </h3>
+        <div className="space-y-2">
+          {todayTasks.map((item) => (
+            <button
+              key={item.tag}
+              onClick={() => setView(item.view)}
+              className={`w-full flex items-center gap-3 p-3 rounded-xl text-left ${item.done ? "opacity-60" : "hover:bg-orange-50"} transition-colors`}
+            >
+              <div
+                className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${item.done ? "border-emerald-500 bg-emerald-500" : "border-gray-300"}`}
+              >
+                {item.done && <CheckCircle size={12} className="text-white" />}
+              </div>
+              <span
+                className={`text-sm flex-1 ${item.done ? "text-gray-400" : "text-gray-700 font-medium"}`}
+              >
+                {item.label}
+              </span>
+              <span
+                className={`text-xs font-bold px-2 py-1 rounded-full ${item.tagCls}`}
+              >
+                {item.tag}
+              </span>
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           {
-            label: "Xem bài học: Khám phá ngành IT",
-            tag: "Lessons",
-            tagCls: "bg-orange-100 text-orange-700",
-            done: false,
+            emoji: "📌",
+            title: "References",
+            desc: "Xem cảm xúc theo hành động nghề nghiệp",
+            action: () => setView("st-references"),
+            bg: "bg-violet-50 border-violet-200",
+            btn: "bg-violet-500 text-white",
           },
           {
-            label: "Làm khảo sát MBTI",
-            tag: "Surveys",
-            tagCls: "bg-pink-100 text-pink-700",
-            done: false,
+            emoji: "🧭",
+            title: "Khám phá ngành nghề",
+            desc: "Chọn cảm xúc ngay khi xem từng hành động",
+            action: () => setView("st-explore"),
+            bg: "bg-orange-50 border-orange-200",
+            btn: "bg-orange-500 text-white",
           },
           {
-            label: "Nộp bài tập về Career Goals",
-            tag: "Assignment",
-            tagCls: "bg-emerald-100 text-emerald-700",
-            done: true,
+            emoji: "📝",
+            title: "Khảo sát",
+            desc: surveyDone ? "Xem lại bài đã hoàn thành" : "Làm khảo sát còn thiếu",
+            action: () => setView("st-surveys"),
+            bg: "bg-pink-50 border-pink-200",
+            btn: "bg-pink-500 text-white",
           },
-        ].map((item, i) => (
+          {
+            emoji: "📖",
+            title: "Bài học",
+            desc: "Tiếp tục lộ trình học tập",
+            action: () => setView("st-lessons"),
+            bg: "bg-emerald-50 border-emerald-200",
+            btn: "bg-emerald-500 text-white",
+          },
+        ].map((card) => (
           <div
-            key={i}
-            className={`flex items-center gap-3 p-3 rounded-xl ${item.done ? "opacity-50" : "hover:bg-orange-50"} transition-colors`}
+            key={card.title}
+            className={`rounded-2xl p-4 border-2 ${card.bg} shadow-sm`}
           >
-            <div
-              className={`w-5 h-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 ${item.done ? "border-emerald-500 bg-emerald-500" : "border-gray-300"}`}
+            <span className="text-3xl block mb-2">{card.emoji}</span>
+            <h3 className="font-bold text-gray-800 text-sm mb-1">
+              {card.title}
+            </h3>
+            <p className="text-xs text-gray-500 mb-3 min-h-8">{card.desc}</p>
+            <button
+              onClick={card.action}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold ${card.btn} flex items-center gap-1`}
             >
-              {item.done && <CheckCircle size={12} className="text-white" />}
-            </div>
-            <span
-              className={`text-sm flex-1 ${item.done ? "line-through text-gray-400" : "text-gray-700 font-medium"}`}
-            >
-              {item.label}
-            </span>
-            <span
-              className={`text-xs font-bold px-2 py-1 rounded-full ${item.tagCls}`}
-            >
-              {item.tag}
-            </span>
+              Xem ngay <ArrowRight size={11} />
+            </button>
           </div>
         ))}
       </div>
     </div>
-
-    {/* Quick nav cards */}
-    <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
-      {[
-        {
-          emoji: "📖",
-          title: "Tiếp tục bài học",
-          desc: "Bài 3: Ngành Kỹ thuật phần mềm",
-          action: () => setView("st-lessons"),
-          bg: "bg-orange-50 border-orange-200",
-          btn: "bg-orange-500 text-white",
-        },
-        {
-          emoji: "🧭",
-          title: "Khám phá ngành nghề",
-          desc: "Tìm hiểu 200+ ngành nghề phù hợp",
-          action: () => setView("st-explore"),
-          bg: "bg-violet-50 border-violet-200",
-          btn: "bg-violet-500 text-white",
-        },
-      ].map((c) => (
-        <div
-          key={c.title}
-          className={`rounded-2xl p-4 border-2 ${c.bg} shadow-sm`}
-        >
-          <span className="text-3xl block mb-2">{c.emoji}</span>
-          <h3 className="font-bold text-gray-800 text-sm mb-1">{c.title}</h3>
-          <p className="text-xs text-gray-500 mb-3">{c.desc}</p>
-          <button
-            onClick={c.action}
-            className={`px-3 py-1.5 rounded-xl text-xs font-bold ${c.btn} flex items-center gap-1`}
-          >
-            Xem ngay <ArrowRight size={11} />
-          </button>
-        </div>
-      ))}
-    </div>
-  </div>
-);
+  );
+};

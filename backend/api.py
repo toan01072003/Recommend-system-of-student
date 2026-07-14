@@ -4,7 +4,9 @@ import json
 from pathlib import Path
 
 try:
+    from .core import config
     from . import student_database
+    from .services import students as student_service
     from .recommend_engine import (
         RIASEC_ORDER,
         load_career_vectors,
@@ -13,7 +15,9 @@ try:
         score_student_answers,
     )
 except ImportError:
+    from core import config
     import student_database
+    from services import students as student_service
     from recommend_engine import (
         RIASEC_ORDER,
         load_career_vectors,
@@ -23,13 +27,13 @@ except ImportError:
     )
 
 
-PROJECT_ROOT = Path(__file__).resolve().parents[1]
-DATA = PROJECT_ROOT / "data"
-QUESTION_JSON = DATA / "onet_interest_profiler_questions.json"
-QUESTION_MAP_ONET = DATA / "question_map_onet.csv"
-QUESTION_MAP_TEMPLATE = DATA / "question_map_template.csv"
-CAREER_VECTORS = DATA / "career_vectors_onet.csv"
-STUDENT_DB = DATA / "recommend_system.db"
+PROJECT_ROOT = config.PROJECT_ROOT
+DATA = config.DATA_DIR
+QUESTION_JSON = config.QUESTION_JSON
+QUESTION_MAP_ONET = config.QUESTION_MAP_ONET
+QUESTION_MAP_TEMPLATE = config.QUESTION_MAP_TEMPLATE
+CAREER_VECTORS = config.CAREER_VECTORS
+STUDENT_DB = config.STUDENT_DB
 
 DEMO_TEXT = {
     "R": "Toi thich lam viec voi vat lieu, may moc, cong cu hoac hoat dong thuc hanh.",
@@ -250,15 +254,31 @@ def save_student_reference_payload(payload: dict) -> dict:
 
 
 def students_payload(grade: str | None = None, class_name: str | None = None) -> dict:
-    normalized_grade = int(grade) if grade else None
-    return {"students": student_database.list_students(STUDENT_DB, normalized_grade, class_name)}
+    return student_service.list_students_payload(
+        grade=grade,
+        class_name=class_name,
+        db_path=STUDENT_DB,
+    )
 
 
 def student_payload(student_id: str) -> dict:
-    student = student_database.get_student(student_id, STUDENT_DB)
-    if student is None:
-        raise LookupError(f"Student not found: {student_id}")
-    return {"student": student}
+    return student_service.get_student_payload(student_id, db_path=STUDENT_DB)
+
+
+def create_student_payload(payload: dict) -> dict:
+    return student_service.create_student_payload(payload, db_path=STUDENT_DB)
+
+
+def update_student_payload(student_id: str, payload: dict) -> dict:
+    return student_service.update_student_payload(
+        student_id,
+        payload,
+        db_path=STUDENT_DB,
+    )
+
+
+def delete_student_payload(student_id: str) -> dict:
+    return student_service.delete_student_payload(student_id, db_path=STUDENT_DB)
 
 
 def meetings_payload(

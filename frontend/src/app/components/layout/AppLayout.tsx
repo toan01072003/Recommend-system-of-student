@@ -98,8 +98,8 @@ const studentNavGroups: NavGroup[] = [
     icon: Home,
     items: [
       { id: "st-dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { id: "st-lessons", label: "Lessons", icon: BookMarked },
       { id: "st-references", label: "References", icon: BookOpen },
+      { id: "st-lessons", label: "Lessons", icon: BookMarked },
       { id: "st-surveys", label: "Surveys", icon: ClipboardList },
       { id: "st-assignment", label: "Assignment", icon: FileText },
       { id: "st-games", label: "Real Games", icon: Gamepad2 },
@@ -193,7 +193,10 @@ const GroupedSidebar = ({
   const defaultOpen =
     navGroups.find((g) => g.items.some((i) => i.id === view))?.group ??
     navGroups[0]?.group;
-  const [openGroups, setOpenGroups] = useState<string[]>([defaultOpen ?? ""]);
+  const homeGroup = navGroups.find((g) => g.group === "Home")?.group;
+  const [openGroups, setOpenGroups] = useState<string[]>(
+    Array.from(new Set([defaultOpen, homeGroup].filter(Boolean) as string[])),
+  );
   const toggle = (g: string) =>
     setOpenGroups((prev) =>
       prev.includes(g) ? prev.filter((x) => x !== g) : [...prev, g],
