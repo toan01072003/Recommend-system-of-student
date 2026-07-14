@@ -54,7 +54,6 @@ import {
 } from "./screens/counselor/CounselorScreens";
 import {
   appRouteToPath,
-  isRootPath,
   parseAppRoute,
   roleFromPath,
   type AppRole,
@@ -77,6 +76,7 @@ export default function AppShell() {
     parseAppRoute(window.location.pathname),
   );
   const [uniToOpen, setUniToOpen] = useState<string | null>(null);
+  const [sessionKey, setSessionKey] = useState(0);
   const view = route.view;
 
   useEffect(() => {
@@ -107,11 +107,10 @@ export default function AppShell() {
 
   const handleLogin = (selectedRole: string) => {
     const nextRole = selectedRole as AppRole;
-    const shouldKeepRoute = !isRootPath(window.location.pathname);
-    const nextRoute = shouldKeepRoute
-      ? route
-      : { view: defaultViewByRole[nextRole] ?? "school-overview" };
+    const nextRoute = { view: defaultViewByRole[nextRole] ?? "school-overview" };
 
+    setUniToOpen(null);
+    setSessionKey((key) => key + 1);
     setRole(nextRole);
     setAppRoute(nextRoute, "replace");
   };
@@ -120,6 +119,13 @@ export default function AppShell() {
 
   const navigate = (target: string, params?: Omit<AppRoute, "view">) =>
     setAppRoute({ view: target, ...params });
+
+  const handleLogout = () => {
+    setUniToOpen(null);
+    setRole(null);
+    setRoute({ view: "school-overview" });
+    window.history.replaceState(null, "", "/");
+  };
 
   const renderView = () => {
     switch (view) {
@@ -297,7 +303,7 @@ export default function AppShell() {
   };
 
   return (
-    <AppDataProvider>
+    <AppDataProvider key={`${role}-${sessionKey}`}>
       <>
         <div
           className="flex h-screen overflow-hidden"
@@ -307,20 +313,20 @@ export default function AppShell() {
             <StudentSidebar
               view={view}
               setView={navigate}
-              onLogout={() => setRole(null)}
+              onLogout={handleLogout}
             />
           ) : role === "counselor" ? (
             <CounselorSidebar
               view={view}
               setView={navigate}
-              onLogout={() => setRole(null)}
+              onLogout={handleLogout}
             />
           ) : (
             <Sidebar
               role={role}
               view={view}
               setView={navigate}
-              onLogout={() => setRole(null)}
+              onLogout={handleLogout}
             />
           )}
           <div className="flex-1 flex flex-col overflow-hidden">
