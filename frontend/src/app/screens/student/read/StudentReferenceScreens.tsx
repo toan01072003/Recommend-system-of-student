@@ -1,9 +1,9 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { BookOpen, RefreshCw } from "lucide-react";
 import {
-  fetchStudentReferences,
+  fetchStudentCommonReferences,
   syncReferenceActions,
-  type StudentReferenceItem,
+  type StudentCommonReferenceItem,
 } from "../../../api/client";
 import {
   careerReferenceActions,
@@ -12,9 +12,10 @@ import {
 } from "../../../logic/referenceActions";
 
 export const StudentReferences = () => {
-  const [references, setReferences] = useState<StudentReferenceItem[]>([]);
+  const [references, setReferences] = useState<StudentCommonReferenceItem[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">("loading");
   const [error, setError] = useState("");
+  const [unmappedCount, setUnmappedCount] = useState(0);
   const studentId = currentStudentReferenceId();
 
   const loadReferences = (signal?: AbortSignal) => {
@@ -23,16 +24,10 @@ export const StudentReferences = () => {
     const actions = careerReferenceActions();
     return syncReferenceActions(actions, signal)
       .catch(() => ({ actions }))
-      .then(() => fetchStudentReferences(studentId, signal))
+      .then(() => fetchStudentCommonReferences(studentId, signal))
       .then((payload) => {
-        const byId = new Map(payload.references.map((item) => [item.actionId, item]));
-        setReferences(
-          actions.map((action) => ({
-            ...action,
-            emotion: byId.get(action.actionId)?.emotion ?? null,
-            updatedAt: byId.get(action.actionId)?.updatedAt ?? null,
-          })),
-        );
+        setReferences(payload.references);
+        setUnmappedCount(payload.unmappedActionIds.length);
         setStatus("ready");
       })
       .catch((err) => {
@@ -49,14 +44,13 @@ export const StudentReferences = () => {
   }, [studentId]);
 
   const grouped = useMemo(() => {
-    const groups = new Map<string, StudentReferenceItem[]>();
+    const groups = new Map<string, StudentCommonReferenceItem[]>();
     references.forEach((item) => {
-      const key = item.careerName;
+      const key = item.groupName;
       groups.set(key, [...(groups.get(key) ?? []), item]);
     });
-    return Array.from(groups.entries()).map(([careerName, items]) => ({
-      careerName,
-      field: items[0]?.field,
+    return Array.from(groups.entries()).map(([groupName, items]) => ({
+      groupName,
       items,
     }));
   }, [references]);
@@ -69,7 +63,7 @@ export const StudentReferences = () => {
         <div>
           <h1 className="text-xl font-bold text-gray-900">References</h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Cảm xúc của bạn với các hành động nghề nghiệp đã khám phá.
+            Cảm xúc tổng hợp của bạn với 97 hành động chung.
           </p>
         </div>
         <button
@@ -89,12 +83,12 @@ export const StudentReferences = () => {
           </p>
         </div>
         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-          <p className="text-xs font-bold text-gray-500">Nghề đã có hành động</p>
+          <p className="text-xs font-bold text-gray-500">Nhóm hành động</p>
           <p className="text-2xl font-black text-gray-900 mt-1">{grouped.length}</p>
         </div>
         <div className="bg-white rounded-2xl p-4 border border-gray-100 shadow-sm">
-          <p className="text-xs font-bold text-gray-500">Học sinh</p>
-          <p className="text-2xl font-black text-gray-900 mt-1">{studentId}</p>
+          <p className="text-xs font-bold text-gray-500">Chưa map</p>
+          <p className="text-2xl font-black text-gray-900 mt-1">{unmappedCount}</p>
         </div>
       </div>
 
@@ -111,11 +105,13 @@ export const StudentReferences = () => {
       ) : (
         <div className="space-y-4">
           {grouped.map((group) => (
-            <div key={group.careerName} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div key={group.groupName} className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
                 <div>
-                  <h2 className="font-bold text-gray-900">{group.careerName}</h2>
-                  <p className="text-xs text-gray-500 mt-0.5">{group.field}</p>
+                  <h2 className="font-bold text-gray-900">{group.groupName}</h2>
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {group.items.filter((item) => item.emotion).length}/{group.items.length} hành động đã có cảm xúc
+                  </p>
                 </div>
                 <BookOpen size={16} className="text-orange-500" />
               </div>
@@ -123,8 +119,14 @@ export const StudentReferences = () => {
                 {group.items.map((item) => {
                   const emotion = referenceEmotionMeta(item.emotion);
                   return (
-                    <div key={item.actionId} className="flex items-center gap-3 px-5 py-3">
-                      <p className="flex-1 text-sm font-semibold text-gray-800">{item.label}</p>
+                    <div key={item.commonActionId} className="flex items-center gap-3 px-5 py-3">
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-semibold text-gray-800">{item.label}</p>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          {item.description || "Hành động chung"} · {item.evidenceCount ?? 0} bằng chứng
+                          {item.score ? ` · Điểm ${item.score.toFixed(2)}` : ""}
+                        </p>
+                      </div>
                       {emotion ? (
                         <span className={`px-2.5 py-1 rounded-full border text-xs font-bold ${emotion.color}`}>
                           {emotion.icon} {emotion.label}

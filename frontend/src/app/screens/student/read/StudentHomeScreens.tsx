@@ -113,7 +113,7 @@ import {
 } from "../../../logic/recommendation";
 import {
   fetchMeetings,
-  fetchStudentReferences,
+  fetchStudentCommonReferences,
   syncReferenceActions,
   type MeetingRecord,
 } from "../../../api/client";
@@ -550,11 +550,11 @@ export const StudentDashboard = ({
       loading: true,
     }));
     syncReferenceActions(actions, controller.signal)
-      .then(() => fetchStudentReferences(studentId, controller.signal))
+      .then(() => fetchStudentCommonReferences(studentId, controller.signal))
       .then((payload) => {
         const references = payload.references.length
           ? payload.references
-          : actions.map((action) => ({ ...action, emotion: null }));
+          : [];
         const selected = references.filter((item) => item.emotion).length;
         const highlighted =
           references.find((item) => item.emotion === "passion") ??
@@ -604,8 +604,8 @@ export const StudentDashboard = ({
     referenceSummary.total > 0 &&
     referenceSummary.selected < referenceSummary.total;
   const nudge = shouldCompleteReferences
-    ? {
-        title: "Bạn còn hành động nghề nghiệp chưa chọn cảm xúc.",
+      ? {
+        title: "Bạn còn hành động chung chưa có cảm xúc.",
         body: `Đã chọn ${referenceSummary.selected}/${referenceSummary.total}. Mở References để xem và tiếp tục cập nhật.`,
         action: "Mở References",
         view: "st-references",
@@ -659,7 +659,7 @@ export const StudentDashboard = ({
   const todayTasks = [
     {
       label: shouldCompleteReferences
-        ? "Chọn cảm xúc cho các hành động nghề nghiệp"
+        ? "Chọn cảm xúc cho các hành động chung"
         : "References đã đồng bộ với database",
       tag: "References",
       tagCls: "bg-violet-100 text-violet-700",
@@ -872,7 +872,7 @@ export const StudentDashboard = ({
           {
             emoji: "📌",
             title: "References",
-            desc: "Xem cảm xúc theo hành động nghề nghiệp",
+            desc: "Xem cảm xúc theo hành động chung",
             action: () => setView("st-references"),
             bg: "bg-violet-50 border-violet-200",
             btn: "bg-violet-500 text-white",

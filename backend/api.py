@@ -238,6 +238,10 @@ def reference_actions_payload() -> dict:
     return {"actions": student_database.list_reference_actions(STUDENT_DB)}
 
 
+def common_reference_actions_payload() -> dict:
+    return {"actions": student_database.list_common_reference_actions(STUDENT_DB)}
+
+
 def sync_reference_actions_payload(payload: dict) -> dict:
     actions = student_database.sync_reference_actions(payload.get("actions"), STUDENT_DB)
     return {"actions": actions}
@@ -247,6 +251,12 @@ def student_references_payload(student_id: str) -> dict:
     if not student_id:
         raise ValueError("student_id is required")
     return student_database.get_student_references(student_id, STUDENT_DB)
+
+
+def student_common_references_payload(student_id: str) -> dict:
+    if not student_id:
+        raise ValueError("student_id is required")
+    return student_database.get_student_common_references(student_id, STUDENT_DB)
 
 
 def save_student_reference_payload(payload: dict) -> dict:

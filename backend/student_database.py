@@ -1,10 +1,14 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
+import unicodedata
+import xml.etree.ElementTree as ET
 from collections import Counter, defaultdict
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from zipfile import ZipFile
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -12,6 +16,7 @@ DEFAULT_DB = PROJECT_ROOT / "data" / "recommend_system.db"
 ONET_QUESTIONS_JSON = PROJECT_ROOT / "data" / "onet_interest_profiler_questions.json"
 QUESTION_MAP_ONET = PROJECT_ROOT / "data" / "question_map_onet.csv"
 QUESTION_MAP_TEMPLATE = PROJECT_ROOT / "data" / "question_map_template.csv"
+COMMON_ACTIONS_XLSX = PROJECT_ROOT / "data" / "danh_sach_hanh_dong_chung.xlsx"
 
 CAREER_COLORS = ["#EA580C", "#22C55E", "#F59E0B", "#8B5CF6", "#EC4899", "#0F766E", "#3B82F6", "#78716C"]
 SUBJECT_FIELDS = [
@@ -780,19 +785,351 @@ CREATE TABLE IF NOT EXISTS student_action_references (
 """
 
 
+COMMON_ACTIONS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS common_actions (
+    common_action_id TEXT PRIMARY KEY,
+    label TEXT NOT NULL,
+    group_name TEXT NOT NULL,
+    description TEXT,
+    sort_order INTEGER NOT NULL DEFAULT 0,
+    updated_at TEXT NOT NULL
+);
+"""
+
+
+CAREER_ACTION_COMMON_MAPPINGS_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS career_action_common_mappings (
+    career_action_id TEXT NOT NULL,
+    career_id TEXT NOT NULL,
+    career_name TEXT NOT NULL,
+    career_action_label TEXT NOT NULL,
+    common_action_id TEXT NOT NULL REFERENCES common_actions(common_action_id) ON DELETE CASCADE,
+    weight REAL NOT NULL DEFAULT 1,
+    source TEXT NOT NULL DEFAULT 'rule',
+    note TEXT,
+    updated_at TEXT NOT NULL,
+    PRIMARY KEY (career_action_id, common_action_id)
+);
+"""
+
+
+STUDENT_COMMON_REFERENCES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS student_common_action_references (
+    student_id TEXT PRIMARY KEY REFERENCES students(student_id) ON DELETE CASCADE,
+    reactions_json TEXT NOT NULL DEFAULT '[]',
+    updated_at TEXT NOT NULL
+);
+"""
+
+
+COMMON_ACTION_SEED_META_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS common_action_seed_meta (
+    source_file TEXT PRIMARY KEY,
+    source_mtime REAL NOT NULL,
+    row_count INTEGER NOT NULL DEFAULT 0,
+    imported_at TEXT NOT NULL
+);
+"""
+
+
 REFERENCE_INDEX_SQL = """
 CREATE INDEX IF NOT EXISTS idx_career_actions_career_order
     ON career_actions(career_id, sort_order);
+CREATE INDEX IF NOT EXISTS idx_common_actions_group_order
+    ON common_actions(group_name, sort_order);
+CREATE INDEX IF NOT EXISTS idx_career_action_common_mappings_common
+    ON career_action_common_mappings(common_action_id);
 """
 
 
 REFERENCE_EMOTIONS = {"hate", "dislike", "neutral", "like", "passion"}
+REFERENCE_EMOTION_SCORES = {
+    "hate": 1,
+    "dislike": 2,
+    "neutral": 3,
+    "like": 4,
+    "passion": 5,
+}
+
+
+def _xlsx_shared_strings(zip_file: ZipFile) -> list[str]:
+    if "xl/sharedStrings.xml" not in zip_file.namelist():
+        return []
+    root = ET.fromstring(zip_file.read("xl/sharedStrings.xml"))
+    ns = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    values: list[str] = []
+    for item in root.findall("a:si", ns):
+        values.append("".join(node.text or "" for node in item.findall(".//a:t", ns)))
+    return values
+
+
+def _xlsx_sheet_paths(zip_file: ZipFile) -> dict[str, str]:
+    ns = {
+        "a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main",
+        "r": "http://schemas.openxmlformats.org/officeDocument/2006/relationships",
+        "rel": "http://schemas.openxmlformats.org/package/2006/relationships",
+    }
+    workbook = ET.fromstring(zip_file.read("xl/workbook.xml"))
+    rels = ET.fromstring(zip_file.read("xl/_rels/workbook.xml.rels"))
+    rel_by_id = {
+        rel.attrib["Id"]: rel.attrib["Target"]
+        for rel in rels.findall("rel:Relationship", ns)
+    }
+    sheet_paths: dict[str, str] = {}
+    for sheet in workbook.findall("a:sheets/a:sheet", ns):
+        name = sheet.attrib.get("name", "")
+        rel_id = sheet.attrib.get("{http://schemas.openxmlformats.org/officeDocument/2006/relationships}id", "")
+        target = rel_by_id.get(rel_id, "")
+        if not name or not target:
+            continue
+        normalized_target = target.lstrip("/")
+        sheet_paths[name] = (
+            normalized_target
+            if normalized_target.startswith("xl/")
+            else f"xl/{normalized_target}"
+        )
+    return sheet_paths
+
+
+def _xlsx_column_index(cell_ref: str) -> int:
+    letters = re.sub(r"[^A-Z]", "", cell_ref.upper())
+    index = 0
+    for letter in letters:
+        index = index * 26 + (ord(letter) - ord("A") + 1)
+    return max(index - 1, 0)
+
+
+def _xlsx_rows(path: Path, sheet_name: str) -> list[list[str]]:
+    if not path.exists():
+        return []
+    ns = {"a": "http://schemas.openxmlformats.org/spreadsheetml/2006/main"}
+    with ZipFile(path) as zip_file:
+        sheet_path = _xlsx_sheet_paths(zip_file).get(sheet_name)
+        if not sheet_path or sheet_path not in zip_file.namelist():
+            return []
+        shared = _xlsx_shared_strings(zip_file)
+        root = ET.fromstring(zip_file.read(sheet_path))
+        rows: list[list[str]] = []
+        for row in root.findall("a:sheetData/a:row", ns):
+            values: list[str] = []
+            for cell in row.findall("a:c", ns):
+                cell_ref = cell.attrib.get("r", "")
+                index = _xlsx_column_index(cell_ref)
+                while len(values) <= index:
+                    values.append("")
+                value_node = cell.find("a:v", ns)
+                if value_node is None:
+                    continue
+                raw_value = value_node.text or ""
+                if cell.attrib.get("t") == "s" and raw_value.isdigit():
+                    shared_index = int(raw_value)
+                    values[index] = shared[shared_index] if shared_index < len(shared) else ""
+                else:
+                    values[index] = raw_value
+            rows.append(values)
+        return rows
+
+
+def seed_common_actions_from_excel(conn: sqlite3.Connection) -> int:
+    rows = _xlsx_rows(COMMON_ACTIONS_XLSX, "Hành động chung")
+    if len(rows) <= 1:
+        return 0
+    now = datetime.now(timezone.utc).isoformat()
+    imported_count = 0
+    for index, row in enumerate(rows[1:], start=1):
+        common_action_id = str(row[0] if len(row) > 0 else "").strip()
+        label = str(row[1] if len(row) > 1 else "").strip()
+        group_name = str(row[2] if len(row) > 2 else "").strip()
+        description = str(row[3] if len(row) > 3 else "").strip()
+        if not common_action_id or not label or not group_name:
+            continue
+        imported_count += 1
+        conn.execute(
+            """
+            INSERT INTO common_actions (
+                common_action_id, label, group_name, description, sort_order, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?)
+            ON CONFLICT(common_action_id) DO UPDATE SET
+                label = excluded.label,
+                group_name = excluded.group_name,
+                description = excluded.description,
+                sort_order = excluded.sort_order,
+                updated_at = excluded.updated_at
+            """,
+            (common_action_id, label, group_name, description, index, now),
+        )
+    return imported_count
+
+
+def _common_action_seed_needed(conn: sqlite3.Connection) -> bool:
+    if not COMMON_ACTIONS_XLSX.exists():
+        return False
+    current_mtime = COMMON_ACTIONS_XLSX.stat().st_mtime
+    current_count = conn.execute(
+        "SELECT COUNT(*) AS count FROM common_actions",
+    ).fetchone()["count"]
+    if current_count == 0:
+        return True
+    row = conn.execute(
+        """
+        SELECT source_mtime, row_count
+        FROM common_action_seed_meta
+        WHERE source_file = ?
+        """,
+        (str(COMMON_ACTIONS_XLSX),),
+    ).fetchone()
+    if row is None:
+        return True
+    return float(row["source_mtime"] or 0) < current_mtime or int(row["row_count"] or 0) <= 0
+
+
+def seed_common_actions_if_needed(conn: sqlite3.Connection) -> bool:
+    if not _common_action_seed_needed(conn):
+        return False
+    row_count = seed_common_actions_from_excel(conn)
+    if row_count <= 0 or not COMMON_ACTIONS_XLSX.exists():
+        return False
+    imported_at = datetime.now(timezone.utc).isoformat()
+    conn.execute(
+        """
+        INSERT INTO common_action_seed_meta (
+            source_file, source_mtime, row_count, imported_at
+        ) VALUES (?, ?, ?, ?)
+        ON CONFLICT(source_file) DO UPDATE SET
+            source_mtime = excluded.source_mtime,
+            row_count = excluded.row_count,
+            imported_at = excluded.imported_at
+        """,
+        (
+            str(COMMON_ACTIONS_XLSX),
+            COMMON_ACTIONS_XLSX.stat().st_mtime,
+            row_count,
+            imported_at,
+        ),
+    )
+    return True
+
+
+def _normalized_text(value: object) -> str:
+    text = str(value or "").strip().lower()
+    text = text.replace("đ", "d")
+    text = unicodedata.normalize("NFD", text)
+    text = "".join(char for char in text if unicodedata.category(char) != "Mn")
+    return re.sub(r"\s+", " ", text)
+
+
+def _parse_mapping_weight(value: object, default: float = 1.0) -> float:
+    try:
+        weight = float(value)
+    except (TypeError, ValueError):
+        weight = default
+    if weight <= 0:
+        return default
+    return min(weight, 1.0)
+
+
+def _upsert_common_action_mapping(
+    conn: sqlite3.Connection,
+    *,
+    career_action_id: str,
+    career_id: str,
+    career_name: str,
+    career_action_label: str,
+    common_action_id: str,
+    weight: float,
+    source: str,
+    note: str = "",
+    now: str,
+) -> None:
+    if not career_action_id or not common_action_id:
+        return
+    exists = conn.execute(
+        "SELECT 1 FROM common_actions WHERE common_action_id = ?",
+        (common_action_id,),
+    ).fetchone()
+    if exists is None:
+        return
+    conn.execute(
+        """
+        INSERT INTO career_action_common_mappings (
+            career_action_id, career_id, career_name, career_action_label,
+            common_action_id, weight, source, note, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        ON CONFLICT(career_action_id, common_action_id) DO UPDATE SET
+            career_id = excluded.career_id,
+            career_name = excluded.career_name,
+            career_action_label = excluded.career_action_label,
+            weight = excluded.weight,
+            source = excluded.source,
+            note = excluded.note,
+            updated_at = excluded.updated_at
+        """,
+        (
+            career_action_id,
+            career_id,
+            career_name,
+            career_action_label,
+            common_action_id,
+            weight,
+            source,
+            note,
+            now,
+        ),
+    )
+
+
+def seed_excel_common_action_mappings(conn: sqlite3.Connection) -> None:
+    rows = _xlsx_rows(COMMON_ACTIONS_XLSX, "Ánh xạ nghề")
+    if len(rows) <= 1:
+        return
+    now = datetime.now(timezone.utc).isoformat()
+    action_rows = conn.execute(
+        """
+        SELECT action_id, career_id, career_name, label
+        FROM career_actions
+        """
+    ).fetchall()
+    action_by_name = {
+        (_normalized_text(row["career_name"]), _normalized_text(row["label"])): row
+        for row in action_rows
+    }
+    for row in rows[1:]:
+        career_name = str(row[0] if len(row) > 0 else "").strip()
+        career_action_label = str(row[1] if len(row) > 1 else "").strip()
+        common_action_id = str(row[2] if len(row) > 2 else "").strip()
+        weight = _parse_mapping_weight(row[5] if len(row) > 5 else 1, 1.0)
+        note = str(row[6] if len(row) > 6 else "").strip()
+        action = action_by_name.get(
+            (_normalized_text(career_name), _normalized_text(career_action_label)),
+        )
+        if action is None:
+            continue
+        _upsert_common_action_mapping(
+            conn,
+            career_action_id=action["action_id"],
+            career_id=action["career_id"],
+            career_name=action["career_name"],
+            career_action_label=action["label"],
+            common_action_id=common_action_id,
+            weight=weight,
+            source="excel",
+            note=note,
+            now=now,
+        )
 
 
 def ensure_reference_tables(conn: sqlite3.Connection) -> None:
     conn.executescript(REFERENCE_ACTIONS_TABLE_SQL)
     conn.executescript(STUDENT_REFERENCES_TABLE_SQL)
+    conn.executescript(COMMON_ACTIONS_TABLE_SQL)
+    conn.executescript(CAREER_ACTION_COMMON_MAPPINGS_TABLE_SQL)
+    conn.executescript(STUDENT_COMMON_REFERENCES_TABLE_SQL)
+    conn.executescript(COMMON_ACTION_SEED_META_TABLE_SQL)
     conn.executescript(REFERENCE_INDEX_SQL)
+    seeded_common_actions = seed_common_actions_if_needed(conn)
+    if seeded_common_actions:
+        seed_excel_common_action_mappings(conn)
+    conn.commit()
 
 
 def _normalize_reference_action(raw_action: dict, index: int = 0) -> dict:
@@ -819,7 +1156,32 @@ def _normalize_reference_action(raw_action: dict, index: int = 0) -> dict:
         "field": str(raw_action.get("field") or "").strip(),
         "label": label,
         "sortOrder": sort_order,
+        "commonMappings": _normalize_common_mappings(raw_action.get("commonMappings")),
     }
+
+
+def _normalize_common_mappings(value: object) -> list[dict]:
+    if not isinstance(value, list):
+        return []
+    mappings: list[dict] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, dict):
+            continue
+        common_action_id = str(
+            item.get("commonActionId") or item.get("common_action_id") or "",
+        ).strip()
+        if not common_action_id or common_action_id in seen:
+            continue
+        seen.add(common_action_id)
+        mappings.append(
+            {
+                "commonActionId": common_action_id,
+                "weight": _parse_mapping_weight(item.get("weight"), 1.0),
+                "note": str(item.get("note") or "").strip(),
+            }
+        )
+    return mappings
 
 
 def _upsert_reference_action(conn: sqlite3.Connection, action: dict, now: str) -> dict:
@@ -847,6 +1209,19 @@ def _upsert_reference_action(conn: sqlite3.Connection, action: dict, now: str) -
             now,
         ),
     )
+    for mapping in normalized["commonMappings"]:
+        _upsert_common_action_mapping(
+            conn,
+            career_action_id=normalized["actionId"],
+            career_id=normalized["careerId"],
+            career_name=normalized["careerName"],
+            career_action_label=normalized["label"],
+            common_action_id=mapping["commonActionId"],
+            weight=mapping["weight"],
+            source="frontend",
+            note=mapping["note"],
+            now=now,
+        )
     return normalized
 
 
@@ -857,6 +1232,16 @@ def row_to_reference_action(row: sqlite3.Row | dict) -> dict:
         "careerName": row["career_name"],
         "field": row["field"],
         "label": row["label"],
+        "sortOrder": row["sort_order"],
+    }
+
+
+def row_to_common_action(row: sqlite3.Row | dict) -> dict:
+    return {
+        "commonActionId": row["common_action_id"],
+        "label": row["label"],
+        "groupName": row["group_name"],
+        "description": row["description"],
         "sortOrder": row["sort_order"],
     }
 
@@ -876,6 +1261,21 @@ def list_reference_actions(db_path: Path = DEFAULT_DB) -> list[dict]:
         conn.close()
 
 
+def list_common_reference_actions(db_path: Path = DEFAULT_DB) -> list[dict]:
+    conn = connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM common_actions
+            ORDER BY sort_order ASC, common_action_id ASC
+            """
+        ).fetchall()
+        return [row_to_common_action(row) for row in rows]
+    finally:
+        conn.close()
+
+
 def sync_reference_actions(actions: object, db_path: Path = DEFAULT_DB) -> list[dict]:
     if not isinstance(actions, list):
         raise ValueError("actions must be a list")
@@ -887,6 +1287,7 @@ def sync_reference_actions(actions: object, db_path: Path = DEFAULT_DB) -> list[
             for action in actions
             if isinstance(action, dict)
         ]
+        seed_excel_common_action_mappings(conn)
         conn.commit()
         return normalized
     finally:
@@ -896,6 +1297,134 @@ def sync_reference_actions(actions: object, db_path: Path = DEFAULT_DB) -> list[
 def _student_reference_reactions(conn: sqlite3.Connection, student_id: str) -> list[dict]:
     row = conn.execute(
         "SELECT reactions_json FROM student_action_references WHERE student_id = ?",
+        (student_id,),
+    ).fetchone()
+    if row is None:
+        return []
+    value = _json_value(row["reactions_json"], [])
+    return value if isinstance(value, list) else []
+
+
+def _score_to_reference_emotion(score: float) -> str:
+    if score < 1.5:
+        return "hate"
+    if score < 2.5:
+        return "dislike"
+    if score < 3.5:
+        return "neutral"
+    if score < 4.5:
+        return "like"
+    return "passion"
+
+
+def _recompute_student_common_references(
+    conn: sqlite3.Connection,
+    student_id: str,
+    now: str | None = None,
+) -> dict:
+    updated_at = now or datetime.now(timezone.utc).isoformat()
+    private_reactions = [
+        item
+        for item in _student_reference_reactions(conn, student_id)
+        if isinstance(item, dict)
+        and str(item.get("emotion") or "") in REFERENCE_EMOTION_SCORES
+    ]
+    action_ids = [
+        str(item.get("actionId") or item.get("action_id") or "").strip()
+        for item in private_reactions
+    ]
+    action_ids = [action_id for action_id in action_ids if action_id]
+    if not action_ids:
+        conn.execute(
+            """
+            INSERT INTO student_common_action_references (student_id, reactions_json, updated_at)
+            VALUES (?, '[]', ?)
+            ON CONFLICT(student_id) DO UPDATE SET
+                reactions_json = '[]',
+                updated_at = excluded.updated_at
+            """,
+            (student_id, updated_at),
+        )
+        return {"references": [], "unmappedActionIds": []}
+
+    placeholders = ",".join("?" for _ in action_ids)
+    mapping_rows = conn.execute(
+        f"""
+        SELECT *
+        FROM career_action_common_mappings
+        WHERE career_action_id IN ({placeholders})
+        """,
+        action_ids,
+    ).fetchall()
+    mappings_by_action: dict[str, list[sqlite3.Row]] = defaultdict(list)
+    for row in mapping_rows:
+        mappings_by_action[row["career_action_id"]].append(row)
+
+    aggregate: dict[str, dict] = {}
+    unmapped_action_ids: list[str] = []
+    for item in private_reactions:
+        action_id = str(item.get("actionId") or item.get("action_id") or "").strip()
+        emotion = str(item.get("emotion") or "")
+        mappings = mappings_by_action.get(action_id, [])
+        if not mappings:
+            unmapped_action_ids.append(action_id)
+            continue
+        private_score = REFERENCE_EMOTION_SCORES[emotion]
+        for mapping in mappings:
+            common_action_id = mapping["common_action_id"]
+            weight = _parse_mapping_weight(mapping["weight"], 1.0)
+            bucket = aggregate.setdefault(
+                common_action_id,
+                {
+                    "weightedScore": 0.0,
+                    "weightTotal": 0.0,
+                    "sourceActionIds": set(),
+                },
+            )
+            bucket["weightedScore"] += private_score * weight
+            bucket["weightTotal"] += weight
+            bucket["sourceActionIds"].add(action_id)
+
+    order_rows = conn.execute(
+        "SELECT common_action_id, sort_order FROM common_actions",
+    ).fetchall()
+    sort_order = {row["common_action_id"]: row["sort_order"] for row in order_rows}
+    references = []
+    for common_action_id, bucket in aggregate.items():
+        if bucket["weightTotal"] <= 0:
+            continue
+        score = bucket["weightedScore"] / bucket["weightTotal"]
+        references.append(
+            {
+                "commonActionId": common_action_id,
+                "emotion": _score_to_reference_emotion(score),
+                "score": round(score, 2),
+                "evidenceCount": len(bucket["sourceActionIds"]),
+                "sourceActionIds": sorted(bucket["sourceActionIds"]),
+                "updatedAt": updated_at,
+            }
+        )
+    references.sort(key=lambda item: (sort_order.get(item["commonActionId"], 9999), item["commonActionId"]))
+
+    conn.execute(
+        """
+        INSERT INTO student_common_action_references (student_id, reactions_json, updated_at)
+        VALUES (?, ?, ?)
+        ON CONFLICT(student_id) DO UPDATE SET
+            reactions_json = excluded.reactions_json,
+            updated_at = excluded.updated_at
+        """,
+        (student_id, json.dumps(references, ensure_ascii=False), updated_at),
+    )
+    return {
+        "references": references,
+        "unmappedActionIds": sorted(set(unmapped_action_ids)),
+    }
+
+
+def _student_common_reference_reactions(conn: sqlite3.Connection, student_id: str) -> list[dict]:
+    row = conn.execute(
+        "SELECT reactions_json FROM student_common_action_references WHERE student_id = ?",
         (student_id,),
     ).fetchone()
     if row is None:
@@ -946,6 +1475,59 @@ def get_student_references(student_id: str, db_path: Path = DEFAULT_DB) -> dict:
             },
             "actions": actions,
             "references": references,
+        }
+    finally:
+        conn.close()
+
+
+def get_student_common_references(student_id: str, db_path: Path = DEFAULT_DB) -> dict:
+    conn = connect(db_path)
+    try:
+        student = conn.execute(
+            "SELECT student_id, student_name, class_name FROM students WHERE student_id = ?",
+            (student_id,),
+        ).fetchone()
+        if student is None:
+            raise LookupError(f"Student not found: {student_id}")
+
+        recomputed = _recompute_student_common_references(conn, student_id)
+        conn.commit()
+        actions = [
+            row_to_common_action(row)
+            for row in conn.execute(
+                """
+                SELECT *
+                FROM common_actions
+                ORDER BY sort_order ASC, common_action_id ASC
+                """
+            ).fetchall()
+        ]
+        reactions = _student_common_reference_reactions(conn, student_id)
+        reaction_by_action = {
+            str(item.get("commonActionId") or item.get("common_action_id")): item
+            for item in reactions
+            if isinstance(item, dict)
+        }
+        references = [
+            {
+                **action,
+                "emotion": reaction_by_action.get(action["commonActionId"], {}).get("emotion"),
+                "score": reaction_by_action.get(action["commonActionId"], {}).get("score"),
+                "evidenceCount": reaction_by_action.get(action["commonActionId"], {}).get("evidenceCount", 0),
+                "sourceActionIds": reaction_by_action.get(action["commonActionId"], {}).get("sourceActionIds", []),
+                "updatedAt": reaction_by_action.get(action["commonActionId"], {}).get("updatedAt"),
+            }
+            for action in actions
+        ]
+        return {
+            "student": {
+                "id": student["student_id"],
+                "name": student["student_name"],
+                "className": student["class_name"],
+            },
+            "actions": actions,
+            "references": references,
+            "unmappedActionIds": recomputed["unmappedActionIds"],
         }
     finally:
         conn.close()
@@ -1026,11 +1608,14 @@ def save_student_reference(payload: dict, db_path: Path = DEFAULT_DB) -> dict:
                 now,
             ),
         )
+        common_result = _recompute_student_common_references(conn, student_id, now)
         conn.commit()
         return {
             "studentId": student_id,
             "action": action,
             "reference": next_reaction,
+            "commonReferences": common_result["references"],
+            "unmappedActionIds": common_result["unmappedActionIds"],
         }
     finally:
         conn.close()

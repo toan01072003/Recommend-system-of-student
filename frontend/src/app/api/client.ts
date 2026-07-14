@@ -131,6 +131,12 @@ export type CreateAdviceNotePayload = {
 
 export type ReferenceEmotion = "hate" | "dislike" | "neutral" | "like" | "passion";
 
+export type CommonReferenceMapping = {
+  commonActionId: string;
+  weight: number;
+  note?: string;
+};
+
 export type ReferenceAction = {
   actionId: string;
   careerId: string;
@@ -138,10 +144,27 @@ export type ReferenceAction = {
   field?: string;
   label: string;
   sortOrder: number;
+  commonMappings?: CommonReferenceMapping[];
 };
 
 export type StudentReferenceItem = ReferenceAction & {
   emotion?: ReferenceEmotion | null;
+  updatedAt?: string | null;
+};
+
+export type CommonReferenceAction = {
+  commonActionId: string;
+  label: string;
+  groupName: string;
+  description?: string | null;
+  sortOrder: number;
+};
+
+export type StudentCommonReferenceItem = CommonReferenceAction & {
+  emotion?: ReferenceEmotion | null;
+  score?: number | null;
+  evidenceCount?: number;
+  sourceActionIds?: string[];
   updatedAt?: string | null;
 };
 
@@ -153,6 +176,17 @@ export type StudentReferencesResponse = {
   };
   actions: ReferenceAction[];
   references: StudentReferenceItem[];
+};
+
+export type StudentCommonReferencesResponse = {
+  student?: {
+    id: string;
+    name: string;
+    className?: string;
+  };
+  actions: CommonReferenceAction[];
+  references: StudentCommonReferenceItem[];
+  unmappedActionIds: string[];
 };
 
 export type SurveyQuestionType = "scale" | "single_choice" | "multiple_choice" | "text";
@@ -253,12 +287,50 @@ export type SubmitSurveyPayload = {
   answers: Array<{ questionId: string; value: SurveyAnswerValue }>;
 };
 
-async function requestJson<T>(url: string, init?: RequestInit): Promise<T> {
-  const response = await fetch(url, init);
-  const payload = await response.json();
+const DEV_API_ORIGIN = "http://127.0.0.1:8001";
+
+const shouldRetryDirectBackend = (url: string) =>
+  url.startsWith("/api/") &&
+  typeof window !== "undefined" &&
+  !["127.0.0.1:8001", "localhost:8001"].includes(window.location.host);
+
+async function requestJson<T>(
+  url: string,
+  init?: RequestInit,
+  allowDirectRetry = true,
+): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(url, init);
+  } catch (error) {
+    if (allowDirectRetry && shouldRetryDirectBackend(url)) {
+      return requestJson<T>(`${DEV_API_ORIGIN}${url}`, init, false);
+    }
+    throw new Error(
+      `Cannot connect to API ${url}. Hãy chạy backend tại ${DEV_API_ORIGIN}. ${
+        error instanceof Error ? error.message : ""
+      }`.trim(),
+    );
+  }
+  const text = await response.text();
+  let payload: any = null;
+
+  if (text) {
+    try {
+      payload = JSON.parse(text);
+    } catch {
+      if (allowDirectRetry && shouldRetryDirectBackend(url)) {
+        return requestJson<T>(`${DEV_API_ORIGIN}${url}`, init, false);
+      }
+      const snippet = text.slice(0, 80).replace(/\s+/g, " ").trim();
+      throw new Error(
+        `API returned non-JSON response for ${url}: ${snippet || response.statusText}`,
+      );
+    }
+  }
 
   if (!response.ok) {
-    throw new Error(payload.error || `Request failed: ${response.status}`);
+    throw new Error(payload?.error || `Request failed: ${response.status}`);
   }
 
   return payload as T;
@@ -274,6 +346,15 @@ export function fetchReferenceActions(
   return requestJson<{ actions: ReferenceAction[] }>("/api/reference-actions", {
     signal,
   });
+}
+
+export function fetchCommonReferenceActions(
+  signal?: AbortSignal,
+): Promise<{ actions: CommonReferenceAction[] }> {
+  return requestJson<{ actions: CommonReferenceAction[] }>(
+    "/api/common-reference-actions",
+    { signal },
+  );
 }
 
 export function syncReferenceActions(
@@ -294,6 +375,16 @@ export function fetchStudentReferences(
 ): Promise<StudentReferencesResponse> {
   return requestJson<StudentReferencesResponse>(
     `/api/student-references?student_id=${encodeURIComponent(studentId)}`,
+    { signal },
+  );
+}
+
+export function fetchStudentCommonReferences(
+  studentId: string,
+  signal?: AbortSignal,
+): Promise<StudentCommonReferencesResponse> {
+  return requestJson<StudentCommonReferencesResponse>(
+    `/api/student-common-references?student_id=${encodeURIComponent(studentId)}`,
     { signal },
   );
 }

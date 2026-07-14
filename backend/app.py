@@ -55,10 +55,18 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/reference-actions":
             self.send_json_or_api_error(api.reference_actions_payload)
             return
+        if path == "/api/common-reference-actions":
+            self.send_json_or_api_error(api.common_reference_actions_payload)
+            return
         if path == "/api/student-references":
             query = parse_qs(parsed.query)
             student_id = query["student_id"][0] if query.get("student_id") else ""
             self.send_json_or_api_error(lambda: api.student_references_payload(student_id))
+            return
+        if path == "/api/student-common-references":
+            query = parse_qs(parsed.query)
+            student_id = query["student_id"][0] if query.get("student_id") else ""
+            self.send_json_or_api_error(lambda: api.student_common_references_payload(student_id))
             return
         if path == "/api/meetings":
             query = parse_qs(parsed.query)
@@ -102,9 +110,20 @@ class Handler(BaseHTTPRequestHandler):
             self.send_json_or_api_error(lambda: api.student_payload(student_id))
             return
         if path.startswith("/api/"):
-            self.send_error(404)
+            self.send_json({"error": f"API route not found: {path}"}, status=404)
             return
         self.send_static(path)
+
+    def do_OPTIONS(self) -> None:
+        path = urlparse(self.path).path
+        if path.startswith("/api/"):
+            self.send_response(204)
+            self.send_cors_headers()
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, PUT, PATCH, DELETE, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type")
+            self.end_headers()
+            return
+        self.send_error(404)
 
     def send_static(self, request_path: str) -> None:
         if (FRONTEND_DIST / "index.html").exists():
@@ -148,7 +167,10 @@ class Handler(BaseHTTPRequestHandler):
             "/api/student-references",
         }:
             if not (path.startswith("/api/surveys/") and path.endswith("/results")):
-                self.send_error(404)
+                if path.startswith("/api/"):
+                    self.send_json({"error": f"API route not found: {path}"}, status=404)
+                else:
+                    self.send_error(404)
                 return
 
         try:
@@ -199,7 +221,10 @@ class Handler(BaseHTTPRequestHandler):
     def handle_student_update(self) -> None:
         path = urlparse(self.path).path
         if not path.startswith("/api/students/"):
-            self.send_error(404)
+            if path.startswith("/api/"):
+                self.send_json({"error": f"API route not found: {path}"}, status=404)
+            else:
+                self.send_error(404)
             return
 
         try:
@@ -233,7 +258,10 @@ class Handler(BaseHTTPRequestHandler):
             )
             return
 
-        self.send_error(404)
+        if path.startswith("/api/"):
+            self.send_json({"error": f"API route not found: {path}"}, status=404)
+        else:
+            self.send_error(404)
 
     def send_file(self, path: Path, content_type: str) -> None:
         body = path.read_bytes()
@@ -246,10 +274,15 @@ class Handler(BaseHTTPRequestHandler):
     def send_json(self, payload: dict, status: int = 200) -> None:
         body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
         self.send_response(status)
+        self.send_cors_headers()
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
         self.end_headers()
         self.wfile.write(body)
+
+    def send_cors_headers(self) -> None:
+        self.send_header("Access-Control-Allow-Origin", "*")
+        self.send_header("Vary", "Origin")
 
     def send_json_or_api_error(self, loader) -> None:
         try:

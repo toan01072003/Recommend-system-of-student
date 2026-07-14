@@ -146,8 +146,10 @@ export const ExploreCareerDetail = ({
   onToggleFav,
   reactions,
   currentExploredCareer,
+  isExplored,
   onConfirmExplore,
   confirming,
+  activitySaving,
   onOpenActivityView,
   onSelectRelated,
   onNavigateToUni,
@@ -158,8 +160,10 @@ export const ExploreCareerDetail = ({
   onToggleFav: () => void;
   reactions: Record<string, ReferenceEmotion>;
   currentExploredCareer?: string;
+  isExplored: boolean;
   onConfirmExplore: () => void;
   confirming: boolean;
+  activitySaving: boolean;
   onOpenActivityView: () => void;
   onSelectRelated: (id: string) => void;
   onNavigateToUni?: (uniId: string) => void;
@@ -215,10 +219,15 @@ export const ExploreCareerDetail = ({
           {" "}
           <button
             onClick={onOpenActivityView}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 text-white text-xs font-bold shadow-lg hover:opacity-90 transition-opacity"
+            disabled={activitySaving}
+            className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-white text-xs font-bold shadow-lg hover:opacity-90 transition-opacity disabled:opacity-50 ${
+              isExplored
+                ? "bg-gradient-to-r from-emerald-500 to-teal-500"
+                : "bg-gradient-to-r from-orange-500 to-pink-500"
+            }`}
           >
             {" "}
-            💭 Tôi thích điều gì?{" "}
+            💭 {activitySaving ? "Đang lưu..." : isExplored ? "Đã khám phá - sửa lại" : "Tôi thích điều gì?"}{" "}
           </button>{" "}
           <button
             onClick={onToggleFav}
@@ -490,23 +499,38 @@ export const ExploreCareerDetail = ({
         {/* Right column */}{" "}
         <div className="space-y-4">
           {" "}
-          <div className="bg-white rounded-2xl border-2 border-orange-200 shadow-sm p-4">
+          <div
+            className={`bg-white rounded-2xl border-2 shadow-sm p-4 ${
+              isExplored ? "border-emerald-200" : "border-orange-200"
+            }`}
+          >
             <div className="flex items-start gap-3">
-              <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center text-xl flex-shrink-0">
+              <div
+                className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${
+                  isExplored
+                    ? "bg-emerald-100 text-emerald-700"
+                    : "bg-orange-100 text-orange-700"
+                }`}
+              >
                 💭
               </div>
               <div className="min-w-0 flex-1">
                 <h3 className="font-bold text-gray-900 text-sm">
-                  Tôi thích điều gì?
+                  {isExplored ? "Đã khám phá nghề này" : "Tôi thích điều gì?"}
                 </h3>
                 <p className="text-xs text-gray-500 mt-1">
                   Mở view riêng để chọn cảm xúc cho {career.activities.length} hoạt động của nghề này.
                 </p>
                 <button
                   onClick={onOpenActivityView}
-                  className="mt-3 w-full px-3 py-2.5 rounded-xl bg-orange-500 text-white text-xs font-bold hover:bg-orange-600 flex items-center justify-center gap-1.5"
+                  disabled={activitySaving}
+                  className={`mt-3 w-full px-3 py-2.5 rounded-xl text-white text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-50 ${
+                    isExplored
+                      ? "bg-emerald-500 hover:bg-emerald-600"
+                      : "bg-orange-500 hover:bg-orange-600"
+                  }`}
                 >
-                  Mở danh sách hoạt động <ChevronRight size={13} />
+                  {activitySaving ? "Đang lưu..." : isExplored ? "Đã khám phá - sửa lại" : "Mở danh sách hoạt động"} <ChevronRight size={13} />
                 </button>
               </div>
             </div>
@@ -759,16 +783,20 @@ export const ExploreCareerCard = ({
   onSelect,
   isFav,
   isCurrent,
+  isExplored,
   onToggleFav,
 }: {
   career: ExploreCareer;
   onSelect: () => void;
   isFav: boolean;
   isCurrent?: boolean;
+  isExplored?: boolean;
   onToggleFav: (e: React.MouseEvent) => void;
 }) => (
   <div
-    className="bg-white rounded-2xl overflow-hidden border border-gray-200 shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-200 flex flex-col cursor-pointer"
+    className={`bg-white rounded-2xl overflow-hidden border shadow-sm hover:shadow-lg hover:-translate-y-1 transition-all duration-200 flex flex-col cursor-pointer ${
+      isExplored ? "border-emerald-200 ring-1 ring-emerald-100" : "border-gray-200"
+    }`}
     onClick={onSelect}
   >
     {" "}
@@ -784,9 +812,9 @@ export const ExploreCareerCard = ({
         className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
       />{" "}
       <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />{" "}
-      {isCurrent && (
+      {(isCurrent || isExplored) && (
         <span className="absolute top-2 left-2 text-xs font-bold px-2 py-1 rounded-full bg-emerald-500 text-white shadow-sm">
-          Đang khám phá
+          {isCurrent ? "Đang khám phá" : "Đã khám phá"}
         </span>
       )}
       <button
@@ -1337,6 +1365,19 @@ export const StudentExplore = ({
     setFavorites((p) =>
       p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
     );
+  const isCareerExplored = (career: ExploreCareer) =>
+    currentExploredCareer === career.name || exploredCareers.includes(career.name);
+  const openActivityView = (career: ExploreCareer) => {
+    if (
+      isCareerExplored(career) &&
+      !window.confirm(
+        `Bạn đã khám phá "${career.name}". Bạn có muốn làm lại và cập nhật cảm xúc đã lưu không?`,
+      )
+    ) {
+      return;
+    }
+    setActivityCareer(career);
+  };
   const saveExploredCareer = (career: ExploreCareer) => {
     const nextExplored = mergeCareerNames(exploredCareers, career.name);
     setSavingCareerId(career.id);
@@ -1412,9 +1453,11 @@ export const StudentExplore = ({
           onToggleFav={() => toggleFav(selected.id)}
           reactions={reactions}
           currentExploredCareer={currentExploredCareer}
+          isExplored={isCareerExplored(selected)}
           confirming={savingCareerId === selected.id}
+          activitySaving={savingActivities && activityCareer?.id === selected.id}
           onConfirmExplore={() => saveExploredCareer(selected).catch(() => undefined)}
-          onOpenActivityView={() => setActivityCareer(selected)}
+          onOpenActivityView={() => openActivityView(selected)}
           onSelectRelated={(id) => {
             const c = EXPLORE_CAREERS.find((x) => x.id === id);
             if (c) setSelected(c);
@@ -1543,6 +1586,7 @@ export const StudentExplore = ({
               onSelect={() => setSelected(c)}
               isFav={favorites.includes(c.id)}
               isCurrent={currentExploredCareer === c.name}
+              isExplored={isCareerExplored(c)}
               onToggleFav={(e) => {
                 e.stopPropagation();
                 toggleFav(c.id);

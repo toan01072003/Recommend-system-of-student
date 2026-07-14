@@ -118,7 +118,7 @@ import {
   fetchAdviceNotes,
   fetchAppData,
   fetchMeetings,
-  fetchStudentReferences,
+  fetchStudentCommonReferences,
   fetchStudent,
   fetchStudentRecommendation,
   syncReferenceActions,
@@ -126,7 +126,7 @@ import {
   type AdvicePriority,
   type MeetingRecord,
   type RecommendationResponse,
-  type StudentReferenceItem,
+  type StudentCommonReferenceItem,
 } from "../../../api/client";
 import {
   careerReferenceActions,
@@ -189,9 +189,10 @@ export const CounselorStudentDetail = ({
     "idle" | "loading" | "saving" | "error"
   >("idle");
   const [actionNotice, setActionNotice] = useState("");
-  const [referenceItems, setReferenceItems] = useState<StudentReferenceItem[]>(
-    [],
-  );
+  const [referenceItems, setReferenceItems] = useState<
+    StudentCommonReferenceItem[]
+  >([]);
+  const [unmappedReferenceCount, setUnmappedReferenceCount] = useState(0);
   const [referenceStatus, setReferenceStatus] = useState<
     "idle" | "loading" | "error"
   >("idle");
@@ -224,6 +225,7 @@ export const CounselorStudentDetail = ({
     setAdviceStatus("idle");
     setActionNotice("");
     setReferenceItems([]);
+    setUnmappedReferenceCount(0);
     setReferenceStatus("idle");
     setReferenceError("");
   }, [student.id]);
@@ -235,21 +237,10 @@ export const CounselorStudentDetail = ({
     setReferenceStatus("loading");
     setReferenceError("");
     syncReferenceActions(actions, controller.signal)
-      .then(() => fetchStudentReferences(student.id, controller.signal))
+      .then(() => fetchStudentCommonReferences(student.id, controller.signal))
       .then((payload) => {
-        const byId = new Map(
-          payload.references.map((item) => [item.actionId, item]),
-        );
-        setReferenceItems(
-          actions.map((action) => {
-            const saved = byId.get(action.actionId);
-            return {
-              ...action,
-              emotion: saved?.emotion ?? null,
-              updatedAt: saved?.updatedAt ?? null,
-            };
-          }),
-        );
+        setReferenceItems(payload.references);
+        setUnmappedReferenceCount(payload.unmappedActionIds.length);
         setReferenceStatus("idle");
       })
       .catch((error) => {
@@ -454,22 +445,18 @@ export const CounselorStudentDetail = ({
       Record<
         string,
         {
-          careerId: string;
-          careerName: string;
-          field?: string;
-          items: StudentReferenceItem[];
+          groupName: string;
+          items: StudentCommonReferenceItem[];
         }
       >
     >((groups, item) => {
-      if (!groups[item.careerId]) {
-        groups[item.careerId] = {
-          careerId: item.careerId,
-          careerName: item.careerName,
-          field: item.field,
+      if (!groups[item.groupName]) {
+        groups[item.groupName] = {
+          groupName: item.groupName,
           items: [],
         };
       }
-      groups[item.careerId].items.push(item);
+      groups[item.groupName].items.push(item);
       return groups;
     }, {}),
   );
@@ -832,8 +819,7 @@ export const CounselorStudentDetail = ({
             <div>
               <h3 className="font-bold text-gray-800">References</h3>
               <p className="text-xs text-gray-500 mt-0.5">
-                Cảm xúc của {student.name} với từng hành động trong Explore
-                ngành nghề.
+                Cảm xúc tổng hợp của {student.name} với các hành động chung.
               </p>
             </div>
             <div className="text-right">
@@ -841,8 +827,13 @@ export const CounselorStudentDetail = ({
                 {selectedReferenceCount}/{referenceItems.length}
               </p>
               <p className="text-xs text-gray-400 font-semibold">
-                đã chọn cảm xúc
+                common actions có dữ liệu
               </p>
+              {unmappedReferenceCount > 0 && (
+                <p className="text-xs text-amber-600 font-semibold mt-0.5">
+                  {unmappedReferenceCount} phản hồi chưa map
+                </p>
+              )}
             </div>
           </div>
 
@@ -860,21 +851,21 @@ export const CounselorStudentDetail = ({
 
           {referenceStatus !== "loading" && referenceGroups.length === 0 && (
             <div className="p-5 text-sm text-gray-500">
-              Chưa có danh sách hành động nghề nghiệp.
+              Chưa có danh sách hành động chung.
             </div>
           )}
 
           <div className="divide-y divide-gray-100">
             {referenceGroups.map((group) => (
-              <div key={group.careerId} className="p-5">
+              <div key={group.groupName} className="p-5">
                 <div className="flex items-start justify-between gap-3 mb-3">
                   <div>
                     <h4 className="font-bold text-gray-900">
-                      {group.careerName}
+                      {group.groupName}
                     </h4>
                     <p className="text-xs text-gray-500 mt-0.5">
-                      {group.field || "Explore ngành nghề"} ·{" "}
-                      {group.items.length} hành động
+                      {group.items.filter((item) => item.emotion).length}/
+                      {group.items.length} hành động đã có cảm xúc
                     </p>
                   </div>
                   <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-gray-100 text-gray-600">
@@ -888,12 +879,19 @@ export const CounselorStudentDetail = ({
 
                     return (
                       <div
-                        key={item.actionId}
+                        key={item.commonActionId}
                         className="rounded-xl border border-gray-100 bg-gray-50 p-3 flex items-start justify-between gap-3"
                       >
-                        <p className="text-sm text-gray-700 leading-relaxed">
-                          {item.label}
-                        </p>
+                        <div className="min-w-0">
+                          <p className="text-sm text-gray-700 leading-relaxed font-semibold">
+                            {item.label}
+                          </p>
+                          <p className="text-xs text-gray-500 mt-1">
+                            {item.description || "Hành động chung"} ·{" "}
+                            {item.evidenceCount ?? 0} bằng chứng
+                            {item.score ? ` · Điểm ${item.score.toFixed(2)}` : ""}
+                          </p>
+                        </div>
                         {emotion ? (
                           <span
                             className={`inline-flex items-center gap-1.5 text-xs font-bold px-2.5 py-1 rounded-full border flex-shrink-0 ${emotion.color}`}
