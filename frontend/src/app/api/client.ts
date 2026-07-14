@@ -327,6 +327,19 @@ export function fetchStudent<T>(
   });
 }
 
+export function updateStudent<T>(
+  studentId: string,
+  payload: Record<string, unknown>,
+  signal?: AbortSignal,
+): Promise<T> {
+  return requestJson<T>(`/api/students/${encodeURIComponent(studentId)}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
 export function fetchRecommendation(
   answers: number[],
   signal?: AbortSignal,

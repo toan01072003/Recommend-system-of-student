@@ -1,5 +1,6 @@
 import {
   createContext,
+  useCallback,
   useContext,
   useEffect,
   useState,
@@ -23,13 +24,39 @@ export const fallbackAppData = {
 };
 
 export type AppDataSnapshot = typeof fallbackAppData;
+type AppDataStudent = AppDataSnapshot["studentsInClass"][number] & {
+  currentExploredCareer?: string;
+  latestRecommendCareer?: string;
+  recommendHistory?: unknown[];
+};
 
-const AppDataContext = createContext<AppDataSnapshot>(fallbackAppData);
+type AppDataContextValue = AppDataSnapshot & {
+  updateStudentInAppData: (
+    studentId: string,
+    updates: Partial<AppDataStudent>,
+  ) => void;
+};
+
+const AppDataContext = createContext<AppDataContextValue>({
+  ...fallbackAppData,
+  updateStudentInAppData: () => undefined,
+});
 
 export const useAppData = () => useContext(AppDataContext);
 
 export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   const [appData, setAppData] = useState<AppDataSnapshot>(fallbackAppData);
+  const updateStudentInAppData = useCallback(
+    (studentId: string, updates: Partial<AppDataStudent>) => {
+      setAppData((current) => ({
+        ...current,
+        studentsInClass: current.studentsInClass.map((student) =>
+          student.id === studentId ? { ...student, ...updates } : student,
+        ),
+      }));
+    },
+    [],
+  );
 
   useEffect(() => {
     const controller = new AbortController();
@@ -54,7 +81,7 @@ export const AppDataProvider = ({ children }: { children: ReactNode }) => {
   }, []);
 
   return (
-    <AppDataContext.Provider value={appData}>
+    <AppDataContext.Provider value={{ ...appData, updateStudentInAppData }}>
       {children}
     </AppDataContext.Provider>
   );

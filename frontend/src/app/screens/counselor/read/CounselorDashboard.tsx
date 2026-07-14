@@ -141,6 +141,36 @@ const toDateTimeLocalValue = (date: Date) => {
   return local.toISOString().slice(0, 16);
 };
 
+const meetingDate = (meeting: MeetingRecord) => new Date(meeting.scheduledAt);
+
+const sameCalendarDay = (left: Date, right: Date) =>
+  left.getFullYear() === right.getFullYear() &&
+  left.getMonth() === right.getMonth() &&
+  left.getDate() === right.getDate();
+
+const formatDashboardMeetingTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const time = date.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  if (sameCalendarDay(date, now)) return `Hôm nay ${time}`;
+  if (sameCalendarDay(date, tomorrow)) return `Ngày mai ${time}`;
+
+  return date.toLocaleDateString("vi-VN", {
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 export const CounselorDashboard = ({
   navigate,
 }: {
@@ -162,6 +192,10 @@ export const CounselorDashboard = ({
     "idle" | "saving" | "error"
   >("idle");
   const [supportActionNotice, setSupportActionNotice] = useState("");
+  const [meetings, setMeetings] = useState<MeetingRecord[]>([]);
+  const [meetingsStatus, setMeetingsStatus] = useState<
+    "loading" | "idle" | "error"
+  >("loading");
 
   const managedStudents = studentsInClass.length;
 
@@ -180,6 +214,32 @@ export const CounselorDashboard = ({
   const supportPreview = supportStudents.slice(0, 4);
 
   const supportNeeded = supportStudents.length;
+  const upcomingMeetings = [...meetings]
+    .filter((meeting) => {
+      const date = meetingDate(meeting);
+      return !Number.isNaN(date.getTime()) && date >= new Date();
+    })
+    .sort((a, b) => meetingDate(a).getTime() - meetingDate(b).getTime())
+    .slice(0, 5);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setMeetingsStatus("loading");
+    fetchMeetings(
+      { counselorId: DASHBOARD_COUNSELOR_ID },
+      controller.signal,
+    )
+      .then((payload) => {
+        setMeetings(payload.meetings);
+        setMeetingsStatus("idle");
+      })
+      .catch((error) => {
+        if (error.name === "AbortError") return;
+        setMeetingsStatus("error");
+      });
+
+    return () => controller.abort();
+  }, []);
 
   const openSupportActions = (student: (typeof studentsInClass)[number]) => {
     setSelectedSupportStudent(student);
@@ -231,7 +291,8 @@ export const CounselorDashboard = ({
       meetingUrl: supportMeetingType === "online" ? meetingUrl : undefined,
       scheduledAt: supportSchedule,
     })
-      .then(() => {
+      .then((payload) => {
+        setMeetings((current) => [payload.meeting, ...current]);
         setSupportActionStatus("idle");
         setSupportActionNotice(`Đã tạo lịch hẹn với ${selectedSupportStudent.name}.`);
         setSupportSchedule(toDateTimeLocalValue(new Date(Date.now() + 24 * 60 * 60 * 1000)));
@@ -461,56 +522,79 @@ export const CounselorDashboard = ({
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-3">
-            📅 Lịch tư vấn sắp tới
-          </h3>
+          <div className="flex items-center justify-between gap-3 mb-3">
+            <h3 className="font-bold text-gray-800">
+              📅 Lịch tư vấn sắp tới
+            </h3>
+            <button
+              onClick={() => navigate("co-meeting")}
+              className="text-xs font-bold text-blue-600 hover:text-blue-700"
+            >
+              Xem lịch
+            </button>
+          </div>
 
           <div className="space-y-2.5">
-            {[
-              {
-                name: "Nguyễn Minh Anh",
-                date: "Hôm nay 14:00",
-                type: "Định hướng học kỳ",
-                cls: "bg-orange-100 text-orange-700",
-              },
-
-              {
-                name: "Hoàng Thị Mai",
-                date: "Ngày mai 09:30",
-                type: "Review career test",
-                cls: "bg-blue-100 text-blue-700",
-              },
-
-              {
-                name: "Trần Đức Huy",
-                date: "28/06 15:00",
-                type: "Tư vấn chọn ngành",
-                cls: "bg-emerald-100 text-emerald-700",
-              },
-            ].map((a, i) => (
-              <div
-                key={i}
-                className="flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 hover:bg-gray-50"
-              >
-                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
-                  <Clock size={14} className="text-blue-600" />
-                </div>
-
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-gray-800 truncate">
-                    {a.name}
-                  </p>
-
-                  <p className="text-xs text-gray-500">{a.date}</p>
-                </div>
-
-                <span
-                  className={`text-xs font-semibold px-2 py-0.5 rounded-full ${a.cls}`}
+            {meetingsStatus === "loading" ? (
+              <p className="rounded-xl bg-gray-50 px-3 py-4 text-sm text-gray-500">
+                Đang tải lịch tư vấn từ database...
+              </p>
+            ) : meetingsStatus === "error" ? (
+              <p className="rounded-xl bg-red-50 px-3 py-4 text-sm font-semibold text-red-700">
+                Không tải được lịch tư vấn từ database.
+              </p>
+            ) : upcomingMeetings.length === 0 ? (
+              <p className="rounded-xl bg-gray-50 px-3 py-4 text-sm text-gray-500">
+                Chưa có lịch tư vấn sắp tới.
+              </p>
+            ) : (
+              upcomingMeetings.map((meeting) => (
+                <button
+                  key={meeting.id}
+                  onClick={() => navigate("co-students-list", { studentId: meeting.studentId })}
+                  className="w-full flex items-center gap-3 p-2.5 rounded-xl border border-gray-100 hover:bg-gray-50 text-left"
                 >
-                  {a.type}
-                </span>
-              </div>
-            ))}
+                  <div
+                    className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                      meeting.meetingType === "online"
+                        ? "bg-violet-100"
+                        : "bg-blue-100"
+                    }`}
+                  >
+                    <Clock
+                      size={14}
+                      className={
+                        meeting.meetingType === "online"
+                          ? "text-violet-600"
+                          : "text-blue-600"
+                      }
+                    />
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-800 truncate">
+                      {meeting.studentName}
+                    </p>
+
+                    <p className="text-xs text-gray-500">
+                      {formatDashboardMeetingTime(meeting.scheduledAt)} ·{" "}
+                      {meeting.className}
+                    </p>
+                  </div>
+
+                  <span
+                    className={`text-xs font-semibold px-2 py-0.5 rounded-full max-w-32 truncate ${
+                      meeting.meetingType === "online"
+                        ? "bg-violet-100 text-violet-700"
+                        : "bg-emerald-100 text-emerald-700"
+                    }`}
+                    title={meeting.topic}
+                  >
+                    {meeting.topic}
+                  </span>
+                </button>
+              ))
+            )}
           </div>
         </div>
       </div>

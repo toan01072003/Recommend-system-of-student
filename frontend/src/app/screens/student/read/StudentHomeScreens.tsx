@@ -112,14 +112,47 @@ import {
   scoreTone,
 } from "../../../logic/recommendation";
 import {
+  fetchMeetings,
   fetchStudentReferences,
   syncReferenceActions,
+  type MeetingRecord,
 } from "../../../api/client";
 import {
   careerReferenceActions,
   currentStudentReferenceId,
   referenceEmotionMeta,
 } from "../../../logic/referenceActions";
+
+const studentMeetingDate = (meeting: MeetingRecord) => new Date(meeting.scheduledAt);
+
+const sameStudentMeetingDay = (left: Date, right: Date) =>
+  left.getFullYear() === right.getFullYear() &&
+  left.getMonth() === right.getMonth() &&
+  left.getDate() === right.getDate();
+
+const formatStudentMeetingTime = (value: string) => {
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  const now = new Date();
+  const tomorrow = new Date(now);
+  tomorrow.setDate(now.getDate() + 1);
+  const time = date.toLocaleTimeString("vi-VN", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  if (sameStudentMeetingDay(date, now)) return `Hôm nay ${time}`;
+  if (sameStudentMeetingDay(date, tomorrow)) return `Ngày mai ${time}`;
+
+  return date.toLocaleDateString("vi-VN", {
+    weekday: "short",
+    day: "2-digit",
+    month: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
 
 // ── Screen 8: Student Career Portal ─────────────────────────────────────────
 export const StudentPortal = () => {
@@ -502,6 +535,10 @@ export const StudentDashboard = ({
     highlight: "Chưa chọn cảm xúc nào",
     loading: true,
   });
+  const [meetings, setMeetings] = useState<MeetingRecord[]>([]);
+  const [meetingsStatus, setMeetingsStatus] = useState<
+    "loading" | "idle" | "error"
+  >("loading");
 
   useEffect(() => {
     const controller = new AbortController();
@@ -542,6 +579,22 @@ export const StudentDashboard = ({
           highlight: "Không tải được References",
           loading: false,
         });
+      });
+
+    return () => controller.abort();
+  }, [studentId]);
+
+  useEffect(() => {
+    const controller = new AbortController();
+    setMeetingsStatus("loading");
+    fetchMeetings({ role: "student", studentId }, controller.signal)
+      .then((payload) => {
+        setMeetings(payload.meetings);
+        setMeetingsStatus("idle");
+      })
+      .catch((error) => {
+        if (error.name === "AbortError") return;
+        setMeetingsStatus("error");
       });
 
     return () => controller.abort();
@@ -632,6 +685,13 @@ export const StudentDashboard = ({
       view: "st-explore",
     },
   ];
+  const upcomingMeetings = [...meetings]
+    .filter((meeting) => {
+      const date = studentMeetingDate(meeting);
+      return !Number.isNaN(date.getTime()) && date >= new Date();
+    })
+    .sort((a, b) => studentMeetingDate(a).getTime() - studentMeetingDate(b).getTime())
+    .slice(0, 3);
 
   return (
     <div className="space-y-5">
@@ -738,6 +798,72 @@ export const StudentDashboard = ({
               </span>
             </button>
           ))}
+        </div>
+      </div>
+
+      <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-5">
+        <div className="flex items-center justify-between gap-3 mb-3">
+          <h3 className="font-bold text-gray-800 flex items-center gap-2">
+            <span>🗓️</span> Lịch tư vấn sắp tới
+          </h3>
+          <button
+            onClick={() => setView("st-meeting")}
+            className="text-xs font-bold text-blue-600 hover:text-blue-700"
+          >
+            Xem lịch
+          </button>
+        </div>
+
+        <div className="space-y-2.5">
+          {meetingsStatus === "loading" ? (
+            <p className="rounded-xl bg-gray-50 px-3 py-4 text-sm text-gray-500">
+              Đang tải lịch tư vấn từ database...
+            </p>
+          ) : meetingsStatus === "error" ? (
+            <p className="rounded-xl bg-red-50 px-3 py-4 text-sm font-semibold text-red-700">
+              Không tải được lịch tư vấn.
+            </p>
+          ) : upcomingMeetings.length === 0 ? (
+            <p className="rounded-xl bg-gray-50 px-3 py-4 text-sm text-gray-500">
+              Bạn chưa có lịch tư vấn sắp tới.
+            </p>
+          ) : (
+            upcomingMeetings.map((meeting) => (
+              <button
+                key={meeting.id}
+                onClick={() => setView("st-meeting")}
+                className="w-full flex items-center gap-3 p-3 rounded-xl border border-gray-100 hover:bg-blue-50 text-left transition-colors"
+              >
+                <div
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center flex-shrink-0 ${
+                    meeting.meetingType === "online"
+                      ? "bg-violet-100 text-violet-600"
+                      : "bg-blue-100 text-blue-600"
+                  }`}
+                >
+                  <Clock size={15} />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-bold text-gray-800 truncate">
+                    {meeting.topic}
+                  </p>
+                  <p className="text-xs text-gray-500">
+                    {formatStudentMeetingTime(meeting.scheduledAt)} · Cố vấn{" "}
+                    {meeting.counselorName}
+                  </p>
+                </div>
+                <span
+                  className={`text-xs font-bold px-2 py-1 rounded-full ${
+                    meeting.meetingType === "online"
+                      ? "bg-violet-100 text-violet-700"
+                      : "bg-emerald-100 text-emerald-700"
+                  }`}
+                >
+                  {meeting.meetingType === "online" ? "Online" : "Offline"}
+                </span>
+              </button>
+            ))
+          )}
         </div>
       </div>
 

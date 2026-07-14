@@ -62,7 +62,6 @@ import {
   studentsInClass,
   EXPLORE_CAREERS,
   EXPLORE_FIELDS,
-  REACTIONS,
   UNIVERSITIES,
   UNI_TYPES,
   UNI_REACTIONS,
@@ -84,7 +83,6 @@ import {
   QUIZ_QUESTIONS,
   avg,
   scoreCareer,
-  type CareerActivity,
   type CareerUniversity,
   type ExploreCareer,
   type University,
@@ -115,6 +113,7 @@ import {
   fetchStudentReferences,
   saveStudentReference,
   syncReferenceActions,
+  updateStudent,
   type ReferenceEmotion,
 } from "../../../api/client";
 import {
@@ -124,13 +123,32 @@ import {
   currentStudentReferenceId,
 } from "../../../logic/referenceActions";
 
+type StudentExploreUpdateResponse = {
+  student: {
+    currentExploredCareer?: string;
+    exploredCareers?: string[];
+  };
+};
+
+const mergeCareerNames = (items: string[], careerName: string) =>
+  Array.from(
+    new Set(
+      [...items, careerName]
+        .map((item) => String(item || "").trim())
+        .filter(Boolean),
+    ),
+  );
+
 export const ExploreCareerDetail = ({
   career,
   onBack,
   favorites,
   onToggleFav,
   reactions,
-  onReact,
+  currentExploredCareer,
+  onConfirmExplore,
+  confirming,
+  onOpenActivityView,
   onSelectRelated,
   onNavigateToUni,
 }: {
@@ -139,12 +157,15 @@ export const ExploreCareerDetail = ({
   favorites: string[];
   onToggleFav: () => void;
   reactions: Record<string, ReferenceEmotion>;
-  onReact: (activity: CareerActivity, emotion: ReferenceEmotion) => void;
+  currentExploredCareer?: string;
+  onConfirmExplore: () => void;
+  confirming: boolean;
+  onOpenActivityView: () => void;
   onSelectRelated: (id: string) => void;
   onNavigateToUni?: (uniId: string) => void;
 }) => {
   const [videoPlaying, setVideoPlaying] = useState(false);
-  const [showWhy, setShowWhy] = useState(false);
+  const isCurrentCareer = currentExploredCareer === career.name;
   const likedActivities = Object.entries(reactions)
     .filter(([, emotion]) => emotion === "passion" || emotion === "like")
     .map(([id]) => career.activities.find((a) => actionKey(career.id, a.id) === id)?.label)
@@ -193,11 +214,11 @@ export const ExploreCareerDetail = ({
         <div className="absolute top-4 right-4 flex gap-2">
           {" "}
           <button
-            onClick={() => setShowWhy(true)}
+            onClick={onOpenActivityView}
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-gradient-to-r from-orange-500 to-pink-500 text-white text-xs font-bold shadow-lg hover:opacity-90 transition-opacity"
           >
             {" "}
-            💭 Why?{" "}
+            💭 Tôi thích điều gì?{" "}
           </button>{" "}
           <button
             onClick={onToggleFav}
@@ -211,6 +232,32 @@ export const ExploreCareerDetail = ({
           </button>{" "}
         </div>{" "}
       </div>{" "}
+      <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-4 flex items-center justify-between gap-3 flex-wrap">
+        <div>
+          <p className="text-sm font-bold text-gray-900">
+            {isCurrentCareer ? "Đang khám phá ngành nghề này" : "Lưu ngành nghề đang khám phá"}
+          </p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Xác nhận để cập nhật nghề đang khám phá trong hồ sơ của bạn.
+          </p>
+        </div>
+        <button
+          onClick={onConfirmExplore}
+          disabled={confirming || isCurrentCareer}
+          className={`px-4 py-2.5 rounded-xl text-xs font-bold flex items-center gap-1.5 transition-colors ${
+            isCurrentCareer
+              ? "bg-emerald-100 text-emerald-700"
+              : "bg-orange-500 text-white hover:bg-orange-600 disabled:opacity-50"
+          }`}
+        >
+          <CheckCircle size={13} />
+          {isCurrentCareer
+            ? "Đang khám phá"
+            : confirming
+              ? "Đang lưu..."
+              : "Xác nhận khám phá ngành nghề này"}
+        </button>
+      </div>
       {/* Quick info */}{" "}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {" "}
@@ -443,113 +490,49 @@ export const ExploreCareerDetail = ({
         {/* Right column */}{" "}
         <div className="space-y-4">
           {" "}
-          {/* Why button (collapsed state) */}{" "}
-          {!showWhy && (
-            <button
-              onClick={() => setShowWhy(true)}
-              className="w-full flex items-center justify-between px-5 py-4 rounded-2xl border-2 border-dashed border-orange-300 bg-orange-50 hover:bg-orange-100 transition-colors group"
-            >
-              {" "}
-              <div className="flex items-center gap-3">
-                {" "}
-                <span className="text-2xl">💭</span>{" "}
-                <div className="text-left">
-                  {" "}
-                  <p className="text-sm font-bold text-orange-700">
-                    Tôi thích điều gì?
-                  </p>{" "}
-                  <p className="text-xs text-orange-500">
-                    Khám phá cảm xúc với từng hoạt động
-                  </p>{" "}
-                </div>{" "}
-              </div>{" "}
-              <ChevronRight
-                size={18}
-                className="text-orange-400 group-hover:translate-x-1 transition-transform"
-              />{" "}
-            </button>
-          )}{" "}
-          {/* Why panel (expanded) */}{" "}
-          {showWhy && (
-            <div className="bg-white rounded-2xl border-2 border-orange-200 shadow-sm overflow-hidden">
-              {" "}
-              <div className="p-4 bg-gradient-to-r from-orange-500 to-pink-500 text-white flex items-center justify-between">
-                {" "}
-                <div>
-                  {" "}
-                  <h3 className="font-bold text-base">
-                    💭 Tôi thích điều gì?
-                  </h3>{" "}
-                  <p className="text-xs text-white/80 mt-0.5">
-                    Chọn cảm xúc cho từng hoạt động
-                  </p>{" "}
-                </div>{" "}
+          <div className="bg-white rounded-2xl border-2 border-orange-200 shadow-sm p-4">
+            <div className="flex items-start gap-3">
+              <div className="w-10 h-10 rounded-xl bg-orange-100 text-orange-700 flex items-center justify-center text-xl flex-shrink-0">
+                💭
+              </div>
+              <div className="min-w-0 flex-1">
+                <h3 className="font-bold text-gray-900 text-sm">
+                  Tôi thích điều gì?
+                </h3>
+                <p className="text-xs text-gray-500 mt-1">
+                  Mở view riêng để chọn cảm xúc cho {career.activities.length} hoạt động của nghề này.
+                </p>
                 <button
-                  onClick={() => setShowWhy(false)}
-                  className="w-7 h-7 rounded-full bg-white/20 hover:bg-white/30 flex items-center justify-center transition-colors"
+                  onClick={onOpenActivityView}
+                  className="mt-3 w-full px-3 py-2.5 rounded-xl bg-orange-500 text-white text-xs font-bold hover:bg-orange-600 flex items-center justify-center gap-1.5"
                 >
-                  {" "}
-                  <ChevronDown size={14} />{" "}
-                </button>{" "}
-              </div>{" "}
-              <div className="p-4 space-y-2 max-h-80 overflow-y-auto">
-                {" "}
-                {career.activities.map((act) => {
-                  const key = actionKey(career.id, act.id);
-                  const selectedEmotion = reactions[key];
-                  return (
-                  <div
-                    key={act.id}
-                    className={`p-3 rounded-xl border-2 transition-all ${selectedEmotion ? "border-orange-200 bg-orange-50" : "border-gray-100 bg-gray-50"}`}
-                  >
-                    {" "}
-                    <p className="text-xs font-medium text-gray-700 mb-2 leading-snug">
-                      {act.label}
-                    </p>{" "}
-                    <div className="flex gap-1.5">
-                      {" "}
-                      {REFERENCE_EMOTIONS.map((r) => (
-                        <button
-                          key={r.value}
-                          onClick={() => onReact(act, r.value)}
-                          title={r.label}
-                          className={`w-8 h-8 rounded-lg text-base flex items-center justify-center transition-all hover:scale-110 ${selectedEmotion === r.value ? "bg-orange-200 ring-2 ring-orange-400 scale-110" : "bg-white border border-gray-200 hover:border-orange-300"}`}
-                        >
-                          {" "}
-                          {r.icon}{" "}
-                        </button>
-                      ))}{" "}
-                    </div>{" "}
-                  </div>
-                );
-                })}{" "}
-              </div>{" "}
-              {likedActivities.length > 0 && (
-                <div className="p-3 border-t border-orange-100 bg-amber-50">
-                  {" "}
-                  <p className="text-xs font-bold text-amber-800 mb-1.5">
-                    ✨ Đã lưu vào sở thích:
-                  </p>{" "}
-                  <div className="flex flex-wrap gap-1">
-                    {" "}
-                    {likedActivities.slice(0, 4).map((a) => (
-                      <span
-                        key={a}
-                        className="text-xs bg-amber-200 text-amber-800 px-2 py-0.5 rounded-full font-medium"
-                      >
-                        {a?.split(" ").slice(0, 3).join(" ")}...
-                      </span>
-                    ))}{" "}
-                    {likedActivities.length > 4 && (
-                      <span className="text-xs text-amber-700 font-semibold">
-                        +{likedActivities.length - 4}
-                      </span>
-                    )}{" "}
-                  </div>{" "}
-                </div>
-              )}{" "}
+                  Mở danh sách hoạt động <ChevronRight size={13} />
+                </button>
+              </div>
             </div>
-          )}{" "}
+            {likedActivities.length > 0 && (
+              <div className="mt-3 pt-3 border-t border-orange-100">
+                <p className="text-xs font-bold text-amber-800 mb-1.5">
+                  Đã lưu vào sở thích:
+                </p>
+                <div className="flex flex-wrap gap-1">
+                  {likedActivities.slice(0, 4).map((activity) => (
+                    <span
+                      key={activity}
+                      className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium"
+                    >
+                      {activity?.split(" ").slice(0, 3).join(" ")}...
+                    </span>
+                  ))}
+                  {likedActivities.length > 4 && (
+                    <span className="text-xs text-amber-700 font-semibold">
+                      +{likedActivities.length - 4}
+                    </span>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
           {/* Related careers — small cards with image + name + salary */}{" "}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
             {" "}
@@ -612,16 +595,176 @@ export const ExploreCareerDetail = ({
     </div>
   );
 };
+
+export const CareerActivityEmotionModal = ({
+  career,
+  reactions,
+  saving,
+  onClose,
+  onSave,
+}: {
+  career: ExploreCareer;
+  reactions: Record<string, ReferenceEmotion>;
+  saving: boolean;
+  onClose: () => void;
+  onSave: (draft: Record<string, ReferenceEmotion>) => void;
+}) => {
+  const [draft, setDraft] = useState<Record<string, ReferenceEmotion>>(() => {
+    const next: Record<string, ReferenceEmotion> = {};
+    career.activities.forEach((activity) => {
+      const key = actionKey(career.id, activity.id);
+      if (reactions[key]) next[key] = reactions[key];
+    });
+    return next;
+  });
+  const selectedCount = Object.keys(draft).length;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ background: "rgba(0,0,0,0.55)" }}
+    >
+      <div className="bg-white rounded-3xl shadow-2xl w-full max-w-5xl max-h-[92vh] overflow-hidden flex flex-col">
+        <div className="relative h-36 flex-shrink-0 overflow-hidden">
+          <img
+            src={career.coverPhoto}
+            alt={career.name}
+            className="w-full h-full object-cover"
+          />
+          <div className="absolute inset-0 bg-gradient-to-r from-black/75 to-black/25" />
+          <div className="absolute inset-0 p-6 flex items-end justify-between gap-4">
+            <div className="text-white">
+              <p className="text-xs font-bold uppercase tracking-wide text-white/70">
+                Tôi thích điều gì?
+              </p>
+              <h2 className="text-2xl font-black mt-1">{career.name}</h2>
+              <p className="text-sm text-white/80 mt-1">
+                Chọn cảm xúc cho các hoạt động riêng của ngành nghề này.
+              </p>
+            </div>
+            <button
+              onClick={onClose}
+              disabled={saving}
+              className="w-9 h-9 rounded-xl bg-white/20 hover:bg-white/30 text-white flex items-center justify-center disabled:opacity-50"
+            >
+              <span className="text-xl leading-none">×</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <p className="text-sm font-bold text-gray-900">
+              {selectedCount}/{career.activities.length} hoạt động đã chọn cảm xúc
+            </p>
+            <p className="text-xs text-gray-500 mt-0.5">
+              Chỉ những lựa chọn trong view này được lưu khi bấm Save.
+            </p>
+          </div>
+          <div className="flex gap-1.5 flex-wrap">
+            {REFERENCE_EMOTIONS.map((emotion) => (
+              <span
+                key={emotion.value}
+                className={`text-xs font-bold px-2.5 py-1 rounded-full border ${emotion.color}`}
+              >
+                {emotion.icon} {emotion.label}
+              </span>
+            ))}
+          </div>
+        </div>
+
+        <div className="overflow-y-auto p-6">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            {career.activities.map((activity, index) => {
+              const key = actionKey(career.id, activity.id);
+              const selectedEmotion = draft[key];
+
+              return (
+                <div
+                  key={activity.id}
+                  className={`rounded-2xl border-2 p-4 transition-all ${
+                    selectedEmotion
+                      ? "border-orange-200 bg-orange-50"
+                      : "border-gray-100 bg-gray-50"
+                  }`}
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-7 h-7 rounded-lg bg-white border border-gray-200 text-gray-500 flex items-center justify-center text-xs font-black flex-shrink-0">
+                      {index + 1}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <p className="text-sm font-semibold text-gray-800 leading-relaxed">
+                        {activity.label}
+                      </p>
+                      <div className="flex gap-2 mt-3 flex-wrap">
+                        {REFERENCE_EMOTIONS.map((emotion) => (
+                          <button
+                            key={emotion.value}
+                            onClick={() =>
+                              setDraft((current) => ({
+                                ...current,
+                                [key]: emotion.value,
+                              }))
+                            }
+                            title={emotion.label}
+                            className={`px-2.5 py-2 rounded-xl border text-sm font-bold transition-all hover:-translate-y-0.5 ${
+                              selectedEmotion === emotion.value
+                                ? `${emotion.color} ring-2 ring-orange-300`
+                                : "bg-white border-gray-200 text-gray-500 hover:border-orange-300"
+                            }`}
+                          >
+                            <span className="mr-1">{emotion.icon}</span>
+                            {emotion.label}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <div className="px-6 py-4 border-t border-gray-100 bg-gray-50 flex items-center justify-between gap-3 flex-wrap flex-shrink-0">
+          <p className="text-xs text-gray-500">
+            Save sẽ cập nhật References và đặt nghề này thành nghề đang khám phá.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={onClose}
+              disabled={saving}
+              className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-bold hover:bg-gray-100 disabled:opacity-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={() => onSave(draft)}
+              disabled={saving || selectedCount === 0}
+              className="px-5 py-2.5 rounded-xl bg-orange-500 text-white text-xs font-bold hover:bg-orange-600 disabled:opacity-50 flex items-center gap-1.5"
+            >
+              <Save size={13} />
+              {saving ? "Đang lưu..." : "Save"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Career card (grid tile)
 export const ExploreCareerCard = ({
   career,
   onSelect,
   isFav,
+  isCurrent,
   onToggleFav,
 }: {
   career: ExploreCareer;
   onSelect: () => void;
   isFav: boolean;
+  isCurrent?: boolean;
   onToggleFav: (e: React.MouseEvent) => void;
 }) => (
   <div
@@ -641,6 +784,11 @@ export const ExploreCareerCard = ({
         className="w-full h-full object-cover hover:scale-105 transition-transform duration-500"
       />{" "}
       <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent" />{" "}
+      {isCurrent && (
+        <span className="absolute top-2 left-2 text-xs font-bold px-2 py-1 rounded-full bg-emerald-500 text-white shadow-sm">
+          Đang khám phá
+        </span>
+      )}
       <button
         onClick={onToggleFav}
         className={`absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center shadow-md transition-all z-10 ${isFav ? "bg-red-500 text-white" : "bg-white/90 text-gray-400 hover:text-red-500"}`}
@@ -700,10 +848,16 @@ export const ExploreCareerCard = ({
 );
 export const ExploreTestModal = ({
   onClose,
-  onResults,
+  onViewCareer,
+  onConfirmCareer,
+  currentExploredCareer,
+  confirmingCareerId,
 }: {
   onClose: () => void;
-  onResults: (careers: ExploreCareer[]) => void;
+  onViewCareer: (career: ExploreCareer) => void;
+  onConfirmCareer: (career: ExploreCareer) => void;
+  currentExploredCareer?: string;
+  confirmingCareerId?: string | null;
 }) => {
   const [filters, setFilters] = useState<TestFilters>({
     minSalary: 0,
@@ -800,11 +954,7 @@ export const ExploreTestModal = ({
               return (
                 <div
                   key={career.id}
-                  className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all cursor-pointer hover:shadow-md ${i === 0 ? "border-emerald-300 bg-emerald-50/40" : i === 1 ? "border-blue-200 bg-blue-50/30" : "border-gray-100 bg-white"}`}
-                  onClick={() => {
-                    onClose();
-                    onResults([career]);
-                  }}
+                  className={`flex items-center gap-4 p-4 rounded-2xl border-2 transition-all hover:shadow-md ${i === 0 ? "border-emerald-300 bg-emerald-50/40" : i === 1 ? "border-blue-200 bg-blue-50/30" : "border-gray-100 bg-white"}`}
                 >
                   {" "}
                   {/* Rank */}{" "}
@@ -869,10 +1019,36 @@ export const ExploreTestModal = ({
                       {career.salaryNote}
                     </p>{" "}
                   </div>{" "}
-                  <ArrowRight
-                    size={14}
-                    className="text-gray-300 flex-shrink-0"
-                  />{" "}
+                  <div className="flex flex-col gap-2 flex-shrink-0">
+                    <button
+                      onClick={() => {
+                        onClose();
+                        onViewCareer(career);
+                      }}
+                      className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-bold hover:bg-gray-50 flex items-center justify-center gap-1"
+                    >
+                      Xem chi tiết <ArrowRight size={12} />
+                    </button>
+                    <button
+                      onClick={() => onConfirmCareer(career)}
+                      disabled={
+                        confirmingCareerId === career.id ||
+                        currentExploredCareer === career.name
+                      }
+                      className={`px-3 py-2 rounded-xl text-xs font-bold flex items-center justify-center gap-1 ${
+                        currentExploredCareer === career.name
+                          ? "bg-emerald-100 text-emerald-700"
+                          : "bg-blue-600 text-white hover:bg-blue-700 disabled:opacity-50"
+                      }`}
+                    >
+                      <CheckCircle size={12} />
+                      {currentExploredCareer === career.name
+                        ? "Đang khám phá"
+                        : confirmingCareerId === career.id
+                          ? "Đang lưu..."
+                          : "Xác nhận khám phá"}
+                    </button>
+                  </div>
                 </div>
               );
             })}{" "}
@@ -1106,6 +1282,7 @@ export const StudentExplore = ({
 }: {
   onNavigateToUni?: (uniId: string) => void;
 }) => {
+  const { studentsInClass: appStudents, updateStudentInAppData } = useAppData();
   const [search, setSearch] = useState("");
   const [activeField, setActiveField] = useState("Tất cả");
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -1113,8 +1290,15 @@ export const StudentExplore = ({
   const [showFavs, setShowFavs] = useState(false);
   const [reactions, setReactions] = useState<Record<string, ReferenceEmotion>>({});
   const [showTest, setShowTest] = useState(false);
+  const [currentExploredCareer, setCurrentExploredCareer] = useState("");
+  const [exploredCareers, setExploredCareers] = useState<string[]>([]);
+  const [savingCareerId, setSavingCareerId] = useState<string | null>(null);
+  const [activityCareer, setActivityCareer] = useState<ExploreCareer | null>(null);
+  const [savingActivities, setSavingActivities] = useState(false);
+  const [notice, setNotice] = useState("");
   const studentId = currentStudentReferenceId();
   const referenceActions = careerReferenceActions();
+  const appStudent = appStudents.find((student) => student.id === studentId);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -1133,23 +1317,79 @@ export const StudentExplore = ({
     return () => controller.abort();
   }, [studentId]);
 
+  React.useEffect(() => {
+    const nextExplored = (appStudent?.exploredCareers ?? []).filter(Boolean);
+    setExploredCareers(nextExplored);
+    setCurrentExploredCareer(
+      appStudent?.currentExploredCareer ||
+        nextExplored[0] ||
+        appStudent?.favoriteCareer ||
+        "",
+    );
+  }, [
+    studentId,
+    appStudent?.currentExploredCareer,
+    appStudent?.favoriteCareer,
+    (appStudent?.exploredCareers ?? []).join("|"),
+  ]);
+
   const toggleFav = (id: string) =>
     setFavorites((p) =>
       p.includes(id) ? p.filter((x) => x !== id) : [...p, id],
     );
-  const handleReact = (activity: CareerActivity, emotion: ReferenceEmotion) => {
-    if (!selected) return;
-    const key = actionKey(selected.id, activity.id);
-    const action = referenceActions.find((item) => item.actionId === key);
-    setReactions((current) => ({ ...current, [key]: emotion }));
-    if (action) {
-      saveStudentReference({
-        studentId,
-        actionId: key,
-        emotion,
-        action,
-      }).catch(() => undefined);
-    }
+  const saveExploredCareer = (career: ExploreCareer) => {
+    const nextExplored = mergeCareerNames(exploredCareers, career.name);
+    setSavingCareerId(career.id);
+    setNotice("");
+
+    return updateStudent<StudentExploreUpdateResponse>(studentId, {
+      currentExploredCareer: career.name,
+      exploredCareers: nextExplored,
+    })
+      .then((payload) => {
+        const updatedExplored = payload.student.exploredCareers ?? nextExplored;
+        const updatedCurrent = payload.student.currentExploredCareer ?? career.name;
+        setExploredCareers(updatedExplored);
+        setCurrentExploredCareer(updatedCurrent);
+        updateStudentInAppData(studentId, {
+          currentExploredCareer: updatedCurrent,
+          exploredCareers: updatedExplored,
+        });
+        setNotice(`Đã lưu "${career.name}" là nghề đang khám phá.`);
+      })
+      .catch((error) => {
+        setNotice(error.message || "Không lưu được nghề đang khám phá.");
+        throw error;
+      })
+      .finally(() => setSavingCareerId(null));
+  };
+  const handleSaveActivityReactions = (career: ExploreCareer, draft: Record<string, ReferenceEmotion>) => {
+    const entries = Object.entries(draft).filter(([key]) =>
+      key.startsWith(`${career.id}:`),
+    );
+    if (entries.length === 0) return;
+
+    setSavingActivities(true);
+    setNotice("");
+    Promise.all(
+      entries.map(([key, emotion]) => {
+        const action = referenceActions.find((item) => item.actionId === key);
+        if (!action) return Promise.resolve(null);
+        return saveStudentReference({
+          studentId,
+          actionId: key,
+          emotion,
+          action,
+        });
+      }),
+    )
+      .then(() => saveExploredCareer(career))
+      .then(() => {
+        setReactions((current) => ({ ...current, ...draft }));
+        setActivityCareer(null);
+      })
+      .catch(() => undefined)
+      .finally(() => setSavingActivities(false));
   };
   const filtered = EXPLORE_CAREERS.filter((c) => {
     if (showFavs && !favorites.includes(c.id)) return false;
@@ -1164,19 +1404,46 @@ export const StudentExplore = ({
   });
   if (selected)
     return (
-      <ExploreCareerDetail
-        career={selected}
-        onBack={() => setSelected(null)}
-        favorites={favorites}
-        onToggleFav={() => toggleFav(selected.id)}
-        reactions={reactions}
-        onReact={handleReact}
-        onSelectRelated={(id) => {
-          const c = EXPLORE_CAREERS.find((x) => x.id === id);
-          if (c) setSelected(c);
-        }}
-        onNavigateToUni={onNavigateToUni}
-      />
+      <>
+        <ExploreCareerDetail
+          career={selected}
+          onBack={() => setSelected(null)}
+          favorites={favorites}
+          onToggleFav={() => toggleFav(selected.id)}
+          reactions={reactions}
+          currentExploredCareer={currentExploredCareer}
+          confirming={savingCareerId === selected.id}
+          onConfirmExplore={() => saveExploredCareer(selected).catch(() => undefined)}
+          onOpenActivityView={() => setActivityCareer(selected)}
+          onSelectRelated={(id) => {
+            const c = EXPLORE_CAREERS.find((x) => x.id === id);
+            if (c) setSelected(c);
+          }}
+          onNavigateToUni={onNavigateToUni}
+        />
+        {notice && (
+          <div
+            className={`fixed bottom-5 right-5 z-40 rounded-2xl border px-4 py-3 text-sm font-bold shadow-lg ${
+              notice.startsWith("Không")
+                ? "border-red-100 bg-red-50 text-red-700"
+                : "border-emerald-100 bg-emerald-50 text-emerald-700"
+            }`}
+          >
+            {notice}
+          </div>
+        )}
+        {activityCareer && (
+          <CareerActivityEmotionModal
+            career={activityCareer}
+            reactions={reactions}
+            saving={savingActivities}
+            onClose={() => {
+              if (!savingActivities) setActivityCareer(null);
+            }}
+            onSave={(draft) => handleSaveActivityReactions(activityCareer, draft)}
+          />
+        )}
+      </>
     );
   return (
     <div className="space-y-5">
@@ -1184,9 +1451,12 @@ export const StudentExplore = ({
       {showTest && (
         <ExploreTestModal
           onClose={() => setShowTest(false)}
-          onResults={(careers) => {
-            if (careers[0]) setSelected(careers[0]);
-          }}
+          onViewCareer={(career) => setSelected(career)}
+          onConfirmCareer={(career) =>
+            saveExploredCareer(career).catch(() => undefined)
+          }
+          currentExploredCareer={currentExploredCareer}
+          confirmingCareerId={savingCareerId}
         />
       )}{" "}
       <div className="flex items-start justify-between flex-wrap gap-3">
@@ -1210,6 +1480,17 @@ export const StudentExplore = ({
           <span className="text-base">🔍</span> Test Khám phá{" "}
         </button>{" "}
       </div>{" "}
+      {notice && (
+        <div
+          className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
+            notice.startsWith("Không")
+              ? "border-red-100 bg-red-50 text-red-700"
+              : "border-emerald-100 bg-emerald-50 text-emerald-700"
+          }`}
+        >
+          {notice}
+        </div>
+      )}
       {/* Search + fav filter */}{" "}
       <div className="flex flex-wrap gap-3 items-center">
         {" "}
@@ -1261,6 +1542,7 @@ export const StudentExplore = ({
               career={c}
               onSelect={() => setSelected(c)}
               isFav={favorites.includes(c.id)}
+              isCurrent={currentExploredCareer === c.name}
               onToggleFav={(e) => {
                 e.stopPropagation();
                 toggleFav(c.id);

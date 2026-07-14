@@ -3,12 +3,15 @@ from __future__ import annotations
 import json
 import sqlite3
 from collections import Counter, defaultdict
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = PROJECT_ROOT / "data" / "recommend_system.db"
+ONET_QUESTIONS_JSON = PROJECT_ROOT / "data" / "onet_interest_profiler_questions.json"
+QUESTION_MAP_ONET = PROJECT_ROOT / "data" / "question_map_onet.csv"
+QUESTION_MAP_TEMPLATE = PROJECT_ROOT / "data" / "question_map_template.csv"
 
 CAREER_COLORS = ["#EA580C", "#22C55E", "#F59E0B", "#8B5CF6", "#EC4899", "#0F766E", "#3B82F6", "#78716C"]
 SUBJECT_FIELDS = [
@@ -31,6 +34,7 @@ def connect(db_path: Path = DEFAULT_DB) -> sqlite3.Connection:
     ensure_identity_tables(conn)
     seed_identity_data(conn)
     ensure_meetings_table(conn)
+    seed_meeting_demo_data(conn)
     ensure_messages_table(conn)
     ensure_advice_notes_table(conn)
     ensure_surveys_tables(conn)
@@ -362,6 +366,77 @@ def ensure_meetings_table(conn: sqlite3.Connection) -> None:
     conn.executescript(MEETINGS_INDEX_SQL)
 
 
+def seed_meeting_demo_data(conn: sqlite3.Connection) -> None:
+    existing = conn.execute("SELECT COUNT(*) AS count FROM meetings").fetchone()
+    if existing and existing["count"] > 0:
+        return
+
+    counselor = conn.execute(
+        """
+        SELECT counselors.counselor_id, users.full_name
+        FROM counselors
+        JOIN users ON users.user_id = counselors.user_id
+        ORDER BY CASE WHEN counselors.counselor_id = 'COUNSELOR001' THEN 0 ELSE 1 END,
+                 counselors.counselor_id
+        LIMIT 1
+        """
+    ).fetchone()
+    students = conn.execute(
+        """
+        SELECT student_id, student_name, class_name
+        FROM students
+        ORDER BY student_id ASC
+        LIMIT 12
+        """
+    ).fetchall()
+    if counselor is None or not students:
+        return
+
+    now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
+    templates = [
+        (-21, 9, "Tổng kết định hướng học kỳ trước", "offline", None, "completed"),
+        (-12, 14, "Review kết quả khảo sát O*NET", "online", "https://meet.google.com/demo-onet-review", "completed"),
+        (-5, 10, "Trao đổi kế hoạch học tập cá nhân", "offline", None, "completed"),
+        (-1, 16, "Theo dõi tiến độ khám phá nghề nghiệp", "offline", None, "completed"),
+        (1, 9, "Định hướng nghề nghiệp", "offline", None, "scheduled"),
+        (2, 15, "Review career test", "online", "https://meet.google.com/demo-career-test", "scheduled"),
+        (4, 8, "Tư vấn chọn ngành", "offline", None, "scheduled"),
+        (7, 13, "Trao đổi với phụ huynh", "online", "https://meet.google.com/demo-parent-sync", "scheduled"),
+        (10, 10, "Điều chỉnh kế hoạch học tập", "offline", None, "scheduled"),
+        (14, 14, "Cập nhật mục tiêu nghề nghiệp", "online", "https://meet.google.com/demo-career-goals", "scheduled"),
+    ]
+    created_at = now.isoformat()
+
+    for index, (day_offset, hour, topic, meeting_type, meeting_url, status) in enumerate(templates):
+        student = students[index % len(students)]
+        scheduled_at = (now + timedelta(days=day_offset)).replace(hour=hour, minute=0).isoformat()
+        student_seen_at = created_at if status == "completed" else None
+        conn.execute(
+            """
+            INSERT INTO meetings (
+                student_id, student_name, class_name, counselor_id, counselor_name,
+                topic, meeting_type, meeting_url, scheduled_at, status,
+                student_seen_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                student["student_id"],
+                student["student_name"],
+                student["class_name"],
+                counselor["counselor_id"],
+                counselor["full_name"],
+                topic,
+                meeting_type,
+                meeting_url,
+                scheduled_at,
+                status,
+                student_seen_at,
+                created_at,
+            ),
+        )
+    conn.commit()
+
+
 def row_to_meeting(row: sqlite3.Row) -> dict:
     return {
         "id": row["meeting_id"],
@@ -482,12 +557,205 @@ DEFAULT_SURVEY_ANSWER_OPTIONS = [
 
 
 SURVEY_QUESTION_TYPES = {"scale", "single_choice", "multiple_choice", "text"}
+SEEDED_ONET_SURVEY_TITLE = "O*NET Interest Profiler - Khảo sát mặc định"
+SEEDED_ONET_OPEN_AT = "2024-01-01T00:00:00+00:00"
+SEEDED_ONET_CLOSE_AT = "2035-12-31T23:59:59+00:00"
+DEMO_COMPLETED_SURVEY_STUDENT_IDS = {"STU006"}
 
 
 def ensure_surveys_tables(conn: sqlite3.Connection) -> None:
     conn.executescript(SURVEYS_TABLE_SQL)
     conn.executescript(SURVEY_RESULTS_TABLE_SQL)
     conn.executescript(SURVEYS_INDEX_SQL)
+    seed_onet_survey(conn)
+
+
+def _seed_onet_questions() -> list[dict]:
+    if ONET_QUESTIONS_JSON.exists():
+        payload = json.loads(ONET_QUESTIONS_JSON.read_text(encoding="utf-8"))
+        questions = payload.get("question", [])
+        return [
+            {
+                "id": str(item.get("index") or index + 1),
+                "text": str(item.get("text") or "").strip(),
+                "type": "scale",
+                "area": str(item.get("area") or "").strip(),
+                "options": DEFAULT_SURVEY_ANSWER_OPTIONS,
+            }
+            for index, item in enumerate(questions)
+            if isinstance(item, dict) and str(item.get("text") or "").strip()
+        ]
+
+    question_map_path = QUESTION_MAP_ONET if QUESTION_MAP_ONET.exists() else QUESTION_MAP_TEMPLATE
+    if not question_map_path.exists():
+        return []
+
+    rows = question_map_path.read_text(encoding="utf-8").splitlines()[1:]
+    questions = []
+    for row in rows:
+        parts = [part.strip() for part in row.split(",")]
+        if len(parts) < 2 or not parts[0]:
+            continue
+        questions.append(
+            {
+                "id": parts[0],
+                "text": f"O*NET Interest Profiler question {parts[0]}",
+                "type": "scale",
+                "area": parts[1],
+                "options": DEFAULT_SURVEY_ANSWER_OPTIONS,
+            }
+        )
+    return questions
+
+
+def _seed_answer_value(student_id: str, question_id: object) -> int:
+    seed = sum(ord(char) for char in student_id)
+    try:
+        question_number = int(question_id)
+    except (TypeError, ValueError):
+        question_number = seed
+    return ((seed + question_number * 7) % 5) + 1
+
+
+def _seed_onet_answers(student_id: str, questions: list[dict]) -> list[dict]:
+    return [
+        {
+            "questionId": str(question["id"]),
+            "value": _seed_answer_value(student_id, question["id"]),
+        }
+        for question in questions
+    ]
+
+
+def seed_onet_survey(conn: sqlite3.Connection) -> None:
+    students = conn.execute(
+        """
+        SELECT student_id, student_name, class_name
+        FROM students
+        ORDER BY student_id ASC
+        """
+    ).fetchall()
+    if not students:
+        return
+
+    counselor = conn.execute(
+        """
+        SELECT counselors.counselor_id, users.full_name
+        FROM counselors
+        JOIN users ON users.user_id = counselors.user_id
+        ORDER BY CASE WHEN counselors.counselor_id = 'COUNSELOR001' THEN 0 ELSE 1 END,
+                 counselors.counselor_id
+        LIMIT 1
+        """
+    ).fetchone()
+    if counselor is None:
+        return
+
+    raw_questions = _seed_onet_questions()
+    if not raw_questions:
+        return
+    questions = _normalize_questions(raw_questions)
+    student_ids = [row["student_id"] for row in students]
+    now = datetime.now(timezone.utc).isoformat()
+    survey_row = conn.execute(
+        """
+        SELECT survey_id, created_at
+        FROM surveys
+        WHERE title = ? AND counselor_id = ?
+        ORDER BY survey_id ASC
+        LIMIT 1
+        """,
+        (SEEDED_ONET_SURVEY_TITLE, counselor["counselor_id"]),
+    ).fetchone()
+
+    if survey_row is None:
+        cursor = conn.execute(
+            """
+            INSERT INTO surveys (
+                counselor_id, counselor_name, title, description, questions_json,
+                answer_options_json, open_at, close_at, status,
+                assigned_student_ids_json, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'active', ?, ?, ?)
+            """,
+            (
+                counselor["counselor_id"],
+                counselor["full_name"],
+                SEEDED_ONET_SURVEY_TITLE,
+                "Bộ khảo sát O*NET Interest Profiler mặc định, áp dụng cho toàn bộ học sinh.",
+                json.dumps(questions, ensure_ascii=False),
+                json.dumps(DEFAULT_SURVEY_ANSWER_OPTIONS, ensure_ascii=False),
+                SEEDED_ONET_OPEN_AT,
+                SEEDED_ONET_CLOSE_AT,
+                json.dumps(student_ids, ensure_ascii=False),
+                now,
+                now,
+            ),
+        )
+        survey_id = cursor.lastrowid
+    else:
+        survey_id = survey_row["survey_id"]
+        conn.execute(
+            """
+            UPDATE surveys
+            SET counselor_name = ?,
+                description = ?,
+                questions_json = ?,
+                answer_options_json = ?,
+                open_at = ?,
+                close_at = ?,
+                status = 'active',
+                assigned_student_ids_json = ?,
+                updated_at = ?
+            WHERE survey_id = ?
+            """,
+            (
+                counselor["full_name"],
+                "Bộ khảo sát O*NET Interest Profiler mặc định, áp dụng cho toàn bộ học sinh.",
+                json.dumps(questions, ensure_ascii=False),
+                json.dumps(DEFAULT_SURVEY_ANSWER_OPTIONS, ensure_ascii=False),
+                SEEDED_ONET_OPEN_AT,
+                SEEDED_ONET_CLOSE_AT,
+                json.dumps(student_ids, ensure_ascii=False),
+                now,
+                survey_id,
+            ),
+        )
+
+    target_completed_count = max(1, round(len(student_ids) * 0.2))
+    completed_ids: list[str] = []
+    for student_id in sorted(DEMO_COMPLETED_SURVEY_STUDENT_IDS):
+        if student_id in student_ids and student_id not in completed_ids:
+            completed_ids.append(student_id)
+    for student_id in student_ids:
+        if len(completed_ids) >= target_completed_count:
+            break
+        if student_id not in completed_ids:
+            completed_ids.append(student_id)
+
+    student_by_id = {row["student_id"]: row for row in students}
+    for student_id in completed_ids:
+        student = student_by_id[student_id]
+        answers = _seed_onet_answers(student_id, questions)
+        result = compute_survey_result(questions, answers)
+        submitted_at = datetime(2026, 1, 15, 8, 0, tzinfo=timezone.utc).isoformat()
+        conn.execute(
+            """
+            INSERT OR IGNORE INTO survey_results (
+                survey_id, student_id, student_name, class_name, answers_json,
+                result_json, submitted_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                survey_id,
+                student["student_id"],
+                student["student_name"],
+                student["class_name"],
+                json.dumps(answers, ensure_ascii=False),
+                json.dumps(result, ensure_ascii=False),
+                submitted_at,
+            ),
+        )
+    conn.commit()
 
 
 REFERENCE_ACTIONS_TABLE_SQL = """
