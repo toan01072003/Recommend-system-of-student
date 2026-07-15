@@ -310,6 +310,10 @@ def create_meeting_payload(payload: dict) -> dict:
     return {"meeting": student_database.create_meeting(payload, STUDENT_DB)}
 
 
+def update_meeting_payload(meeting_id: int, payload: dict) -> dict:
+    return {"meeting": student_database.update_meeting(meeting_id, payload, STUDENT_DB)}
+
+
 def messages_payload(
     role: str | None = None,
     student_id: str | None = None,

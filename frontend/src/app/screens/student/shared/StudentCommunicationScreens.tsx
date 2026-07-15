@@ -114,15 +114,18 @@ import {
 } from "../../../logic/recommendation";
 import {
   createAdviceNote,
+  createMeeting,
   createMessage,
   deleteAdviceNote,
   fetchAdviceNotes,
   fetchMeetings,
   fetchMessages,
   markMessagesSeen,
+  updateMeeting,
   type AdviceNoteRecord,
   type AdvicePriority,
   type MeetingRecord,
+  type MeetingType,
   type MessageRecord,
   type MessageRole,
 } from "../../../api/client";
@@ -154,6 +157,27 @@ const formatDateInput = (date: Date) => {
   return `${year}-${month}-${day}`;
 };
 
+const formatDateTimeInput = (date: Date) => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  const hour = String(date.getHours()).padStart(2, "0");
+  const minute = String(date.getMinutes()).padStart(2, "0");
+  return `${year}-${month}-${day}T${hour}:${minute}`;
+};
+
+const defaultMeetingDateTime = () => {
+  const next = new Date();
+  next.setDate(next.getDate() + 1);
+  next.setHours(9, 0, 0, 0);
+  return formatDateTimeInput(next);
+};
+
+const dateTimeInputToIso = (value: string) => {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toISOString();
+};
+
 const formatMeetingDateTime = (value: string) => {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return value;
@@ -168,6 +192,9 @@ const formatMeetingDateTime = (value: string) => {
 };
 
 const meetingDate = (meeting: MeetingRecord) => new Date(meeting.scheduledAt);
+
+const meetingHasPassed = (meeting: MeetingRecord) =>
+  meetingDate(meeting).getTime() < Date.now();
 
 const meetingsForDate = (meetings: MeetingRecord[], date: Date) =>
   meetings.filter((meeting) => sameDay(meetingDate(meeting), date));
@@ -597,6 +624,7 @@ export const MeetingCenter = ({
 }: {
   role: "student" | "counselor";
 }) => {
+  const { studentsInClass: appStudents } = useAppData();
   const [viewMode, setViewMode] = useState<MeetingViewMode>("week");
   const [selectedDate, setSelectedDate] = useState(new Date());
   const [meetings, setMeetings] = useState<MeetingRecord[]>([]);
@@ -608,6 +636,25 @@ export const MeetingCenter = ({
     window.localStorage.getItem("studentPortalMeetingStudentId") ||
     STUDENT_PORTAL_FALLBACK_ID,
   );
+  const students = appStudents.length > 0 ? appStudents : studentsInClass;
+  const initialCounselorStudentId = students[0]?.id || studentId;
+  const [formStudentId, setFormStudentId] = useState(initialCounselorStudentId);
+  const [studentSearch, setStudentSearch] = useState("");
+  const [meetingTopic, setMeetingTopic] = useState("");
+  const [meetingType, setMeetingType] = useState<MeetingType>("offline");
+  const [meetingUrl, setMeetingUrl] = useState("");
+  const [meetingDateTime, setMeetingDateTime] = useState(defaultMeetingDateTime);
+  const [formStatus, setFormStatus] = useState<"idle" | "saving">("idle");
+  const [selectedMeeting, setSelectedMeeting] = useState<MeetingRecord | null>(
+    null,
+  );
+  const [editMode, setEditMode] = useState(false);
+  const [detailTopic, setDetailTopic] = useState("");
+  const [detailType, setDetailType] = useState<MeetingType>("offline");
+  const [detailUrl, setDetailUrl] = useState("");
+  const [detailDateTime, setDetailDateTime] = useState("");
+  const [detailNote, setDetailNote] = useState("");
+  const [detailStatus, setDetailStatus] = useState<"idle" | "saving">("idle");
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -634,13 +681,33 @@ export const MeetingCenter = ({
     return () => controller.abort();
   }, [role, studentId]);
 
+  React.useEffect(() => {
+    if (role === "counselor" && !students.some((student) => student.id === formStudentId)) {
+      setFormStudentId(initialCounselorStudentId);
+    }
+  }, [role, students, formStudentId, initialCounselorStudentId]);
+
+  const selectedFormStudent =
+    students.find((student) => student.id === formStudentId) ?? students[0];
+  const filteredStudents = students.filter((student) => {
+    const q = studentSearch.toLowerCase().trim();
+    if (!q) return true;
+    return (
+      student.name.toLowerCase().includes(q) ||
+      student.id.toLowerCase().includes(q) ||
+      student.className.toLowerCase().includes(q)
+    );
+  });
   const calendarDates = buildCalendarDates(selectedDate, viewMode);
   const today = startOfDay(new Date());
   const upcoming = [...meetings]
-    .filter((meeting) => meetingDate(meeting) >= today)
+    .filter((meeting) => !meetingHasPassed(meeting))
     .sort(
       (a, b) => meetingDate(a).getTime() - meetingDate(b).getTime(),
     );
+  const history = [...meetings].sort(
+    (a, b) => meetingDate(b).getTime() - meetingDate(a).getTime(),
+  );
   const newMeetings = meetings.filter((meeting) => !meeting.studentSeenAt);
   const calendarCols =
     viewMode === "day" ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-7";
@@ -653,6 +720,115 @@ export const MeetingCenter = ({
     role === "student"
       ? "bg-orange-50 border-orange-100 text-orange-700"
       : "bg-blue-50 border-blue-100 text-blue-700";
+  const replaceMeeting = (meeting: MeetingRecord) =>
+    setMeetings((items) =>
+      items.map((item) => (item.id === meeting.id ? meeting : item)),
+    );
+  const appendMeeting = (meeting: MeetingRecord) =>
+    setMeetings((items) =>
+      [...items, meeting].sort(
+        (a, b) => meetingDate(a).getTime() - meetingDate(b).getTime(),
+      ),
+    );
+  const openMeeting = (meeting: MeetingRecord) => {
+    setSelectedMeeting(meeting);
+    setEditMode(false);
+    setDetailTopic(meeting.topic);
+    setDetailType(meeting.meetingType);
+    setDetailUrl(meeting.meetingUrl || "");
+    setDetailDateTime(formatDateTimeInput(meetingDate(meeting)));
+    setDetailNote(meeting.meetingNote || "");
+    setError("");
+  };
+  const saveMeeting = () => {
+    const targetStudentId = role === "student" ? studentId : formStudentId;
+    const topic = meetingTopic.trim();
+    const url = meetingUrl.trim();
+    if (!targetStudentId) {
+      setError("Vui lòng chọn học sinh.");
+      return;
+    }
+    if (!topic) {
+      setError("Vui lòng nhập chủ đề meeting.");
+      return;
+    }
+    if (!meetingDateTime) {
+      setError("Vui lòng chọn thời gian meeting.");
+      return;
+    }
+    if (meetingType === "online" && !url) {
+      setError("Vui lòng nhập link meeting online.");
+      return;
+    }
+
+    setFormStatus("saving");
+    setError("");
+    createMeeting({
+      studentId: targetStudentId,
+      counselorId: DEFAULT_COUNSELOR_ID,
+      counselorName: DEFAULT_COUNSELOR_NAME,
+      topic,
+      meetingType,
+      meetingUrl: meetingType === "online" ? url : undefined,
+      scheduledAt: dateTimeInputToIso(meetingDateTime),
+    })
+      .then((payload) => {
+        appendMeeting(payload.meeting);
+        window.localStorage.setItem("studentPortalMeetingStudentId", targetStudentId);
+        setMeetingTopic("");
+        setMeetingUrl("");
+        setMeetingType("offline");
+        setMeetingDateTime(defaultMeetingDateTime());
+      })
+      .catch((err) => setError(err.message || "Không tạo được lịch meeting."))
+      .finally(() => setFormStatus("idle"));
+  };
+  const saveMeetingEdit = () => {
+    if (!selectedMeeting) return;
+    const topic = detailTopic.trim();
+    const url = detailUrl.trim();
+    if (!topic) {
+      setError("Vui lòng nhập chủ đề meeting.");
+      return;
+    }
+    if (!detailDateTime) {
+      setError("Vui lòng chọn thời gian meeting.");
+      return;
+    }
+    if (detailType === "online" && !url) {
+      setError("Vui lòng nhập link meeting online.");
+      return;
+    }
+
+    setDetailStatus("saving");
+    setError("");
+    updateMeeting(selectedMeeting.id, {
+      topic,
+      meetingType: detailType,
+      meetingUrl: detailType === "online" ? url : "",
+      scheduledAt: dateTimeInputToIso(detailDateTime),
+    })
+      .then((payload) => {
+        replaceMeeting(payload.meeting);
+        setSelectedMeeting(payload.meeting);
+        setEditMode(false);
+      })
+      .catch((err) => setError(err.message || "Không cập nhật được meeting."))
+      .finally(() => setDetailStatus("idle"));
+  };
+  const saveMeetingNote = () => {
+    if (!selectedMeeting) return;
+    setDetailStatus("saving");
+    setError("");
+    updateMeeting(selectedMeeting.id, { meetingNote: detailNote })
+      .then((payload) => {
+        replaceMeeting(payload.meeting);
+        setSelectedMeeting(payload.meeting);
+        setDetailNote(payload.meeting.meetingNote || "");
+      })
+      .catch((err) => setError(err.message || "Không lưu được note meeting."))
+      .finally(() => setDetailStatus("idle"));
+  };
 
   return (
     <div className="space-y-5">
@@ -718,6 +894,120 @@ export const MeetingCenter = ({
           {error}
         </div>
       )}
+      {error && status !== "error" && (
+        <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
+          {error}
+        </div>
+      )}
+
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+        <div className="flex items-center justify-between gap-3 flex-wrap">
+          <div>
+            <h2 className="font-bold text-gray-900">Tạo lịch meeting</h2>
+            <p className="text-xs text-gray-500 mt-0.5">
+              {role === "student"
+                ? `Tạo lịch cho học sinh ${studentId}`
+                : "Chọn học sinh và điền thông tin lịch hẹn"}
+            </p>
+          </div>
+          {role === "counselor" && selectedFormStudent && (
+            <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-blue-50 text-blue-700">
+              {selectedFormStudent.name} · {selectedFormStudent.className}
+            </span>
+          )}
+        </div>
+
+        {role === "counselor" && (
+          <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+                Tìm học sinh
+              </label>
+              <input
+                value={studentSearch}
+                onChange={(event) => setStudentSearch(event.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+                placeholder="Tên, mã học sinh hoặc lớp"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+                Chọn học sinh
+              </label>
+              <select
+                value={formStudentId}
+                onChange={(event) => setFormStudentId(event.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+              >
+                {filteredStudents.map((student) => (
+                  <option key={student.id} value={student.id}>
+                    {student.name} · {student.className} · {student.id}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+        )}
+
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+          <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+              Thời gian
+            </label>
+            <input
+              type="datetime-local"
+              value={meetingDateTime}
+              onChange={(event) => setMeetingDateTime(event.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+              Chủ đề meeting
+            </label>
+            <input
+              value={meetingTopic}
+              onChange={(event) => setMeetingTopic(event.target.value)}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100"
+              placeholder="VD: Tư vấn định hướng nghề nghiệp"
+            />
+          </div>
+          <div>
+            <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+              Loại hẹn gặp
+            </label>
+            <select
+              value={meetingType}
+              onChange={(event) => setMeetingType(event.target.value as MeetingType)}
+              className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100"
+            >
+              <option value="offline">Offline</option>
+              <option value="online">Online</option>
+            </select>
+          </div>
+          {meetingType === "online" && (
+            <div>
+              <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+                Link meeting online
+              </label>
+              <input
+                value={meetingUrl}
+                onChange={(event) => setMeetingUrl(event.target.value)}
+                className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100"
+                placeholder="https://meet.google.com/..."
+              />
+            </div>
+          )}
+        </div>
+        <button
+          onClick={saveMeeting}
+          disabled={formStatus === "saving"}
+          className={`w-full lg:w-fit px-5 py-2.5 rounded-xl bg-gradient-to-r ${accent} text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60`}
+        >
+          <Save size={15} />
+          {formStatus === "saving" ? "Đang lưu..." : "Save"}
+        </button>
+      </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-5">
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -777,13 +1067,21 @@ export const MeetingCenter = ({
                   <div className="space-y-2">
                     {dateMeetings.slice(0, viewMode === "month" ? 2 : 5).map(
                       (meeting) => (
-                        <div
+                        <button
                           key={meeting.id}
-                          className={`rounded-xl border p-2 ${softTone}`}
+                          onClick={() => openMeeting(meeting)}
+                          className={`w-full rounded-xl border p-2 text-left ${softTone}`}
                         >
-                          <p className="text-xs font-bold truncate">
-                            {meeting.topic}
-                          </p>
+                          <div className="flex items-center gap-1.5">
+                            <p className="text-xs font-bold truncate">
+                              {meeting.topic}
+                            </p>
+                            {meetingHasPassed(meeting) && !meeting.meetingNote && (
+                              <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 flex-shrink-0">
+                                Chưa note
+                              </span>
+                            )}
+                          </div>
                           <p className="text-[11px] opacity-80 mt-0.5">
                             {meetingDate(meeting).toLocaleTimeString("vi-VN", {
                               hour: "2-digit",
@@ -794,7 +1092,7 @@ export const MeetingCenter = ({
                               ? meeting.counselorName
                               : meeting.studentName}
                           </p>
-                        </div>
+                        </button>
                       ),
                     )}
                     {dateMeetings.length > (viewMode === "month" ? 2 : 5) && (
@@ -827,7 +1125,11 @@ export const MeetingCenter = ({
               </div>
             ) : (
               upcoming.slice(0, 12).map((meeting) => (
-                <div key={meeting.id} className="p-4">
+                <button
+                  key={meeting.id}
+                  onClick={() => openMeeting(meeting)}
+                  className="w-full p-4 text-left hover:bg-gray-50"
+                >
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
@@ -849,14 +1151,9 @@ export const MeetingCenter = ({
                           : `${meeting.studentName} · ${meeting.className}`}
                       </p>
                       {meeting.meetingType === "online" && meeting.meetingUrl && (
-                        <a
-                          href={meetingHref(meeting.meetingUrl)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="text-xs font-semibold text-blue-600 hover:text-blue-800 mt-1 block truncate"
-                        >
+                        <p className="text-xs font-semibold text-blue-600 mt-1 truncate">
                           {meeting.meetingUrl}
-                        </a>
+                        </p>
                       )}
                     </div>
                     <span
@@ -869,12 +1166,259 @@ export const MeetingCenter = ({
                       {meeting.meetingType === "online" ? "Online" : "Offline"}
                     </span>
                   </div>
-                </div>
+                </button>
               ))
             )}
           </div>
         </div>
       </div>
+      <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-900">Lịch sử meeting</h2>
+          <p className="text-xs text-gray-500 mt-0.5">
+            {history.length} lịch hẹn đã ghi nhận
+          </p>
+        </div>
+        <div className="divide-y divide-gray-50">
+          {history.length === 0 ? (
+            <div className="p-5 text-sm text-gray-500">Chưa có meeting nào.</div>
+          ) : (
+            history.map((meeting) => {
+              const passed = meetingHasPassed(meeting);
+              return (
+                <button
+                  key={meeting.id}
+                  onClick={() => openMeeting(meeting)}
+                  className="w-full p-4 text-left hover:bg-gray-50"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <p className="text-sm font-bold text-gray-900">
+                          {meeting.topic}
+                        </p>
+                        <span
+                          className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${
+                            passed
+                              ? "bg-gray-100 text-gray-600"
+                              : "bg-emerald-100 text-emerald-700"
+                          }`}
+                        >
+                          {passed ? "Đã diễn ra" : "Chưa diễn ra"}
+                        </span>
+                        {passed && !meeting.meetingNote && (
+                          <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
+                            Chưa có note
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formatMeetingDateTime(meeting.scheduledAt)}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-0.5">
+                        {role === "student"
+                          ? `Cố vấn: ${meeting.counselorName}`
+                          : `${meeting.studentName} · ${meeting.className}`}
+                      </p>
+                    </div>
+                    <span
+                      className={`text-xs font-bold px-2 py-1 rounded-lg ${
+                        meeting.meetingType === "online"
+                          ? "bg-blue-100 text-blue-700"
+                          : "bg-slate-100 text-slate-700"
+                      }`}
+                    >
+                      {meeting.meetingType === "online" ? "Online" : "Offline"}
+                    </span>
+                  </div>
+                </button>
+              );
+            })
+          )}
+        </div>
+      </div>
+      {selectedMeeting && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50">
+          <div className="w-full max-w-2xl rounded-2xl bg-white shadow-2xl max-h-[92vh] overflow-y-auto">
+            <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-bold text-gray-900">
+                  Chi tiết meeting
+                </h2>
+                <p className="text-xs text-gray-500 mt-1">
+                  ID lịch hẹn #{selectedMeeting.id}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedMeeting(null)}
+                className="w-9 h-9 rounded-xl bg-gray-100 text-gray-500 hover:bg-gray-200"
+              >
+                ×
+              </button>
+            </div>
+            <div className="p-5 space-y-4">
+              {meetingHasPassed(selectedMeeting) && !selectedMeeting.meetingNote && (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+                  Meeting này đã diễn ra nhưng chưa có note cuộc họp.
+                </div>
+              )}
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase">
+                    Học sinh
+                  </p>
+                  <p className="font-semibold text-gray-800">
+                    {selectedMeeting.studentName} · {selectedMeeting.className}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs font-bold text-gray-400 uppercase">
+                    Cố vấn
+                  </p>
+                  <p className="font-semibold text-gray-800">
+                    {selectedMeeting.counselorName}
+                  </p>
+                </div>
+              </div>
+
+              {editMode ? (
+                <div className="space-y-3">
+                  <div>
+                    <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+                      Chủ đề meeting
+                    </label>
+                    <input
+                      value={detailTopic}
+                      onChange={(event) => setDetailTopic(event.target.value)}
+                      className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+                        Thời gian
+                      </label>
+                      <input
+                        type="datetime-local"
+                        value={detailDateTime}
+                        onChange={(event) => setDetailDateTime(event.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+                        Loại hẹn gặp
+                      </label>
+                      <select
+                        value={detailType}
+                        onChange={(event) =>
+                          setDetailType(event.target.value as MeetingType)
+                        }
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      >
+                        <option value="offline">Offline</option>
+                        <option value="online">Online</option>
+                      </select>
+                    </div>
+                  </div>
+                  {detailType === "online" && (
+                    <div>
+                      <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+                        Link meeting online
+                      </label>
+                      <input
+                        value={detailUrl}
+                        onChange={(event) => setDetailUrl(event.target.value)}
+                        className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
+                      />
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-2">
+                  <p className="font-bold text-gray-900">{selectedMeeting.topic}</p>
+                  <p className="text-sm text-gray-600">
+                    {formatMeetingDateTime(selectedMeeting.scheduledAt)}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {selectedMeeting.meetingType === "online" ? "Online" : "Offline"}
+                  </p>
+                  {selectedMeeting.meetingType === "online" &&
+                    selectedMeeting.meetingUrl && (
+                      <a
+                        href={meetingHref(selectedMeeting.meetingUrl)}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block text-sm font-semibold text-blue-600 hover:text-blue-800"
+                      >
+                        {selectedMeeting.meetingUrl}
+                      </a>
+                    )}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+                  Note cuộc họp
+                </label>
+                {role === "counselor" && meetingHasPassed(selectedMeeting) ? (
+                  <textarea
+                    rows={4}
+                    value={detailNote}
+                    onChange={(event) => setDetailNote(event.target.value)}
+                    className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 resize-none"
+                    placeholder="Ghi lại điểm chính của cuộc họp..."
+                  />
+                ) : (
+                  <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 whitespace-pre-wrap">
+                    {selectedMeeting.meetingNote || "Chưa có note cuộc họp."}
+                  </div>
+                )}
+              </div>
+
+              <div className="flex justify-end gap-2 flex-wrap">
+                {role === "counselor" && !meetingHasPassed(selectedMeeting) && !editMode && (
+                  <button
+                    onClick={() => setEditMode(true)}
+                    className="px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-sm font-bold hover:bg-blue-100"
+                  >
+                    <Edit2 size={14} className="inline mr-1" />
+                    Edit
+                  </button>
+                )}
+                {role === "counselor" && !meetingHasPassed(selectedMeeting) && editMode && (
+                  <>
+                    <button
+                      onClick={() => openMeeting(selectedMeeting)}
+                      disabled={detailStatus === "saving"}
+                      className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm font-bold hover:bg-gray-50 disabled:opacity-60"
+                    >
+                      Hủy
+                    </button>
+                    <button
+                      onClick={saveMeetingEdit}
+                      disabled={detailStatus === "saving"}
+                      className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-60"
+                    >
+                      {detailStatus === "saving" ? "Đang lưu..." : "Lưu chỉnh sửa"}
+                    </button>
+                  </>
+                )}
+                {role === "counselor" && meetingHasPassed(selectedMeeting) && (
+                  <button
+                    onClick={saveMeetingNote}
+                    disabled={detailStatus === "saving"}
+                    className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-60"
+                  >
+                    {detailStatus === "saving" ? "Đang lưu..." : "Lưu note"}
+                  </button>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

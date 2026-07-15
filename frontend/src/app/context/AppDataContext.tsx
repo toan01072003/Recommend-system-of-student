@@ -28,6 +28,12 @@ type AppDataStudent = AppDataSnapshot["studentsInClass"][number] & {
   currentExploredCareer?: string;
   latestRecommendCareer?: string;
   recommendHistory?: unknown[];
+  personalStatement?: string;
+  favoriteCareers?: string[];
+  targetUniversityId?: string;
+  targetUniversityName?: string;
+  targetUniversityProgram?: string;
+  targetUniversities?: Array<{ id: string; name: string; program?: string }>;
 };
 
 type AppDataContextValue = AppDataSnapshot & {

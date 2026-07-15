@@ -216,6 +216,21 @@ class Handler(BaseHTTPRequestHandler):
         self.handle_student_update()
 
     def do_PATCH(self) -> None:
+        path = urlparse(self.path).path
+        if path.startswith("/api/meetings/"):
+            try:
+                meeting_id = int(unquote(path.removeprefix("/api/meetings/")))
+                length = int(self.headers.get("Content-Length", "0"))
+                payload = json.loads(self.rfile.read(length).decode("utf-8"))
+                self.send_json(api.update_meeting_payload(meeting_id, payload))
+            except ValueError as exc:
+                self.send_json({"error": str(exc)}, status=400)
+            except LookupError as exc:
+                self.send_json({"error": str(exc)}, status=404)
+            except Exception as exc:
+                self.send_json({"error": str(exc)}, status=500)
+            return
+
         self.handle_student_update()
 
     def handle_student_update(self) -> None:

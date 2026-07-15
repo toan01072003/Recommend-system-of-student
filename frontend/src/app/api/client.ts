@@ -46,6 +46,7 @@ export type MeetingRecord = {
   meetingUrl?: string;
   scheduledAt: string;
   status: string;
+  meetingNote?: string | null;
   studentSeenAt?: string | null;
   createdAt: string;
 };
@@ -62,11 +63,20 @@ export type CreateMeetingPayload = {
   meetingUrl?: string;
   scheduledAt: string;
   counselorName?: string;
+  meetingNote?: string;
 };
 
 export type CreateMeetingResponse = {
   meeting: MeetingRecord;
 };
+
+export type UpdateMeetingPayload = Partial<{
+  topic: string;
+  meetingType: MeetingType;
+  meetingUrl: string;
+  scheduledAt: string;
+  meetingNote: string;
+}>;
 
 export type MessageRole = "student" | "counselor";
 
@@ -547,6 +557,22 @@ export function createMeeting(
     body: JSON.stringify(payload),
     signal,
   });
+}
+
+export function updateMeeting(
+  meetingId: number,
+  payload: UpdateMeetingPayload,
+  signal?: AbortSignal,
+): Promise<CreateMeetingResponse> {
+  return requestJson<CreateMeetingResponse>(
+    `/api/meetings/${encodeURIComponent(String(meetingId))}`,
+    {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+      signal,
+    },
+  );
 }
 
 export function fetchMessages(

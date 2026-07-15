@@ -111,12 +111,407 @@ import {
   buildStudentSkillRadar,
   scoreTone,
 } from "../../../logic/recommendation";
+import { updateStudent } from "../../../api/client";
+import { currentStudentReferenceId } from "../../../logic/referenceActions";
+
+type PersonalInfoUpdateResponse = {
+  student: {
+    personalStatement?: string;
+    favoriteCareer?: string;
+    favoriteCareers?: string[];
+    targetUniversityId?: string;
+    targetUniversityName?: string;
+    targetUniversityProgram?: string;
+    targetUniversities?: TargetUniversitySelection[];
+  };
+};
+
+type TargetUniversitySelection = {
+  id: string;
+  name: string;
+  program?: string;
+};
+
+type PersonalStudentRecord = (typeof studentsInClass)[number] & {
+  personalStatement?: string;
+  favoriteCareers?: string[];
+  targetUniversityId?: string;
+  targetUniversityName?: string;
+  targetUniversityProgram?: string;
+  targetUniversities?: TargetUniversitySelection[];
+};
+
+type SearchOption = {
+  value: string;
+  label: string;
+  subtitle?: string;
+  badge?: string;
+  program?: string;
+};
+
+const normalizeSearchText = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/đ/g, "d")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim();
+
+const splitProfileList = (value?: string) =>
+  String(value || "")
+    .split(/[;,]/)
+    .map((item) => item.trim())
+    .filter(Boolean);
+
+const uniqueStrings = (items: string[]) =>
+  Array.from(new Set(items.map((item) => item.trim()).filter(Boolean)));
+
+const favoriteCareersFromStudent = (student?: PersonalStudentRecord) =>
+  uniqueStrings([
+    ...((student?.favoriteCareers ?? []).filter(Boolean)),
+    ...(student?.favoriteCareer ? [student.favoriteCareer] : []),
+  ]);
+
+const targetUniversitiesFromStudent = (
+  student?: PersonalStudentRecord,
+): TargetUniversitySelection[] => {
+  const direct = (student?.targetUniversities ?? []).filter(
+    (item) => item?.id || item?.name,
+  );
+  if (direct.length > 0) return direct;
+  if (!student?.targetUniversityId && !student?.targetUniversityName) return [];
+  return [
+    {
+      id: student.targetUniversityId ?? "",
+      name: student.targetUniversityName ?? "",
+      program: student.targetUniversityProgram ?? "",
+    },
+  ].filter((item) => item.id || item.name);
+};
+
+const MultiSearchableSelect = ({
+  label,
+  selected,
+  options,
+  placeholder,
+  emptyText,
+  disabled,
+  onAdd,
+  onRemove,
+}: {
+  label: string;
+  selected: SearchOption[];
+  options: SearchOption[];
+  placeholder: string;
+  emptyText: string;
+  disabled: boolean;
+  onAdd: (option: SearchOption) => void;
+  onRemove: (value: string) => void;
+}) => {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const normalizedQuery = normalizeSearchText(query);
+  const selectedValues = new Set(selected.map((option) => option.value));
+  const availableOptions = options.filter((option) => !selectedValues.has(option.value));
+  const filteredOptions = (normalizedQuery
+    ? availableOptions.filter((option) =>
+        normalizeSearchText(
+          `${option.label} ${option.subtitle ?? ""} ${option.badge ?? ""}`,
+        ).includes(normalizedQuery),
+      )
+    : availableOptions
+  ).slice(0, 12);
+
+  return (
+    <div className="relative">
+      <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
+        {label}
+      </label>
+      <div
+        className={`min-h-[46px] rounded-xl border px-2.5 py-2 ${
+          disabled ? "border-gray-200 bg-gray-100" : "border-gray-200 bg-gray-50"
+        }`}
+      >
+        <div className="flex flex-wrap gap-1.5">
+          {selected.length > 0 ? (
+            selected.map((option) => (
+              <span
+                key={option.value}
+                className="inline-flex max-w-full items-center gap-1.5 rounded-full bg-orange-100 px-2.5 py-1 text-xs font-bold text-orange-800"
+              >
+                <span className="truncate">{option.label}</span>
+                {!disabled && (
+                  <button
+                    type="button"
+                    onClick={() => onRemove(option.value)}
+                    className="rounded-full text-orange-700 hover:bg-orange-200 hover:text-orange-900"
+                    aria-label={`Xóa ${option.label}`}
+                  >
+                    ×
+                  </button>
+                )}
+              </span>
+            ))
+          ) : (
+            <span className="px-1 py-1 text-sm text-gray-400">{emptyText}</span>
+          )}
+        </div>
+        {!disabled && (
+          <div className="relative mt-2">
+            <Search
+              size={14}
+              className="absolute left-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+            <input
+              value={query}
+              placeholder={placeholder}
+              onFocus={() => setOpen(true)}
+              onChange={(event) => {
+                setOpen(true);
+                setQuery(event.target.value);
+              }}
+              onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+              className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-8 pr-8 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+            />
+            <ChevronDown
+              size={14}
+              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-gray-400"
+            />
+          </div>
+        )}
+      </div>
+      {!disabled && open && (
+        <div className="absolute z-30 mt-2 w-full max-h-72 overflow-y-auto rounded-2xl border border-gray-200 bg-white shadow-xl">
+          {filteredOptions.length > 0 ? (
+            filteredOptions.map((option) => (
+              <button
+                key={option.value}
+                type="button"
+                onMouseDown={(event) => event.preventDefault()}
+                onClick={() => {
+                  onAdd(option);
+                  setOpen(false);
+                  setQuery("");
+                }}
+                className="w-full px-3 py-2.5 text-left transition-colors hover:bg-orange-50"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="text-sm font-bold text-gray-800">
+                    {option.label}
+                  </span>
+                  {option.badge && (
+                    <span className="text-[11px] font-bold text-orange-700 bg-orange-100 px-2 py-0.5 rounded-full">
+                      {option.badge}
+                    </span>
+                  )}
+                </div>
+                {option.subtitle && (
+                  <p className="text-xs text-gray-500 mt-0.5">
+                    {option.subtitle}
+                  </p>
+                )}
+              </button>
+            ))
+          ) : (
+            <div className="px-3 py-4 text-sm text-gray-400">
+              Không tìm thấy lựa chọn phù hợp
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+};
 
 export const StudentPersonalInfo = () => {
   const [tab, setTab] = useState<"info" | "academic">("info");
   const [selectedYear, setSelectedYear] = useState(YEARS[YEARS.length - 1]);
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [isEditingGoals, setIsEditingGoals] = useState(false);
+  const [personalStatement, setPersonalStatement] = useState("");
+  const [favoriteCareers, setFavoriteCareers] = useState<string[]>([]);
+  const [targetUniversities, setTargetUniversities] = useState<
+    TargetUniversitySelection[]
+  >([]);
+  const { studentsInClass: appStudents, updateStudentInAppData } = useAppData();
+  const studentId = currentStudentReferenceId();
+  const student = (
+    appStudents.find((item) => item.id === studentId) ??
+    studentsInClass.find((item) => item.id === studentId) ??
+    appStudents[0] ??
+    studentsInClass[0]
+  ) as PersonalStudentRecord | undefined;
+  const resolvedStudentId = student?.id ?? studentId;
   const yearData = ACADEMIC_HISTORY[selectedYear];
+  const studentAverage = Number(student?.avg ?? 0);
+  const studentRank =
+    studentAverage >= 8
+      ? "Giỏi"
+      : studentAverage >= 6.5
+        ? "Khá"
+        : studentAverage > 0
+          ? "Cần cố gắng"
+          : "Chưa cập nhật";
+  const achievementItems = [
+    ...splitProfileList(student?.achievements),
+    ...splitProfileList(student?.awards),
+    ...splitProfileList(student?.certificates),
+  ];
+  const careerOptions = EXPLORE_CAREERS.map((career) => ({
+    value: career.name,
+    label: career.name,
+    subtitle: career.field,
+    badge: career.education,
+  }));
+  const selectedCareerOptions = favoriteCareers.map(
+    (careerName) =>
+      careerOptions.find((option) => option.value === careerName) ?? {
+        value: careerName,
+        label: careerName,
+      },
+  );
+  const universityOptions = React.useMemo(() => {
+    const careerUniversities = EXPLORE_CAREERS.filter((career) =>
+      favoriteCareers.includes(career.name),
+    ).flatMap((career) => career.universities);
+    const findCareerUniversity = (uni: University) =>
+      careerUniversities.find(
+        (item) => item.uniId === uni.id || item.name === uni.name,
+      );
+
+    return UNIVERSITIES.map((uni) => {
+      const matched = findCareerUniversity(uni);
+      return {
+        rank: matched ? 0 : 1,
+        option: {
+          value: uni.id,
+          label: uni.name,
+          subtitle: matched
+            ? `${matched.program} · ${uni.location}`
+            : `${uni.topMajor} · ${uni.location}`,
+          badge: matched ? "Phù hợp ngành" : uni.type,
+          program: matched?.program ?? uni.topMajor,
+        } satisfies SearchOption,
+      };
+    })
+      .sort((a, b) => a.rank - b.rank || a.option.label.localeCompare(b.option.label))
+      .map((item) => item.option);
+  }, [favoriteCareers]);
+  const selectedUniversityOptions = targetUniversities.map((item) => {
+    const value = item.id || item.name;
+    return (
+      universityOptions.find((option) => option.value === value) ?? {
+        value,
+        label: item.name || item.id,
+        subtitle: item.program,
+        program: item.program,
+      }
+    );
+  });
+
+  React.useEffect(() => {
+    if (!student) return;
+    setPersonalStatement(student.personalStatement ?? "");
+    setFavoriteCareers(favoriteCareersFromStudent(student));
+    setTargetUniversities(targetUniversitiesFromStudent(student));
+    setIsEditingGoals(false);
+    setSaved(false);
+    setNotice("");
+  }, [
+    student?.id,
+    student?.personalStatement,
+    student?.favoriteCareer,
+    (student?.favoriteCareers ?? []).join("|"),
+    student?.targetUniversityId,
+    student?.targetUniversityName,
+    student?.targetUniversityProgram,
+    (student?.targetUniversities ?? [])
+      .map((item) => `${item.id}:${item.name}:${item.program ?? ""}`)
+      .join("|"),
+  ]);
+
+  const markDirty = () => {
+    setSaved(false);
+    setNotice("");
+  };
+
+  const resetGoalDraft = () => {
+    setPersonalStatement(student?.personalStatement ?? "");
+    setFavoriteCareers(favoriteCareersFromStudent(student));
+    setTargetUniversities(targetUniversitiesFromStudent(student));
+    setSaved(false);
+    setNotice("");
+  };
+
+  const beginEditGoals = () => {
+    if (!window.confirm("Bạn có muốn chỉnh sửa mục Định hướng & Mục tiêu không?")) {
+      return;
+    }
+    setIsEditingGoals(true);
+    setSaved(false);
+    setNotice("");
+  };
+
+  const cancelEditGoals = () => {
+    resetGoalDraft();
+    setIsEditingGoals(false);
+  };
+
+  const handleSavePersonalInfo = () => {
+    if (!window.confirm("Xác nhận lưu thay đổi mục Định hướng & Mục tiêu?")) {
+      return;
+    }
+    const primaryUniversity = targetUniversities[0];
+    const payload = {
+      personalStatement,
+      favoriteCareers,
+      favoriteCareer: favoriteCareers[0] ?? "",
+      targetUniversities,
+      targetUniversityId: primaryUniversity?.id ?? "",
+      targetUniversityName: primaryUniversity?.name ?? "",
+      targetUniversityProgram: primaryUniversity?.program ?? "",
+    };
+
+    setSaving(true);
+    setNotice("");
+    updateStudent<PersonalInfoUpdateResponse>(resolvedStudentId, payload)
+      .then((response) => {
+        const updated = response.student ?? payload;
+        const updatedFavoriteCareers =
+          updated.favoriteCareers ?? favoriteCareers;
+        const updatedTargetUniversities =
+          updated.targetUniversities ?? targetUniversities;
+        const updatedPrimaryUniversity = updatedTargetUniversities[0];
+        const nextUpdates = {
+          personalStatement: updated.personalStatement ?? personalStatement,
+          favoriteCareers: updatedFavoriteCareers,
+          favoriteCareer:
+            updated.favoriteCareer ?? updatedFavoriteCareers[0] ?? "",
+          targetUniversities: updatedTargetUniversities,
+          targetUniversityId:
+            updated.targetUniversityId ?? updatedPrimaryUniversity?.id ?? "",
+          targetUniversityName:
+            updated.targetUniversityName ?? updatedPrimaryUniversity?.name ?? "",
+          targetUniversityProgram:
+            updated.targetUniversityProgram ??
+            updatedPrimaryUniversity?.program ??
+            "",
+        };
+        setPersonalStatement(nextUpdates.personalStatement);
+        setFavoriteCareers(nextUpdates.favoriteCareers);
+        setTargetUniversities(nextUpdates.targetUniversities);
+        updateStudentInAppData(resolvedStudentId, nextUpdates);
+        setIsEditingGoals(false);
+        setSaved(true);
+        setNotice("Đã lưu thông tin định hướng.");
+      })
+      .catch((error) => {
+        setNotice(error.message || "Không lưu được thông tin định hướng.");
+      })
+      .finally(() => setSaving(false));
+  };
 
   // GPA trend for chart
   const gpaData = YEARS.map((y) => {
@@ -155,25 +550,27 @@ export const StudentPersonalInfo = () => {
           <div className="lg:col-span-1 space-y-4">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 flex flex-col items-center text-center gap-3">
               <div className="relative">
-                <Avatar name="Nguyễn Minh Anh" size="lg" />
-                <button className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-orange-500 text-white flex items-center justify-center shadow-md hover:bg-orange-600 transition-colors">
-                  <Edit2 size={11} />
-                </button>
+                <Avatar name={student?.name ?? resolvedStudentId} size="lg" />
+                <span className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full bg-gray-900 text-white flex items-center justify-center shadow-md">
+                  <Lock size={11} />
+                </span>
               </div>
               <div>
                 <h2 className="font-bold text-gray-900 text-base">
-                  Nguyễn Minh Anh
+                  {student?.name ?? "Học sinh"}
                 </h2>
-                <p className="text-sm text-gray-500">Lớp 9A · HS001</p>
+                <p className="text-sm text-gray-500">
+                  {student?.className ?? "Chưa cập nhật lớp"} · {resolvedStudentId}
+                </p>
                 <p className="text-xs text-orange-600 font-semibold mt-1">
-                  THCS Nguyễn Du
+                  Hồ sơ học sinh
                 </p>
               </div>
               <div className="w-full pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
                 {[
-                  { label: "Năm học", value: "9" },
-                  { label: "ĐTB", value: "8.5" },
-                  { label: "Xếp loại", value: "Giỏi" },
+                  { label: "Khối", value: String(student?.grade ?? "--") },
+                  { label: "ĐTB", value: studentAverage ? studentAverage.toFixed(1) : "--" },
+                  { label: "Xếp loại", value: studentRank },
                 ].map((s) => (
                   <div key={s.label}>
                     <p className="text-sm font-black text-orange-600">
@@ -191,18 +588,18 @@ export const StudentPersonalInfo = () => {
                 🏆 Thành tích nổi bật
               </h3>
               <div className="space-y-2">
-                {[
-                  { icon: "🥈", text: "Giải Nhì Toán cấp Quận 2024" },
-                  { icon: "⭐", text: "Học sinh Giỏi 4 năm liên tiếp" },
-                  { icon: "🤖", text: "CLB Robotics — Thành viên tích cực" },
-                  { icon: "📜", text: "Chứng chỉ Scratch — Code.org" },
-                ].map((a) => (
+                {(achievementItems.length > 0
+                  ? achievementItems.slice(0, 5)
+                  : ["Chưa cập nhật thành tích nổi bật"]
+                ).map((text, index) => (
                   <div
-                    key={a.text}
+                    key={`${text}-${index}`}
                     className="flex items-start gap-2.5 text-xs text-gray-600"
                   >
-                    <span className="text-base flex-shrink-0">{a.icon}</span>
-                    <span>{a.text}</span>
+                    <span className="text-base flex-shrink-0">
+                      {index === 0 ? "⭐" : "🏅"}
+                    </span>
+                    <span>{text}</span>
                   </div>
                 ))}
               </div>
@@ -217,93 +614,159 @@ export const StudentPersonalInfo = () => {
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
-                  {
-                    label: "Họ và tên",
-                    value: "Nguyễn Minh Anh",
-                    type: "text",
-                  },
-                  { label: "Ngày sinh", value: "15/03/2010", type: "text" },
-                  { label: "Giới tính", value: "Nữ", type: "text" },
-                  { label: "Lớp hiện tại", value: "9A", type: "text" },
-                  {
-                    label: "Email học sinh",
-                    value: "minhanh@truong.edu.vn",
-                    type: "email",
-                  },
-                  {
-                    label: "Số điện thoại",
-                    value: "",
-                    type: "tel",
-                    placeholder: "Chưa cập nhật",
-                  },
-                  {
-                    label: "Địa chỉ",
-                    value: "Q.Bình Thạnh, TP.HCM",
-                    type: "text",
-                  },
-                  { label: "Dân tộc", value: "Kinh", type: "text" },
+                  { label: "Họ và tên", value: student?.name },
+                  { label: "Mã học sinh", value: resolvedStudentId },
+                  { label: "Giới tính", value: student?.gender },
+                  { label: "Lớp hiện tại", value: student?.className },
+                  { label: "Khối", value: student?.grade ? `Khối ${student.grade}` : "" },
+                  { label: "Tỉnh/Thành phố", value: student?.province },
+                  { label: "Dân tộc", value: student?.ethnicGroup },
+                  { label: "Mức rủi ro", value: student?.risk },
                 ].map((f) => (
                   <div key={f.label}>
                     <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
                       {f.label}
                     </label>
-                    <input
-                      type={f.type}
-                      defaultValue={f.value}
-                      placeholder={f.placeholder}
-                      onChange={() => setSaved(false)}
-                      className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400 focus:bg-white transition-colors"
-                    />
+                    <div className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-100 text-gray-700 flex items-center justify-between gap-2">
+                      <span>{f.value || "Chưa cập nhật"}</span>
+                      <Lock size={13} className="text-gray-400 flex-shrink-0" />
+                    </div>
                   </div>
                 ))}
               </div>
             </div>
 
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
-              <h3 className="font-semibold text-gray-800 text-sm border-b border-gray-100 pb-3">
-                Định hướng & Mục tiêu
-              </h3>
+              <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
+                <h3 className="font-semibold text-gray-800 text-sm">
+                  Định hướng & Mục tiêu
+                </h3>
+                {!isEditingGoals ? (
+                  <button
+                    type="button"
+                    onClick={beginEditGoals}
+                    className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 flex items-center justify-center"
+                    title="Chỉnh sửa"
+                  >
+                    <Edit2 size={14} />
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={cancelEditGoals}
+                    disabled={saving}
+                    className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-60"
+                  >
+                    Hủy
+                  </button>
+                )}
+              </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
                   Giới thiệu bản thân
                 </label>
                 <textarea
                   rows={3}
-                  defaultValue="Mình thích lập trình và giải toán. Mơ ước trở thành kỹ sư phần mềm tại Việt Nam."
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none"
+                  value={personalStatement}
+                  placeholder="Viết ngắn về sở thích, mục tiêu học tập hoặc định hướng nghề nghiệp của bạn."
+                  disabled={!isEditingGoals || saving}
+                  onChange={(event) => {
+                    setPersonalStatement(event.target.value);
+                    markDirty();
+                  }}
+                  className={`w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 resize-none ${
+                    isEditingGoals
+                      ? "bg-gray-50"
+                      : "bg-gray-100 text-gray-600"
+                  }`}
                 />
               </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                  Nghề nghiệp mơ ước
-                </label>
-                <input
-                  defaultValue="Kỹ sư Phần mềm / Nhà khoa học Dữ liệu"
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                />
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                  Trường ĐH mục tiêu
-                </label>
-                <input
-                  defaultValue="ĐH Bách Khoa HCM / ĐH FPT / UIT"
-                  className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-orange-400"
-                />
-              </div>
+              <MultiSearchableSelect
+                label="Nghề nghiệp mơ ước"
+                selected={selectedCareerOptions}
+                options={careerOptions}
+                placeholder="Tìm và thêm nghề nghiệp"
+                emptyText="Chưa chọn nghề nghiệp mơ ước"
+                disabled={!isEditingGoals || saving}
+                onAdd={(option) => {
+                  setFavoriteCareers((current) =>
+                    uniqueStrings([...current, option.value]),
+                  );
+                  markDirty();
+                }}
+                onRemove={(value) => {
+                  setFavoriteCareers((current) =>
+                    current.filter((item) => item !== value),
+                  );
+                  markDirty();
+                }}
+              />
+              <MultiSearchableSelect
+                label="Trường ĐH mục tiêu"
+                selected={selectedUniversityOptions}
+                options={universityOptions}
+                placeholder="Tìm và thêm trường đại học"
+                emptyText="Chưa chọn trường đại học mục tiêu"
+                disabled={!isEditingGoals || saving}
+                onAdd={(option) => {
+                  setTargetUniversities((current) => [
+                    ...current.filter(
+                      (item) => (item.id || item.name) !== option.value,
+                    ),
+                    {
+                      id: option.value,
+                      name: option.label,
+                      program: option.program ?? "",
+                    },
+                  ]);
+                  markDirty();
+                }}
+                onRemove={(value) => {
+                  setTargetUniversities((current) =>
+                    current.filter((item) => (item.id || item.name) !== value),
+                  );
+                  markDirty();
+                }}
+              />
+              {targetUniversities.some((item) => item.program) && (
+                <div className="rounded-xl border border-orange-100 bg-orange-50 px-3 py-2 text-xs text-orange-700 space-y-1">
+                  {targetUniversities
+                    .filter((item) => item.program)
+                    .map((item) => (
+                      <p key={`${item.id}-${item.name}-${item.program}`}>
+                        {item.name}:{" "}
+                        <span className="font-bold">{item.program}</span>
+                      </p>
+                    ))}
+                </div>
+              )}
             </div>
 
-            <button
-              onClick={() => setSaved(true)}
-              className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-400 text-white rounded-xl text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2"
-            >
-              <Save size={15} /> Lưu thay đổi
-              {saved && (
-                <span className="text-white/80 text-xs font-normal">
-                  (Đã lưu ✓)
-                </span>
-              )}
-            </button>
+            {notice && (
+              <div
+                className={`rounded-xl border px-4 py-3 text-sm font-semibold ${
+                  notice.startsWith("Không")
+                    ? "border-red-100 bg-red-50 text-red-700"
+                    : "border-emerald-100 bg-emerald-50 text-emerald-700"
+                }`}
+              >
+                {notice}
+              </div>
+            )}
+            {isEditingGoals && (
+              <button
+                onClick={handleSavePersonalInfo}
+                disabled={saving}
+                className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-400 text-white rounded-xl text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-60"
+              >
+                <Save size={15} /> {saving ? "Đang lưu..." : "Lưu thay đổi"}
+              </button>
+            )}
+            {!isEditingGoals && saved && (
+              <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                Đã lưu ✓
+              </div>
+            )}
           </div>
         </div>
       )}

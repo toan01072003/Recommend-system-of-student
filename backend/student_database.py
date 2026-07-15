@@ -53,6 +53,12 @@ def ensure_recommendation_columns(conn: sqlite3.Connection) -> None:
         ("current_explored_career", "TEXT"),
         ("latest_recommend_career", "TEXT"),
         ("recommend_history_json", "TEXT NOT NULL DEFAULT '[]'"),
+        ("personal_statement", "TEXT"),
+        ("favorite_careers_json", "TEXT NOT NULL DEFAULT '[]'"),
+        ("target_university_id", "TEXT"),
+        ("target_university_name", "TEXT"),
+        ("target_university_program", "TEXT"),
+        ("target_universities_json", "TEXT NOT NULL DEFAULT '[]'"),
     ]
 
     for column, definition in additions:
@@ -75,6 +81,35 @@ def ensure_recommendation_columns(conn: sqlite3.Connection) -> None:
         UPDATE students
         SET recommend_history_json = '[]'
         WHERE recommend_history_json IS NULL OR recommend_history_json = ''
+        """
+    )
+    conn.execute(
+        """
+        UPDATE students
+        SET favorite_careers_json = CASE
+            WHEN favorite_career IS NOT NULL AND favorite_career <> '' THEN json_array(favorite_career)
+            ELSE '[]'
+        END
+        WHERE favorite_careers_json IS NULL
+           OR favorite_careers_json = ''
+           OR favorite_careers_json = '[]'
+        """
+    )
+    conn.execute(
+        """
+        UPDATE students
+        SET target_universities_json = CASE
+            WHEN target_university_name IS NOT NULL AND target_university_name <> ''
+            THEN json_array(json_object(
+                'id', COALESCE(target_university_id, ''),
+                'name', target_university_name,
+                'program', COALESCE(target_university_program, '')
+            ))
+            ELSE '[]'
+        END
+        WHERE target_universities_json IS NULL
+           OR target_universities_json = ''
+           OR target_universities_json = '[]'
         """
     )
 
@@ -172,6 +207,7 @@ CREATE TABLE IF NOT EXISTS meetings (
     meeting_url TEXT,
     scheduled_at TEXT NOT NULL,
     status TEXT NOT NULL DEFAULT 'scheduled',
+    meeting_note TEXT,
     student_seen_at TEXT,
     created_at TEXT NOT NULL
 );
@@ -266,8 +302,8 @@ def _rebuild_meetings_table(conn: sqlite3.Connection) -> None:
             INSERT INTO meetings (
                 meeting_id, student_id, student_name, class_name, counselor_id,
                 counselor_name, topic, meeting_type, meeting_url, scheduled_at,
-                status, student_seen_at, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                status, meeting_note, student_seen_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 row.get("meeting_id"),
@@ -281,6 +317,7 @@ def _rebuild_meetings_table(conn: sqlite3.Connection) -> None:
                 row.get("meeting_url"),
                 row.get("scheduled_at"),
                 row.get("status") or "scheduled",
+                row.get("meeting_note"),
                 row.get("student_seen_at"),
                 row.get("created_at"),
             ),
@@ -368,6 +405,8 @@ def ensure_meetings_table(conn: sqlite3.Connection) -> None:
     if _communication_table_needs_rebuild(conn, "meetings"):
         _rebuild_meetings_table(conn)
         return
+    if "meeting_note" not in _table_columns(conn, "meetings"):
+        conn.execute("ALTER TABLE meetings ADD COLUMN meeting_note TEXT")
     conn.executescript(MEETINGS_INDEX_SQL)
 
 
@@ -399,20 +438,20 @@ def seed_meeting_demo_data(conn: sqlite3.Connection) -> None:
 
     now = datetime.now(timezone.utc).replace(second=0, microsecond=0)
     templates = [
-        (-21, 9, "Tổng kết định hướng học kỳ trước", "offline", None, "completed"),
-        (-12, 14, "Review kết quả khảo sát O*NET", "online", "https://meet.google.com/demo-onet-review", "completed"),
-        (-5, 10, "Trao đổi kế hoạch học tập cá nhân", "offline", None, "completed"),
-        (-1, 16, "Theo dõi tiến độ khám phá nghề nghiệp", "offline", None, "completed"),
-        (1, 9, "Định hướng nghề nghiệp", "offline", None, "scheduled"),
-        (2, 15, "Review career test", "online", "https://meet.google.com/demo-career-test", "scheduled"),
-        (4, 8, "Tư vấn chọn ngành", "offline", None, "scheduled"),
-        (7, 13, "Trao đổi với phụ huynh", "online", "https://meet.google.com/demo-parent-sync", "scheduled"),
-        (10, 10, "Điều chỉnh kế hoạch học tập", "offline", None, "scheduled"),
-        (14, 14, "Cập nhật mục tiêu nghề nghiệp", "online", "https://meet.google.com/demo-career-goals", "scheduled"),
+        (-21, 9, "Tổng kết định hướng học kỳ trước", "offline", None, "completed", "Đã thống nhất mục tiêu học kỳ mới và các môn cần ưu tiên."),
+        (-12, 14, "Review kết quả khảo sát O*NET", "online", "https://meet.google.com/demo-onet-review", "completed", "Học sinh quan tâm nhóm nghề phân tích dữ liệu và công nghệ."),
+        (-5, 10, "Trao đổi kế hoạch học tập cá nhân", "offline", None, "completed", None),
+        (-1, 16, "Theo dõi tiến độ khám phá nghề nghiệp", "offline", None, "completed", None),
+        (1, 9, "Định hướng nghề nghiệp", "offline", None, "scheduled", None),
+        (2, 15, "Review career test", "online", "https://meet.google.com/demo-career-test", "scheduled", None),
+        (4, 8, "Tư vấn chọn ngành", "offline", None, "scheduled", None),
+        (7, 13, "Trao đổi với phụ huynh", "online", "https://meet.google.com/demo-parent-sync", "scheduled", None),
+        (10, 10, "Điều chỉnh kế hoạch học tập", "offline", None, "scheduled", None),
+        (14, 14, "Cập nhật mục tiêu nghề nghiệp", "online", "https://meet.google.com/demo-career-goals", "scheduled", None),
     ]
     created_at = now.isoformat()
 
-    for index, (day_offset, hour, topic, meeting_type, meeting_url, status) in enumerate(templates):
+    for index, (day_offset, hour, topic, meeting_type, meeting_url, status, meeting_note) in enumerate(templates):
         student = students[index % len(students)]
         scheduled_at = (now + timedelta(days=day_offset)).replace(hour=hour, minute=0).isoformat()
         student_seen_at = created_at if status == "completed" else None
@@ -421,8 +460,8 @@ def seed_meeting_demo_data(conn: sqlite3.Connection) -> None:
             INSERT INTO meetings (
                 student_id, student_name, class_name, counselor_id, counselor_name,
                 topic, meeting_type, meeting_url, scheduled_at, status,
-                student_seen_at, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                meeting_note, student_seen_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 student["student_id"],
@@ -435,6 +474,7 @@ def seed_meeting_demo_data(conn: sqlite3.Connection) -> None:
                 meeting_url,
                 scheduled_at,
                 status,
+                meeting_note,
                 student_seen_at,
                 created_at,
             ),
@@ -455,6 +495,7 @@ def row_to_meeting(row: sqlite3.Row) -> dict:
         "meetingUrl": row["meeting_url"],
         "scheduledAt": row["scheduled_at"],
         "status": row["status"],
+        "meetingNote": row["meeting_note"],
         "studentSeenAt": row["student_seen_at"],
         "createdAt": row["created_at"],
     }
@@ -2441,10 +2482,16 @@ def row_to_student(row: sqlite3.Row, *, include_detail: bool = False) -> dict:
         "mbti": row["mbti"],
         "disc": row["disc"],
         "favoriteCareer": row["favorite_career"],
+        "favoriteCareers": json.loads(row["favorite_careers_json"] or "[]"),
         "exploredCareers": json.loads(row["explored_careers_json"] or "[]"),
         "currentExploredCareer": row["current_explored_career"],
         "latestRecommendCareer": row["latest_recommend_career"],
         "recommendHistory": json.loads(row["recommend_history_json"] or "[]"),
+        "personalStatement": row["personal_statement"],
+        "targetUniversityId": row["target_university_id"],
+        "targetUniversityName": row["target_university_name"],
+        "targetUniversityProgram": row["target_university_program"],
+        "targetUniversities": json.loads(row["target_universities_json"] or "[]"),
     }
     if not include_detail:
         return student
@@ -2599,6 +2646,7 @@ def create_meeting(payload: dict, db_path: Path = DEFAULT_DB) -> dict:
     meeting_type = str(payload.get("meetingType") or payload.get("meeting_type") or "offline").strip().lower()
     meeting_url = str(payload.get("meetingUrl") or payload.get("meeting_url") or "").strip()
     scheduled_at = str(payload.get("scheduledAt") or payload.get("scheduled_at") or "").strip()
+    meeting_note = str(payload.get("meetingNote") or payload.get("meeting_note") or "").strip()
 
     if not student_id:
         raise ValueError("studentId is required")
@@ -2631,8 +2679,8 @@ def create_meeting(payload: dict, db_path: Path = DEFAULT_DB) -> dict:
             INSERT INTO meetings (
                 student_id, student_name, class_name, counselor_id, counselor_name,
                 topic, meeting_type, meeting_url, scheduled_at, status,
-                student_seen_at, created_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', NULL, ?)
+                meeting_note, student_seen_at, created_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'scheduled', ?, NULL, ?)
             """,
             (
                 student["student_id"],
@@ -2644,6 +2692,7 @@ def create_meeting(payload: dict, db_path: Path = DEFAULT_DB) -> dict:
                 meeting_type,
                 meeting_url if meeting_type == "online" else None,
                 scheduled_at,
+                meeting_note or None,
                 created_at,
             ),
         )
@@ -2654,6 +2703,87 @@ def create_meeting(payload: dict, db_path: Path = DEFAULT_DB) -> dict:
             (cursor.lastrowid,),
         ).fetchone()
         return row_to_meeting(row)
+    finally:
+        conn.close()
+
+
+def _parse_meeting_datetime(value: str) -> datetime:
+    normalized = value.replace("Z", "+00:00")
+    parsed = datetime.fromisoformat(normalized)
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(timezone.utc)
+
+
+def update_meeting(meeting_id: int, payload: dict, db_path: Path = DEFAULT_DB) -> dict:
+    conn = connect(db_path)
+    try:
+        row = conn.execute(
+            "SELECT * FROM meetings WHERE meeting_id = ?",
+            (meeting_id,),
+        ).fetchone()
+        if row is None:
+            raise LookupError(f"Meeting not found: {meeting_id}")
+
+        scheduled_at_current = _parse_meeting_datetime(str(row["scheduled_at"]))
+        meeting_has_passed = scheduled_at_current < datetime.now(timezone.utc)
+        schedule_keys = {
+            "topic",
+            "scheduledAt",
+            "scheduled_at",
+            "meetingType",
+            "meeting_type",
+            "meetingUrl",
+            "meeting_url",
+        }
+        wants_schedule_edit = any(key in payload for key in schedule_keys)
+        if wants_schedule_edit and meeting_has_passed:
+            raise ValueError("Cannot edit meeting details after the scheduled time")
+
+        updates: dict[str, object | None] = {}
+        if "topic" in payload:
+            topic = str(payload.get("topic") or "").strip()
+            if not topic:
+                raise ValueError("topic is required")
+            updates["topic"] = topic
+        if "scheduledAt" in payload or "scheduled_at" in payload:
+            scheduled_at = str(payload.get("scheduledAt") or payload.get("scheduled_at") or "").strip()
+            if not scheduled_at:
+                raise ValueError("scheduledAt is required")
+            _parse_meeting_datetime(scheduled_at)
+            updates["scheduled_at"] = scheduled_at
+        if "meetingType" in payload or "meeting_type" in payload:
+            meeting_type = str(payload.get("meetingType") or payload.get("meeting_type") or "").strip().lower()
+            if meeting_type not in {"offline", "online"}:
+                raise ValueError("meetingType must be offline or online")
+            updates["meeting_type"] = meeting_type
+        if "meetingUrl" in payload or "meeting_url" in payload:
+            updates["meeting_url"] = str(payload.get("meetingUrl") or payload.get("meeting_url") or "").strip() or None
+        if "meetingNote" in payload or "meeting_note" in payload:
+            if not meeting_has_passed:
+                raise ValueError("meetingNote can only be updated after the meeting time")
+            updates["meeting_note"] = str(payload.get("meetingNote") or payload.get("meeting_note") or "").strip() or None
+
+        next_type = str(updates.get("meeting_type") or row["meeting_type"])
+        next_url = updates.get("meeting_url", row["meeting_url"])
+        if next_type == "online" and not str(next_url or "").strip():
+            raise ValueError("meetingUrl is required for online meetings")
+        if next_type == "offline":
+            updates["meeting_url"] = None
+
+        if updates:
+            assignments = ", ".join(f"{column} = ?" for column in updates)
+            conn.execute(
+                f"UPDATE meetings SET {assignments} WHERE meeting_id = ?",
+                [*updates.values(), meeting_id],
+            )
+            conn.commit()
+
+        updated = conn.execute(
+            "SELECT * FROM meetings WHERE meeting_id = ?",
+            (meeting_id,),
+        ).fetchone()
+        return row_to_meeting(updated)
     finally:
         conn.close()
 

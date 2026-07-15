@@ -139,6 +139,14 @@ const mergeCareerNames = (items: string[], careerName: string) =>
     ),
   );
 
+const hasCareerActivityReactions = (
+  career: ExploreCareer,
+  reactions: Record<string, ReferenceEmotion>,
+) =>
+  career.activities.some((activity) =>
+    Boolean(reactions[actionKey(career.id, activity.id)]),
+  );
+
 export const ExploreCareerDetail = ({
   career,
   onBack,
@@ -146,7 +154,6 @@ export const ExploreCareerDetail = ({
   onToggleFav,
   reactions,
   currentExploredCareer,
-  isExplored,
   onConfirmExplore,
   confirming,
   activitySaving,
@@ -160,7 +167,6 @@ export const ExploreCareerDetail = ({
   onToggleFav: () => void;
   reactions: Record<string, ReferenceEmotion>;
   currentExploredCareer?: string;
-  isExplored: boolean;
   onConfirmExplore: () => void;
   confirming: boolean;
   activitySaving: boolean;
@@ -170,10 +176,7 @@ export const ExploreCareerDetail = ({
 }) => {
   const [videoPlaying, setVideoPlaying] = useState(false);
   const isCurrentCareer = currentExploredCareer === career.name;
-  const likedActivities = Object.entries(reactions)
-    .filter(([, emotion]) => emotion === "passion" || emotion === "like")
-    .map(([id]) => career.activities.find((a) => actionKey(career.id, a.id) === id)?.label)
-    .filter(Boolean);
+  const hasActivityReactions = hasCareerActivityReactions(career, reactions);
   const relatedData = EXPLORE_CAREERS.filter(
     (c) =>
       c.id !== career.id &&
@@ -221,13 +224,13 @@ export const ExploreCareerDetail = ({
             onClick={onOpenActivityView}
             disabled={activitySaving}
             className={`flex items-center gap-1.5 px-3.5 py-2 rounded-full text-white text-xs font-bold shadow-lg hover:opacity-90 transition-opacity disabled:opacity-50 ${
-              isExplored
-                ? "bg-gradient-to-r from-emerald-500 to-teal-500"
+              hasActivityReactions
+                ? "bg-gray-950"
                 : "bg-gradient-to-r from-orange-500 to-pink-500"
             }`}
           >
             {" "}
-            💭 {activitySaving ? "Đang lưu..." : isExplored ? "Đã khám phá - sửa lại" : "Tôi thích điều gì?"}{" "}
+            💭 {activitySaving ? "Đang lưu..." : hasActivityReactions ? "Đã làm - sửa lại" : "Tôi thích điều gì?"}{" "}
           </button>{" "}
           <button
             onClick={onToggleFav}
@@ -500,62 +503,50 @@ export const ExploreCareerDetail = ({
         <div className="space-y-4">
           {" "}
           <div
-            className={`bg-white rounded-2xl border-2 shadow-sm p-4 ${
-              isExplored ? "border-emerald-200" : "border-orange-200"
+            className={`rounded-2xl border-2 shadow-sm p-4 ${
+              hasActivityReactions
+                ? "border-gray-900 bg-gray-950"
+                : "border-orange-200 bg-white"
             }`}
           >
             <div className="flex items-start gap-3">
               <div
                 className={`w-10 h-10 rounded-xl flex items-center justify-center text-xl flex-shrink-0 ${
-                  isExplored
-                    ? "bg-emerald-100 text-emerald-700"
+                  hasActivityReactions
+                    ? "bg-white/10 text-white"
                     : "bg-orange-100 text-orange-700"
                 }`}
               >
                 💭
               </div>
               <div className="min-w-0 flex-1">
-                <h3 className="font-bold text-gray-900 text-sm">
-                  {isExplored ? "Đã khám phá nghề này" : "Tôi thích điều gì?"}
+                <h3
+                  className={`font-bold text-sm ${
+                    hasActivityReactions ? "text-white" : "text-gray-900"
+                  }`}
+                >
+                  {hasActivityReactions ? "Đã làm mục này" : "Tôi thích điều gì?"}
                 </h3>
-                <p className="text-xs text-gray-500 mt-1">
+                <p
+                  className={`text-xs mt-1 ${
+                    hasActivityReactions ? "text-gray-300" : "text-gray-500"
+                  }`}
+                >
                   Mở view riêng để chọn cảm xúc cho {career.activities.length} hoạt động của nghề này.
                 </p>
                 <button
                   onClick={onOpenActivityView}
                   disabled={activitySaving}
                   className={`mt-3 w-full px-3 py-2.5 rounded-xl text-white text-xs font-bold flex items-center justify-center gap-1.5 disabled:opacity-50 ${
-                    isExplored
-                      ? "bg-emerald-500 hover:bg-emerald-600"
+                    hasActivityReactions
+                      ? "bg-white/15 hover:bg-white/20"
                       : "bg-orange-500 hover:bg-orange-600"
                   }`}
                 >
-                  {activitySaving ? "Đang lưu..." : isExplored ? "Đã khám phá - sửa lại" : "Mở danh sách hoạt động"} <ChevronRight size={13} />
+                  {activitySaving ? "Đang lưu..." : hasActivityReactions ? "Làm lại mục này" : "Mở danh sách hoạt động"} <ChevronRight size={13} />
                 </button>
               </div>
             </div>
-            {likedActivities.length > 0 && (
-              <div className="mt-3 pt-3 border-t border-orange-100">
-                <p className="text-xs font-bold text-amber-800 mb-1.5">
-                  Đã lưu vào sở thích:
-                </p>
-                <div className="flex flex-wrap gap-1">
-                  {likedActivities.slice(0, 4).map((activity) => (
-                    <span
-                      key={activity}
-                      className="text-xs bg-amber-100 text-amber-800 px-2 py-0.5 rounded-full font-medium"
-                    >
-                      {activity?.split(" ").slice(0, 3).join(" ")}...
-                    </span>
-                  ))}
-                  {likedActivities.length > 4 && (
-                    <span className="text-xs text-amber-700 font-semibold">
-                      +{likedActivities.length - 4}
-                    </span>
-                  )}
-                </div>
-              </div>
-            )}
           </div>
           {/* Related careers — small cards with image + name + salary */}{" "}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
@@ -1367,12 +1358,15 @@ export const StudentExplore = ({
     );
   const isCareerExplored = (career: ExploreCareer) =>
     currentExploredCareer === career.name || exploredCareers.includes(career.name);
+  const isCareerActivityDone = (career: ExploreCareer) =>
+    hasCareerActivityReactions(career, reactions);
+  const isCareerInFavoriteHistory = (career: ExploreCareer) =>
+    favorites.includes(career.id) || exploredCareers.includes(career.name);
+  const favoriteHistoryCount = EXPLORE_CAREERS.filter(isCareerInFavoriteHistory).length;
   const openActivityView = (career: ExploreCareer) => {
     if (
-      isCareerExplored(career) &&
-      !window.confirm(
-        `Bạn đã khám phá "${career.name}". Bạn có muốn làm lại và cập nhật cảm xúc đã lưu không?`,
-      )
+      isCareerActivityDone(career) &&
+      !window.confirm("Bạn đã làm mục này. Bạn có muốn làm lại không?")
     ) {
       return;
     }
@@ -1433,7 +1427,7 @@ export const StudentExplore = ({
       .finally(() => setSavingActivities(false));
   };
   const filtered = EXPLORE_CAREERS.filter((c) => {
-    if (showFavs && !favorites.includes(c.id)) return false;
+    if (showFavs && !isCareerInFavoriteHistory(c)) return false;
     if (activeField !== "Tất cả" && c.field !== activeField) return false;
     if (
       search &&
@@ -1453,7 +1447,6 @@ export const StudentExplore = ({
           onToggleFav={() => toggleFav(selected.id)}
           reactions={reactions}
           currentExploredCareer={currentExploredCareer}
-          isExplored={isCareerExplored(selected)}
           confirming={savingCareerId === selected.id}
           activitySaving={savingActivities && activityCareer?.id === selected.id}
           onConfirmExplore={() => saveExploredCareer(selected).catch(() => undefined)}
@@ -1556,7 +1549,7 @@ export const StudentExplore = ({
         >
           {" "}
           <Heart size={14} fill={showFavs ? "currentColor" : "none"} /> Yêu
-          thích {favorites.length > 0 && `(${favorites.length})`}{" "}
+          thích {favoriteHistoryCount > 0 && `(${favoriteHistoryCount})`}{" "}
         </button>{" "}
       </div>{" "}
       {/* Field chips */}{" "}
