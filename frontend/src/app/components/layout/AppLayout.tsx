@@ -36,6 +36,7 @@ import {
   UserCheck,
   Users,
 } from "lucide-react";
+import { LanguageSwitcher, useT } from "../../i18n";
 
 type NavItem = { id: string; label: string; icon: any };
 type NavGroup = { group: string; icon: any; items: NavItem[] };
@@ -190,6 +191,7 @@ const GroupedSidebar = ({
   userSub: string;
   userGrad: string;
 }) => {
+  const t = useT();
   const defaultOpen =
     navGroups.find((g) => g.items.some((i) => i.id === view))?.group ??
     navGroups[0]?.group;
@@ -215,7 +217,7 @@ const GroupedSidebar = ({
         </div>
         <div>
           <p className="text-white text-sm font-bold leading-none">EduPath</p>
-          <p className="text-white/50 text-xs mt-0.5">{brand}</p>
+          <p className="text-white/50 text-xs mt-0.5">{t(brand)}</p>
         </div>
       </div>
       <div className="mx-4 mt-4 mb-2 flex items-center gap-2.5 p-2.5 rounded-2xl bg-white/10">
@@ -228,7 +230,7 @@ const GroupedSidebar = ({
           <p className="text-white text-xs font-bold leading-none truncate">
             {userLabel}
           </p>
-          <p className="text-white/50 text-xs mt-0.5">{userSub}</p>
+          <p className="text-white/50 text-xs mt-0.5">{t(userSub)}</p>
         </div>
       </div>
       <nav className="flex-1 py-2 overflow-y-auto px-2">
@@ -242,7 +244,9 @@ const GroupedSidebar = ({
                 className={`w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-left transition-colors ${isActiveGroup ? "bg-white/15 text-white" : "text-white/60 hover:bg-white/10 hover:text-white"}`}
               >
                 <group.icon size={15} className="flex-shrink-0" />
-                <span className="text-sm font-bold flex-1">{group.group}</span>
+                <span className="text-sm font-bold flex-1">
+                  {t(group.group)}
+                </span>
                 <ChevronDown
                   size={12}
                   className={`transition-transform duration-200 ${isOpen ? "rotate-180" : ""}`}
@@ -257,7 +261,7 @@ const GroupedSidebar = ({
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all text-xs ${view === item.id ? activeCls + " font-bold shadow-sm" : "text-white/60 hover:bg-white/10 hover:text-white font-medium"}`}
                     >
                       <item.icon size={13} className="flex-shrink-0" />
-                      {item.label}
+                      {t(item.label)}
                     </button>
                   ))}
                 </div>
@@ -272,7 +276,7 @@ const GroupedSidebar = ({
           className="w-full flex items-center gap-2.5 px-3 py-2.5 rounded-xl text-white/60 hover:bg-white/10 hover:text-white transition-colors"
         >
           <LogOut size={14} />
-          <span className="text-xs font-medium">Đăng xuất</span>
+          <span className="text-xs font-medium">{t("Đăng xuất")}</span>
         </button>
       </div>
     </aside>
@@ -337,6 +341,7 @@ export const Sidebar = ({
   onLogout: () => void;
 }) => {
   const nav = navByRole[role] ?? [];
+  const t = useT();
   return (
     <aside className="w-52 bg-[#1C2B4A] flex flex-col flex-shrink-0 h-screen">
       <div className="p-4 border-b border-white/10 flex items-center gap-2.5">
@@ -345,12 +350,12 @@ export const Sidebar = ({
         </div>
         <div>
           <p className="text-white text-sm font-bold leading-none">EduPath</p>
-          <p className="text-blue-300 text-xs mt-0.5">Hướng nghiệp</p>
+          <p className="text-blue-300 text-xs mt-0.5">{t("Hướng nghiệp")}</p>
         </div>
       </div>
       <nav className="flex-1 py-3 overflow-y-auto">
         <p className="px-4 pb-2 text-blue-300 text-xs font-bold uppercase tracking-wider">
-          {roleLabels[role]}
+          {t(roleLabels[role] ?? "")}
         </p>
         {nav.map((item) => (
           <button
@@ -364,7 +369,7 @@ export const Sidebar = ({
           >
             <item.icon size={15} className="flex-shrink-0" />
             <span className="text-sm font-medium leading-none">
-              {item.label}
+              {t(item.label)}
             </span>
           </button>
         ))}
@@ -375,51 +380,66 @@ export const Sidebar = ({
           className="w-full flex items-center gap-2.5 px-4 py-2.5 rounded-lg text-blue-300 hover:bg-white/10 hover:text-white transition-colors"
         >
           <LogOut size={15} />
-          <span className="text-sm font-medium">Đăng xuất</span>
+          <span className="text-sm font-medium">{t("Đăng xuất")}</span>
         </button>
       </div>
     </aside>
   );
 };
 
-export const TopNav = ({ role }: { role: string }) => (
-  <header
-    className={`h-14 border-b flex items-center px-5 gap-4 flex-shrink-0 ${role === "student" ? "border-orange-100 bg-white" : "border-gray-100 bg-white"}`}
-  >
-    <div className="relative flex-1 max-w-64">
-      <Search
-        size={13}
-        className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
-      />
-      <input
-        className={`w-full pl-8 pr-3 py-2 text-sm border rounded-xl bg-gray-50 focus:outline-none focus:ring-2 ${role === "student" ? "border-orange-200 focus:ring-orange-400" : "border-gray-200 focus:ring-orange-400"}`}
-        placeholder={
-          role === "student"
-            ? "Tìm bài học, ngành nghề..."
-            : "Tìm học sinh, lớp..."
-        }
-      />
-    </div>
-    <div className="flex items-center gap-3 ml-auto">
-      <button className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors">
-        <Bell size={17} />
-        <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
-      </button>
-      <div className="flex items-center gap-2 pl-3 border-l border-gray-100">
-        <div
-          className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${role === "student" ? "bg-gradient-to-br from-orange-400 to-pink-500" : "bg-gradient-to-br from-orange-400 to-amber-500"}`}
-        >
-          {roleLabels[role]?.charAt(0)}
-        </div>
-        <span className="text-sm font-semibold text-gray-700 hidden sm:block">
-          {roleLabels[role]}
-        </span>
-      </div>
-    </div>
-  </header>
-);
+export const TopNav = ({ role }: { role: string }) => {
+  const t = useT();
+  const roleLabel = roleLabels[role] ?? "";
 
-type BotMsg = { id: number; from: "bot" | "user"; text: string };
+  return (
+    <header
+      className={`h-14 border-b flex items-center px-5 gap-4 flex-shrink-0 ${role === "student" ? "border-orange-100 bg-white" : "border-gray-100 bg-white"}`}
+    >
+      <div className="relative flex-1 max-w-64">
+        <Search
+          size={13}
+          className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400"
+        />
+        <input
+          className={`w-full pl-8 pr-3 py-2 text-sm border rounded-xl bg-gray-50 focus:outline-none focus:ring-2 ${role === "student" ? "border-orange-200 focus:ring-orange-400" : "border-gray-200 focus:ring-orange-400"}`}
+          placeholder={
+            role === "student"
+              ? t("Tìm bài học, ngành nghề...")
+              : t("Tìm học sinh, lớp...")
+          }
+        />
+      </div>
+      <div className="flex items-center gap-3 ml-auto">
+        <LanguageSwitcher />
+        <button
+          className="relative p-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-xl transition-colors"
+          aria-label={t("Thông báo")}
+          title={t("Thông báo")}
+        >
+          <Bell size={17} />
+          <span className="absolute top-1.5 right-1.5 w-1.5 h-1.5 bg-red-500 rounded-full" />
+        </button>
+        <div className="flex items-center gap-2 pl-3 border-l border-gray-100">
+          <div
+            className={`w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold ${role === "student" ? "bg-gradient-to-br from-orange-400 to-pink-500" : "bg-gradient-to-br from-orange-400 to-amber-500"}`}
+          >
+            {roleLabel.charAt(0)}
+          </div>
+          <span className="text-sm font-semibold text-gray-700 hidden sm:block">
+            {t(roleLabel)}
+          </span>
+        </div>
+      </div>
+    </header>
+  );
+};
+
+type BotMsg = {
+  id: number;
+  from: "bot" | "user";
+  text: string;
+  preserveText?: boolean;
+};
 
 const BOT_QUICK = [
   "Tôi nên chọn ngành nào?",
@@ -443,6 +463,7 @@ const BOT_DEFAULT =
   "Cảm ơn bạn đã hỏi! Tôi đang tìm câu trả lời phù hợp nhất cho bạn. Trong thời gian chờ, bạn có thể liên hệ trực tiếp cố vấn hướng nghiệp qua mục **Messenger** nhé 💬";
 
 export const SupportChatbot = ({ role }: { role: string }) => {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<BotMsg[]>([
     {
@@ -456,12 +477,18 @@ export const SupportChatbot = ({ role }: { role: string }) => {
 
   const send = (text: string) => {
     if (!text.trim()) return;
-    const userMsg: BotMsg = { id: Date.now(), from: "user", text: text.trim() };
+    const trimmed = text.trim();
+    const userMsg: BotMsg = {
+      id: Date.now(),
+      from: "user",
+      text: trimmed,
+      preserveText: !BOT_REPLIES[trimmed],
+    };
     setMsgs((p) => [...p, userMsg]);
     setInput("");
     setTyping(true);
     setTimeout(() => {
-      const reply = BOT_REPLIES[text.trim()] ?? BOT_DEFAULT;
+      const reply = BOT_REPLIES[trimmed] ?? BOT_DEFAULT;
       setMsgs((p) => [...p, { id: Date.now() + 1, from: "bot", text: reply }]);
       setTyping(false);
     }, 900);
@@ -490,7 +517,7 @@ export const SupportChatbot = ({ role }: { role: string }) => {
               </p>
               <p className="text-white/75 text-xs mt-0.5 flex items-center gap-1">
                 <span className="w-1.5 h-1.5 rounded-full bg-green-300 inline-block" />
-                {typing ? "Đang nhập..." : "Trợ lý hướng nghiệp"}
+                {typing ? t("Đang nhập...") : t("Trợ lý hướng nghiệp")}
               </p>
             </div>
             <button
@@ -527,7 +554,7 @@ export const SupportChatbot = ({ role }: { role: string }) => {
                       : {}
                   }
                   dangerouslySetInnerHTML={{
-                    __html: msg.text.replace(
+                    __html: (msg.preserveText ? msg.text : t(msg.text)).replace(
                       /\*\*(.*?)\*\*/g,
                       "<strong>$1</strong>",
                     ),
@@ -561,7 +588,7 @@ export const SupportChatbot = ({ role }: { role: string }) => {
           {msgs.length <= 2 && !typing && (
             <div className="px-3 py-2 border-t border-gray-100 bg-white flex flex-col gap-1.5 flex-shrink-0">
               <p className="text-xs text-gray-400 font-medium px-1">
-                Câu hỏi gợi ý
+                {t("Câu hỏi gợi ý")}
               </p>
               <div className="flex flex-col gap-1">
                 {BOT_QUICK.slice(0, 3).map((q) => (
@@ -570,7 +597,7 @@ export const SupportChatbot = ({ role }: { role: string }) => {
                     onClick={() => send(q)}
                     className="text-left text-xs px-3 py-2 rounded-xl border border-orange-200 bg-orange-50 text-orange-700 hover:bg-orange-100 transition-colors font-medium"
                   >
-                    {q}
+                    {t(q)}
                   </button>
                 ))}
               </div>
@@ -582,7 +609,7 @@ export const SupportChatbot = ({ role }: { role: string }) => {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={(e) => e.key === "Enter" && send(input)}
-              placeholder="Nhập câu hỏi..."
+              placeholder={t("Nhập câu hỏi...")}
               className="flex-1 px-3.5 py-2 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:bg-white transition-colors"
             />
             <button
@@ -605,7 +632,7 @@ export const SupportChatbot = ({ role }: { role: string }) => {
             ? "#6b7280"
             : "linear-gradient(135deg,#EA580C,#F59E0B)",
         }}
-        title="EduBot — Trợ lý hướng nghiệp"
+        title={t("EduBot — Trợ lý hướng nghiệp")}
       >
         {open ? (
           <span className="text-white text-2xl font-light leading-none">×</span>

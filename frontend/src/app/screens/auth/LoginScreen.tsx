@@ -7,6 +7,7 @@ import {
   Heart,
   Shield,
 } from "lucide-react";
+import { LanguageSwitcher, useT } from "../../i18n";
 
 // ── Screen 1: Login ──────────────────────────────────────────────────────────
 
@@ -16,6 +17,7 @@ export const LoginScreen = ({
   onLogin: (role: string) => void;
 }) => {
   const [selected, setSelected] = useState<string | null>(null);
+  const t = useT();
 
   const roles = [
     {
@@ -61,6 +63,9 @@ export const LoginScreen = ({
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-[#1C2B4A] via-[#7C3AED] to-[#EA580C] flex items-center justify-center p-6">
+      <div className="absolute right-5 top-5">
+        <LanguageSwitcher variant="dark" />
+      </div>
       <div className="w-full max-w-md">
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-14 h-14 bg-white/10 rounded-2xl mb-4 backdrop-blur-sm">
@@ -72,7 +77,7 @@ export const LoginScreen = ({
           </h1>
 
           <p className="text-blue-300 text-sm mt-1.5">
-            Hệ thống hướng nghiệp học sinh lớp 6–12
+            {t("Hệ thống hướng nghiệp học sinh lớp 6–12")}
           </p>
         </div>
 
@@ -80,7 +85,7 @@ export const LoginScreen = ({
           <div className="space-y-4 mb-5">
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Email
+                {t("Email")}
               </label>
 
               <input
@@ -94,7 +99,7 @@ export const LoginScreen = ({
 
             <div>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Mật khẩu
+                {t("Mật khẩu")}
               </label>
 
               <input
@@ -108,7 +113,7 @@ export const LoginScreen = ({
           </div>
 
           <p className="text-sm font-medium text-gray-700 mb-3">
-            Đăng nhập với vai trò
+            {t("Đăng nhập với vai trò")}
           </p>
 
           <div className="space-y-1.5 mb-5">
@@ -132,10 +137,10 @@ export const LoginScreen = ({
 
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-gray-800">
-                    {r.label}
+                    {t(r.label)}
                   </p>
 
-                  <p className="text-xs text-gray-500">{r.desc}</p>
+                  <p className="text-xs text-gray-500">{t(r.desc)}</p>
                 </div>
 
                 {selected === r.id && (
@@ -155,12 +160,12 @@ export const LoginScreen = ({
 
             className="w-full py-3 bg-[#EA580C] text-white rounded-xl font-semibold text-sm hover:bg-[#C2410C] transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Đăng nhập
+            {t("Đăng nhập")}
           </button>
         </div>
 
         <p className="text-center text-blue-400 text-xs mt-5">
-          THCS & THPT Nguyễn Du · Năm học 2024–2025
+          {t("THCS & THPT Nguyễn Du · Năm học 2024–2025")}
         </p>
       </div>
     </div>
