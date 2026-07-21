@@ -131,6 +131,7 @@ import {
   type StudentProfileRecord,
 } from "../../../logic/studentProfile";
 import { CounselorStudentDetail } from "../update/CounselorStudentDetail";
+import { useT } from "../../../i18n";
 
 /* ── Students List ── */
 
@@ -141,6 +142,7 @@ export const CounselorStudentList = ({
   studentId?: string;
   navigate: (v: string, params?: { studentId?: string }) => void;
 }) => {
+  const t = useT();
   const { studentsInClass } = useAppData();
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
@@ -197,18 +199,18 @@ export const CounselorStudentList = ({
     return (
       <div className="bg-white rounded-2xl p-10 border border-gray-100 shadow-sm text-center">
         <h1 className="text-lg font-bold text-gray-800">
-          Đang tải hồ sơ học sinh
+          {t("Đang tải hồ sơ học sinh")}
         </h1>
         <p className="text-sm text-gray-500 mt-2">
           {detailStatus === "error"
-            ? "Không tải được hồ sơ chi tiết từ API. Vui lòng thử lại sau."
-            : `Đang lấy dữ liệu chi tiết cho ${selected?.name ?? studentId}.`}
+            ? t("Không tải được hồ sơ chi tiết từ API. Vui lòng thử lại sau.")
+            : `${t("Đang lấy dữ liệu chi tiết cho")} ${selected?.name ?? studentId}.`}
         </p>
         <button
           onClick={() => navigate("co-students-list")}
           className="mt-5 px-4 py-2 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700"
         >
-          Quay lại danh sách
+          {t("Quay lại danh sách")}
         </button>
       </div>
     );
@@ -227,7 +229,9 @@ export const CounselorStudentList = ({
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-bold text-gray-900">Danh sách Học sinh 👥</h1>
+      <h1 className="text-xl font-bold text-gray-900">
+        {t("Danh sách Học sinh")} 👥
+      </h1>
 
       <div className="flex flex-wrap gap-3">
         <div className="relative flex-1 min-w-48">
@@ -239,7 +243,7 @@ export const CounselorStudentList = ({
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            placeholder="Tìm học sinh..."
+            placeholder={t("Tìm học sinh...")}
 
             className="w-full pl-8 pr-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500"
           />
@@ -256,7 +260,7 @@ export const CounselorStudentList = ({
 
             className={`px-3 py-2 rounded-xl text-sm font-medium transition-colors ${filter === f.id ? "bg-blue-100 text-blue-700" : "bg-white border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
           >
-            {f.label}
+            {t(f.label)}
           </button>
         ))}
       </div>
@@ -273,12 +277,12 @@ export const CounselorStudentList = ({
                 "Hồ sơ",
                 "Tình trạng",
                 "",
-              ].map((h) => (
+                ].map((h) => (
                 <th
                   key={h}
                   className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide"
                 >
-                  {h}
+                  {t(h)}
                 </th>
               ))}
             </tr>
@@ -334,7 +338,7 @@ export const CounselorStudentList = ({
                     }
                     className="text-xs font-bold text-blue-600 hover:text-blue-800 flex items-center gap-0.5"
                   >
-                    Chi tiết <ArrowRight size={11} />
+                    {t("Chi tiết")} <ArrowRight size={11} />
                   </button>
                 </td>
               </tr>

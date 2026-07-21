@@ -113,6 +113,7 @@ import {
 } from "../../../logic/recommendation";
 import { updateStudent } from "../../../api/client";
 import { currentStudentReferenceId } from "../../../logic/referenceActions";
+import { useT } from "../../../i18n";
 
 type PersonalInfoUpdateResponse = {
   student: {
@@ -208,6 +209,7 @@ const MultiSearchableSelect = ({
   onAdd: (option: SearchOption) => void;
   onRemove: (value: string) => void;
 }) => {
+  const t = useT();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const normalizedQuery = normalizeSearchText(query);
@@ -245,7 +247,7 @@ const MultiSearchableSelect = ({
                     type="button"
                     onClick={() => onRemove(option.value)}
                     className="rounded-full text-orange-700 hover:bg-orange-200 hover:text-orange-900"
-                    aria-label={`Xóa ${option.label}`}
+                    aria-label={`${t("Xóa")} ${option.label}`}
                   >
                     ×
                   </button>
@@ -314,7 +316,7 @@ const MultiSearchableSelect = ({
             ))
           ) : (
             <div className="px-3 py-4 text-sm text-gray-400">
-              Không tìm thấy lựa chọn phù hợp
+              {t("Không tìm thấy lựa chọn phù hợp")}
             </div>
           )}
         </div>
@@ -324,6 +326,7 @@ const MultiSearchableSelect = ({
 };
 
 export const StudentPersonalInfo = () => {
+  const t = useT();
   const [tab, setTab] = useState<"info" | "academic">("info");
   const [selectedYear, setSelectedYear] = useState(YEARS[YEARS.length - 1]);
   const [saved, setSaved] = useState(false);
@@ -446,7 +449,7 @@ export const StudentPersonalInfo = () => {
   };
 
   const beginEditGoals = () => {
-    if (!window.confirm("Bạn có muốn chỉnh sửa mục Định hướng & Mục tiêu không?")) {
+    if (!window.confirm(t("Bạn có muốn chỉnh sửa mục Định hướng & Mục tiêu không?"))) {
       return;
     }
     setIsEditingGoals(true);
@@ -460,7 +463,7 @@ export const StudentPersonalInfo = () => {
   };
 
   const handleSavePersonalInfo = () => {
-    if (!window.confirm("Xác nhận lưu thay đổi mục Định hướng & Mục tiêu?")) {
+    if (!window.confirm(t("Xác nhận lưu thay đổi mục Định hướng & Mục tiêu?"))) {
       return;
     }
     const primaryUniversity = targetUniversities[0];
@@ -525,20 +528,22 @@ export const StudentPersonalInfo = () => {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-bold text-gray-900">Thông tin cá nhân 👤</h1>
+      <h1 className="text-xl font-bold text-gray-900">
+        {t("Thông tin cá nhân")} 👤
+      </h1>
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-gray-100 p-1 rounded-2xl w-fit">
         {[
-          { id: "info", label: "👤 Hồ sơ cá nhân" },
-          { id: "academic", label: "📊 Lịch sử điểm số" },
-        ].map((t) => (
+          { id: "info", icon: "👤", label: "Hồ sơ cá nhân" },
+          { id: "academic", icon: "📊", label: "Lịch sử điểm số" },
+        ].map((tabItem) => (
           <button
-            key={t.id}
-            onClick={() => setTab(t.id as any)}
-            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${tab === t.id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+            key={tabItem.id}
+            onClick={() => setTab(tabItem.id as any)}
+            className={`px-5 py-2 rounded-xl text-sm font-bold transition-all ${tab === tabItem.id ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
           >
-            {t.label}
+            {tabItem.icon} {t(tabItem.label)}
           </button>
         ))}
       </div>
@@ -557,13 +562,13 @@ export const StudentPersonalInfo = () => {
               </div>
               <div>
                 <h2 className="font-bold text-gray-900 text-base">
-                  {student?.name ?? "Học sinh"}
+                  {student?.name ?? t("Học sinh")}
                 </h2>
                 <p className="text-sm text-gray-500">
-                  {student?.className ?? "Chưa cập nhật lớp"} · {resolvedStudentId}
+                  {student?.className ?? t("Chưa cập nhật lớp")} · {resolvedStudentId}
                 </p>
                 <p className="text-xs text-orange-600 font-semibold mt-1">
-                  Hồ sơ học sinh
+                  {t("Hồ sơ học sinh")}
                 </p>
               </div>
               <div className="w-full pt-3 border-t border-gray-100 grid grid-cols-3 gap-2 text-center">
@@ -576,7 +581,7 @@ export const StudentPersonalInfo = () => {
                     <p className="text-sm font-black text-orange-600">
                       {s.value}
                     </p>
-                    <p className="text-xs text-gray-400">{s.label}</p>
+                    <p className="text-xs text-gray-400">{t(s.label)}</p>
                   </div>
                 ))}
               </div>
@@ -585,12 +590,12 @@ export const StudentPersonalInfo = () => {
             {/* Achievements */}
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
               <h3 className="font-bold text-gray-800 mb-3 text-sm">
-                🏆 Thành tích nổi bật
+                🏆 {t("Thành tích nổi bật")}
               </h3>
               <div className="space-y-2">
                 {(achievementItems.length > 0
                   ? achievementItems.slice(0, 5)
-                  : ["Chưa cập nhật thành tích nổi bật"]
+                  : [t("Chưa cập nhật thành tích nổi bật")]
                 ).map((text, index) => (
                   <div
                     key={`${text}-${index}`}
@@ -610,7 +615,7 @@ export const StudentPersonalInfo = () => {
           <div className="lg:col-span-2 space-y-4">
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
               <h3 className="font-semibold text-gray-800 text-sm border-b border-gray-100 pb-3">
-                Thông tin cơ bản
+                {t("Thông tin cơ bản")}
               </h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 {[
@@ -625,10 +630,10 @@ export const StudentPersonalInfo = () => {
                 ].map((f) => (
                   <div key={f.label}>
                     <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                      {f.label}
+                      {t(f.label)}
                     </label>
                     <div className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-100 text-gray-700 flex items-center justify-between gap-2">
-                      <span>{f.value || "Chưa cập nhật"}</span>
+                      <span>{f.value || t("Chưa cập nhật")}</span>
                       <Lock size={13} className="text-gray-400 flex-shrink-0" />
                     </div>
                   </div>
@@ -639,14 +644,14 @@ export const StudentPersonalInfo = () => {
             <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
               <div className="flex items-center justify-between gap-3 border-b border-gray-100 pb-3">
                 <h3 className="font-semibold text-gray-800 text-sm">
-                  Định hướng & Mục tiêu
+                  {t("Định hướng & Mục tiêu")}
                 </h3>
                 {!isEditingGoals ? (
                   <button
                     type="button"
                     onClick={beginEditGoals}
                     className="w-8 h-8 rounded-lg bg-orange-50 text-orange-600 hover:bg-orange-100 flex items-center justify-center"
-                    title="Chỉnh sửa"
+                    title={t("Chỉnh sửa")}
                   >
                     <Edit2 size={14} />
                   </button>
@@ -657,18 +662,18 @@ export const StudentPersonalInfo = () => {
                     disabled={saving}
                     className="px-3 py-1.5 rounded-lg border border-gray-200 bg-white text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-60"
                   >
-                    Hủy
+                    {t("Hủy")}
                   </button>
                 )}
               </div>
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                  Giới thiệu bản thân
+                  {t("Giới thiệu bản thân")}
                 </label>
                 <textarea
                   rows={3}
                   value={personalStatement}
-                  placeholder="Viết ngắn về sở thích, mục tiêu học tập hoặc định hướng nghề nghiệp của bạn."
+                  placeholder={t("Viết ngắn về sở thích, mục tiêu học tập hoặc định hướng nghề nghiệp của bạn.")}
                   disabled={!isEditingGoals || saving}
                   onChange={(event) => {
                     setPersonalStatement(event.target.value);
@@ -682,11 +687,11 @@ export const StudentPersonalInfo = () => {
                 />
               </div>
               <MultiSearchableSelect
-                label="Nghề nghiệp mơ ước"
+                label={t("Nghề nghiệp mơ ước")}
                 selected={selectedCareerOptions}
                 options={careerOptions}
-                placeholder="Tìm và thêm nghề nghiệp"
-                emptyText="Chưa chọn nghề nghiệp mơ ước"
+                placeholder={t("Tìm và thêm nghề nghiệp")}
+                emptyText={t("Chưa chọn nghề nghiệp mơ ước")}
                 disabled={!isEditingGoals || saving}
                 onAdd={(option) => {
                   setFavoriteCareers((current) =>
@@ -702,11 +707,11 @@ export const StudentPersonalInfo = () => {
                 }}
               />
               <MultiSearchableSelect
-                label="Trường ĐH mục tiêu"
+                label={t("Trường ĐH mục tiêu")}
                 selected={selectedUniversityOptions}
                 options={universityOptions}
-                placeholder="Tìm và thêm trường đại học"
-                emptyText="Chưa chọn trường đại học mục tiêu"
+                placeholder={t("Tìm và thêm trường đại học")}
+                emptyText={t("Chưa chọn trường đại học mục tiêu")}
                 disabled={!isEditingGoals || saving}
                 onAdd={(option) => {
                   setTargetUniversities((current) => [
@@ -750,7 +755,7 @@ export const StudentPersonalInfo = () => {
                     : "border-emerald-100 bg-emerald-50 text-emerald-700"
                 }`}
               >
-                {notice}
+                {t(notice)}
               </div>
             )}
             {isEditingGoals && (
@@ -759,12 +764,12 @@ export const StudentPersonalInfo = () => {
                 disabled={saving}
                 className="w-full py-3 bg-gradient-to-r from-orange-500 to-amber-400 text-white rounded-xl text-sm font-bold hover:opacity-90 transition-opacity flex items-center justify-center gap-2 disabled:opacity-60"
               >
-                <Save size={15} /> {saving ? "Đang lưu..." : "Lưu thay đổi"}
+                <Save size={15} /> {saving ? t("Đang lưu...") : t("Lưu thay đổi")}
               </button>
             )}
             {!isEditingGoals && saved && (
               <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
-                Đã lưu ✓
+                {t("Đã lưu")} ✓
               </div>
             )}
           </div>
@@ -777,7 +782,7 @@ export const StudentPersonalInfo = () => {
           {/* GPA trend chart */}
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
             <h3 className="font-bold text-gray-800 mb-4">
-              📈 Xu hướng điểm trung bình qua các năm
+              📈 {t("Xu hướng điểm trung bình qua các năm")}
             </h3>
             <ResponsiveContainer width="100%" height={200}>
               <LineChart data={gpaData}>
@@ -829,21 +834,21 @@ export const StudentPersonalInfo = () => {
             <div className="flex items-center justify-center gap-5 mt-2">
               <div className="flex items-center gap-1.5 text-xs text-gray-600">
                 <div className="w-4 h-0.5 bg-orange-500 rounded" />
-                Học kỳ 1
+                {t("Học kỳ 1")}
               </div>
               <div className="flex items-center gap-1.5 text-xs text-gray-600">
                 <div
                   className="w-4 h-0.5 bg-violet-500 rounded"
                   style={{ borderTop: "2px dashed #8B5CF6" }}
                 />
-                Học kỳ 2
+                {t("Học kỳ 2")}
               </div>
             </div>
           </div>
 
           {/* Year selector */}
           <div className="flex items-center gap-3 flex-wrap">
-            <span className="text-sm font-bold text-gray-700">Năm học:</span>
+            <span className="text-sm font-bold text-gray-700">{t("Năm học")}:</span>
             <div className="flex gap-2 flex-wrap">
               {YEARS.map((y) => (
                 <button
@@ -889,7 +894,7 @@ export const StudentPersonalInfo = () => {
                     className={`rounded-2xl p-4 bg-gradient-to-br ${s.color} text-white text-center shadow-sm`}
                   >
                     <p className="text-2xl font-black">{s.value}</p>
-                    <p className="text-xs text-white/80 mt-0.5">{s.label}</p>
+                    <p className="text-xs text-white/80 mt-0.5">{t(s.label)}</p>
                   </div>
                 ))}
               </div>
@@ -900,7 +905,7 @@ export const StudentPersonalInfo = () => {
                   <span className="text-2xl">🏅</span>
                   <div>
                     <p className="text-xs text-gray-500 font-medium">
-                      Danh hiệu
+                      {t("Danh hiệu")}
                     </p>
                     <p className="text-sm font-black text-orange-600">
                       {yearData.title}
@@ -911,7 +916,7 @@ export const StudentPersonalInfo = () => {
                   <span className="text-2xl">📋</span>
                   <div>
                     <p className="text-xs text-gray-500 font-medium">
-                      Hạnh kiểm
+                      {t("Hạnh kiểm")}
                     </p>
                     <p className="text-sm font-black text-emerald-600">
                       {yearData.conduct}
@@ -923,9 +928,9 @@ export const StudentPersonalInfo = () => {
               {/* HK1 scores */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-800 text-sm">Học kỳ 1</h3>
+                  <h3 className="font-bold text-gray-800 text-sm">{t("Học kỳ 1")}</h3>
                   <span className="text-xs font-black text-orange-600 bg-orange-100 px-2.5 py-1 rounded-full">
-                    ĐTB {avg(yearData.hk1)}
+                    {t("ĐTB")} {avg(yearData.hk1)}
                   </span>
                 </div>
                 <div className="space-y-2.5">
@@ -938,9 +943,9 @@ export const StudentPersonalInfo = () => {
               {/* HK2 scores */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="font-bold text-gray-800 text-sm">Học kỳ 2</h3>
+                  <h3 className="font-bold text-gray-800 text-sm">{t("Học kỳ 2")}</h3>
                   <span className="text-xs font-black text-violet-600 bg-violet-100 px-2.5 py-1 rounded-full">
-                    ĐTB {avg(yearData.hk2)}
+                    {t("ĐTB")} {avg(yearData.hk2)}
                   </span>
                 </div>
                 <div className="space-y-2.5">
@@ -957,14 +962,14 @@ export const StudentPersonalInfo = () => {
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
                 <div className="px-5 py-4 border-b border-gray-100">
                   <h3 className="font-bold text-gray-800 text-sm">
-                    So sánh HK1 vs HK2
+                    {t("So sánh HK1 vs HK2")}
                   </h3>
                 </div>
                 <table className="w-full text-xs">
                   <thead className="bg-gray-50">
                     <tr>
                       <th className="text-left px-4 py-2.5 text-gray-500 font-semibold">
-                        Môn
+                        {t("Môn")}
                       </th>
                       <th className="text-center px-3 py-2.5 text-orange-600 font-semibold">
                         HK1
@@ -1012,11 +1017,11 @@ export const StudentPersonalInfo = () => {
               {/* Strong / weak subjects */}
               <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-3">
                 <h3 className="font-bold text-gray-800 text-sm">
-                  Phân tích môn học
+                  {t("Phân tích môn học")}
                 </h3>
                 <div>
                   <p className="text-xs font-bold text-emerald-600 mb-2">
-                    💪 Môn mạnh (≥ 8.5)
+                    💪 {t("Môn mạnh")} (≥ 8.5)
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {SUBJECTS.filter(
@@ -1033,7 +1038,7 @@ export const StudentPersonalInfo = () => {
                 </div>
                 <div>
                   <p className="text-xs font-bold text-amber-600 mb-2">
-                    📈 Cần cải thiện (&lt; 7.5)
+                    📈 {t("Cần cải thiện")} (&lt; 7.5)
                   </p>
                   <div className="flex flex-wrap gap-1.5">
                     {SUBJECTS.filter(
@@ -1058,6 +1063,7 @@ export const StudentPersonalInfo = () => {
 };
 
 export const StudentPortfolio = () => {
+  const t = useT();
   const items = [
     {
       emoji: "🏆",
@@ -1087,9 +1093,11 @@ export const StudentPortfolio = () => {
   return (
     <div className="space-y-5">
       <div className="flex items-center justify-between">
-        <h1 className="text-xl font-bold text-gray-900">Portfolio 🗂️</h1>
+        <h1 className="text-xl font-bold text-gray-900">
+          {t("Hồ sơ năng lực")} 🗂️
+        </h1>
         <button className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-400 text-white rounded-xl text-sm font-bold flex items-center gap-1.5">
-          <Plus size={14} /> Thêm mới
+          <Plus size={14} /> {t("Thêm mới")}
         </button>
       </div>
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
@@ -1104,7 +1112,7 @@ export const StudentPortfolio = () => {
             </h3>
             <div className="flex items-center justify-between mt-2">
               <span className="text-xs bg-orange-100 text-orange-700 px-2 py-0.5 rounded-full font-semibold">
-                {item.type}
+                {t(item.type)}
               </span>
               <span className="text-xs text-gray-400 font-mono">
                 {item.date}
@@ -1114,19 +1122,22 @@ export const StudentPortfolio = () => {
         ))}
         <button className="bg-gray-50 rounded-2xl p-5 border-2 border-dashed border-gray-200 hover:border-orange-300 hover:bg-orange-50 transition-all flex flex-col items-center justify-center gap-2 text-gray-400 hover:text-orange-500 cursor-pointer">
           <Plus size={24} />
-          <span className="text-sm font-semibold">Thêm mục mới</span>
+          <span className="text-sm font-semibold">{t("Thêm mục mới")}</span>
         </button>
       </div>
     </div>
   );
 };
 
-export const StudentResume = () => (
+export const StudentResume = () => {
+  const t = useT();
+
+  return (
   <div className="space-y-5 max-w-2xl mx-auto">
     <div className="flex items-center justify-between">
-      <h1 className="text-xl font-bold text-gray-900">CV / Resume 📄</h1>
+      <h1 className="text-xl font-bold text-gray-900">{t("CV / Resume")} 📄</h1>
       <button className="px-4 py-2 bg-gradient-to-r from-orange-500 to-amber-400 text-white rounded-xl text-sm font-bold">
-        Xuất PDF
+        {t("Xuất PDF")}
       </button>
     </div>
     <div className="bg-white rounded-2xl border-2 border-orange-100 shadow-sm overflow-hidden">
@@ -1178,9 +1189,11 @@ export const StudentResume = () => (
       </div>
     </div>
   </div>
-);
+  );
+};
 
 export const StudentApplicationResults = () => {
+  const t = useT();
   const items = [
     {
       school: "THPT Chuyên Lê Hồng Phong",
@@ -1211,7 +1224,9 @@ export const StudentApplicationResults = () => {
   };
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-bold text-gray-900">Kết quả Ứng tuyển 🏅</h1>
+      <h1 className="text-xl font-bold text-gray-900">
+        {t("Kết quả Ứng tuyển")} 🏅
+      </h1>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {items.map((item) => (
           <div
@@ -1226,7 +1241,7 @@ export const StudentApplicationResults = () => {
                 <span
                   className={`text-xs font-bold px-2 py-0.5 rounded-full ${statusMap[item.status].cls}`}
                 >
-                  {statusMap[item.status].label}
+                  {t(statusMap[item.status].label)}
                 </span>
                 <span className="text-xs text-gray-400 font-mono">
                   {item.date}
@@ -1240,9 +1255,14 @@ export const StudentApplicationResults = () => {
   );
 };
 
-export const StudentPlanGrade = () => (
+export const StudentPlanGrade = () => {
+  const t = useT();
+
+  return (
   <div className="space-y-5">
-    <h1 className="text-xl font-bold text-gray-900">Kế hoạch theo Lớp 📅</h1>
+    <h1 className="text-xl font-bold text-gray-900">
+      {t("Kế hoạch theo Lớp")} 📅
+    </h1>
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
       {[
         {
@@ -1300,7 +1320,7 @@ export const StudentPlanGrade = () => (
             <span className="font-bold text-sm">{plan.grade}</span>
             {plan.active && (
               <span className="text-xs bg-white/30 px-2 py-0.5 rounded-full font-bold">
-                Đang thực hiện
+                {t("Đang thực hiện")}
               </span>
             )}
           </div>
@@ -1323,9 +1343,11 @@ export const StudentPlanGrade = () => (
       ))}
     </div>
   </div>
-);
+  );
+};
 
 export const StudentPlanPathways = () => {
+  const t = useT();
   const pathways = [
     {
       emoji: "💻",
@@ -1367,11 +1389,10 @@ export const StudentPlanPathways = () => {
   return (
     <div className="space-y-5">
       <h1 className="text-xl font-bold text-gray-900">
-        Lộ trình Ngành nghề 🗺️
+        {t("Lộ trình Ngành nghề")} 🗺️
       </h1>
       <p className="text-sm text-gray-500">
-        3 con đường nghề nghiệp phù hợp nhất với bạn, được cá nhân hoá dựa trên
-        hồ sơ của bạn.
+        {t("3 con đường nghề nghiệp phù hợp nhất với bạn, được cá nhân hoá dựa trên hồ sơ của bạn.")}
       </p>
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         {pathways.map((p, i) => (
@@ -1387,7 +1408,7 @@ export const StudentPlanPathways = () => {
                   <div className="flex items-center gap-2">
                     {i === 0 && (
                       <span className="text-xs font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full">
-                        ⭐ Phù hợp nhất
+                        ⭐ {t("Phù hợp nhất")}
                       </span>
                     )}
                   </div>

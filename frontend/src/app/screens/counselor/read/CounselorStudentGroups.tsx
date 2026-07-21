@@ -130,6 +130,7 @@ import {
   resolveStudentProfile,
   type StudentProfileRecord,
 } from "../../../logic/studentProfile";
+import { useT } from "../../../i18n";
 
 /* ── Student Groups ── */
 
@@ -273,6 +274,7 @@ export const CounselorStudentGroups = ({
 }: {
   navigate: (v: string, params?: { studentId?: string }) => void;
 }) => {
+  const t = useT();
   const { studentsInClass } = useAppData();
   const [groupStudents, setGroupStudents] =
     useState<StudentProfileRecord[]>(studentsInClass);
@@ -353,8 +355,8 @@ export const CounselorStudentGroups = ({
         <div>
           <h1 className="text-xl font-bold text-gray-900">
             {selectedGroupMeta
-              ? `Danh sách học sinh nhóm ${selectedGroupMeta.name}`
-              : "Nhóm Học sinh theo RIASEC"}
+              ? `${t("Danh sách học sinh nhóm")} ${selectedGroupMeta.name}`
+              : t("Nhóm Học sinh theo RIASEC")}
           </h1>
         </div>
 
@@ -363,7 +365,8 @@ export const CounselorStudentGroups = ({
             onClick={() => setSelectedGroup(null)}
             className="px-3 py-1.5 rounded-xl bg-white border border-gray-200 text-gray-700 text-xs font-bold hover:bg-gray-50 flex items-center gap-1.5"
           >
-            <ArrowRight size={12} className="rotate-180" /> Quay lại 6 nhóm
+            <ArrowRight size={12} className="rotate-180" />{" "}
+            {t("Quay lại 6 nhóm")}
           </button>
         ) : null}
       </div>
@@ -378,7 +381,7 @@ export const CounselorStudentGroups = ({
         <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
           <div className="w-10 h-10 rounded-full border-4 border-indigo-100 border-t-indigo-600 animate-spin mx-auto mb-3" />
           <p className="text-sm font-semibold text-gray-700">
-            Đang tải dữ liệu nhóm học sinh từ database...
+            {t("Đang tải dữ liệu nhóm học sinh từ database...")}
           </p>
         </div>
       )}
@@ -405,12 +408,12 @@ export const CounselorStudentGroups = ({
                     <h3 className="font-bold text-gray-800 text-sm truncate">
                       {g.id} - {g.name}
                     </h3>
-                    <p className="text-xs text-gray-500 mt-0.5">{g.label}</p>
+                    <p className="text-xs text-gray-500 mt-0.5">{t(g.label)}</p>
 
                     <p className="text-2xl font-black text-gray-900">
                       {g.count}{" "}
                       <span className="text-sm font-normal text-gray-500">
-                        học sinh
+                        {t("học sinh")}
                       </span>
                     </p>
                   </div>
@@ -419,12 +422,12 @@ export const CounselorStudentGroups = ({
                 <div className="flex items-center gap-2 mb-3">
                   {g.conflicts > 0 && (
                     <span className="text-xs bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold">
-                      {g.conflicts} conflict
+                      {g.conflicts} {t("conflict")}
                     </span>
                   )}
                   {g.warnings > g.conflicts && (
                     <span className="text-xs bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full font-bold">
-                      {g.warnings - g.conflicts} thiếu dữ liệu
+                      {g.warnings - g.conflicts} {t("thiếu dữ liệu")}
                     </span>
                   )}
                 </div>
@@ -442,7 +445,7 @@ export const CounselorStudentGroups = ({
 
                     {g.count > 3 && (
                       <span className="text-xs text-gray-400 px-1">
-                        +{g.count - 3} khác
+                        +{g.count - 3} {t("khác")}
                       </span>
                     )}
                   </div>
@@ -457,7 +460,7 @@ export const CounselorStudentGroups = ({
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="p-4 border-b border-gray-100">
           <h3 className="font-bold text-gray-800">
-            Danh sách học sinh nhóm {selectedGroupMeta?.name}
+            {t("Danh sách học sinh nhóm")} {selectedGroupMeta?.name}
           </h3>
         </div>
 
@@ -476,7 +479,7 @@ export const CounselorStudentGroups = ({
                     key={header}
                     className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide"
                   >
-                    {header}
+                    {t(header)}
                   </th>
                 ))}
               </tr>
@@ -501,7 +504,7 @@ export const CounselorStudentGroups = ({
                     </td>
                     <td className="py-3 px-4 text-gray-700">
                       {row.exploredCareer || (
-                        <span className="text-gray-400">Chưa có</span>
+                        <span className="text-gray-400">{t("Chưa có")}</span>
                       )}
                     </td>
                     <td className="py-3 px-4 text-gray-700">
@@ -514,7 +517,7 @@ export const CounselorStudentGroups = ({
                       >
                         {row.recommendedCareer || (
                           <span className="text-gray-400">
-                            {row.error ? "Lỗi recommend" : "Chưa có"}
+                            {row.error ? t("Lỗi recommend") : t("Chưa có")}
                           </span>
                         )}
                       </span>
@@ -527,7 +530,7 @@ export const CounselorStudentGroups = ({
                                 (group) => group.id === row.groupId,
                               )?.name
                             }`
-                          : "Chưa xác định"}
+                          : t("Chưa xác định")}
                       </span>
                     </td>
                     <td className="py-3 px-4 text-right">
@@ -538,7 +541,7 @@ export const CounselorStudentGroups = ({
                           })
                         }
                         className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-blue-50 text-blue-700 hover:bg-blue-100"
-                        title="Xem chi tiết học sinh"
+                        title={t("Xem chi tiết học sinh")}
                       >
                         <UserCheck size={15} />
                       </button>
@@ -552,7 +555,7 @@ export const CounselorStudentGroups = ({
                     colSpan={5}
                     className="py-8 px-4 text-center text-sm text-gray-400"
                   >
-                    Chưa có học sinh trong nhóm này.
+                    {t("Chưa có học sinh trong nhóm này.")}
                   </td>
                 </tr>
               )}
@@ -566,10 +569,10 @@ export const CounselorStudentGroups = ({
         <div className="bg-white rounded-2xl border border-amber-100 shadow-sm overflow-hidden">
           <div className="p-4 border-b border-amber-100 bg-amber-50">
             <h3 className="font-bold text-amber-800">
-              Học sinh chưa phân được vào 6 nhóm
+              {t("Học sinh chưa phân được vào 6 nhóm")}
             </h3>
             <p className="text-xs text-amber-700 mt-0.5">
-              Các học sinh này thiếu cả nghề explore và nhóm recommend hợp lệ.
+              {t("Các học sinh này thiếu cả nghề explore và nhóm recommend hợp lệ.")}
             </p>
           </div>
           <div className="divide-y divide-gray-50">
@@ -590,7 +593,7 @@ export const CounselorStudentGroups = ({
                   </div>
                 </div>
                 <span className="text-xs font-bold px-2 py-1 rounded-lg bg-amber-100 text-amber-700">
-                  Thiếu dữ liệu phân nhóm
+                  {t("Thiếu dữ liệu phân nhóm")}
                 </span>
               </div>
             ))}

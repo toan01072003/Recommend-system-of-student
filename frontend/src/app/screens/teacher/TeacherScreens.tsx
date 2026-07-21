@@ -111,10 +111,12 @@ import {
   buildStudentSkillRadar,
   scoreTone,
 } from "../../logic/recommendation";
+import { useT } from "../../i18n";
 
 // ── Screen 6: Teacher Data Entry ─────────────────────────────────────────────
 
 export const TeacherEntry = () => {
+  const t = useT();
   const [autosaved, setAutosaved] = useState(false);
 
   const markSaved = () => setAutosaved(true);
@@ -123,11 +125,11 @@ export const TeacherEntry = () => {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-gray-900">
-          Nhập dữ liệu học sinh
+          {t("Nhập dữ liệu học sinh")}
         </h1>
 
         <p className="text-sm text-gray-500 mt-0.5">
-          Lớp 9A · Lưu tự động khi thay đổi
+          {t("Lớp 9A")} · {t("Lưu tự động khi thay đổi")}
         </p>
       </div>
 
@@ -143,7 +145,7 @@ export const TeacherEntry = () => {
 
           {autosaved && (
             <div className="ml-auto flex items-center gap-1.5 text-xs text-green-600 bg-green-50 px-3 py-1.5 rounded-lg border border-green-100">
-              <CheckCircle size={12} /> Đã lưu tự động
+              <CheckCircle size={12} /> {t("Đã lưu tự động")}
             </div>
           )}
         </div>
@@ -159,7 +161,7 @@ export const TeacherEntry = () => {
           ].map((sub) => (
             <div key={sub}>
               <label className="block text-sm font-medium text-gray-700 mb-1.5">
-                Điểm {sub}
+                {t("Điểm")} {t(sub)}
               </label>
 
               <input
@@ -183,7 +185,7 @@ export const TeacherEntry = () => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-2">
-            Môn học nổi bật
+            {t("Môn học nổi bật")}
           </label>
 
           <div className="flex flex-wrap gap-2">
@@ -203,7 +205,7 @@ export const TeacherEntry = () => {
 
                 className="px-3 py-1.5 text-sm border-2 border-gray-200 rounded-full hover:border-blue-400 hover:bg-blue-50 hover:text-blue-700 transition-colors font-medium"
               >
-                {s}
+                {t(s)}
               </button>
             ))}
           </div>
@@ -211,7 +213,7 @@ export const TeacherEntry = () => {
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Hoạt động ngoại khóa
+            {t("Hoạt động ngoại khóa")}
           </label>
 
           <input
@@ -219,13 +221,13 @@ export const TeacherEntry = () => {
 
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
 
-            placeholder="VD: CLB Toán, CLB Robotics, Đội tuyển học sinh giỏi..."
+            placeholder={t("VD: CLB Toán, CLB Robotics, Đội tuyển học sinh giỏi...")}
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Thành tích & Giải thưởng
+            {t("Thành tích & Giải thưởng")}
           </label>
 
           <input
@@ -233,13 +235,13 @@ export const TeacherEntry = () => {
 
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
 
-            placeholder="VD: Giải Nhì Toán cấp Quận 2024, Học sinh giỏi..."
+            placeholder={t("VD: Giải Nhì Toán cấp Quận 2024, Học sinh giỏi...")}
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Nhận xét học tập
+            {t("Nhận xét học tập")}
           </label>
 
           <textarea
@@ -249,13 +251,13 @@ export const TeacherEntry = () => {
 
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
 
-            placeholder="Học sinh có tư duy logic tốt, nổi bật ở Toán và Tin học..."
+            placeholder={t("Học sinh có tư duy logic tốt, nổi bật ở Toán và Tin học...")}
           />
         </div>
 
         <div>
           <label className="block text-sm font-medium text-gray-700 mb-1.5">
-            Nhận xét hành vi học tập
+            {t("Nhận xét hành vi học tập")}
           </label>
 
           <textarea
@@ -265,21 +267,21 @@ export const TeacherEntry = () => {
 
             className="w-full px-3 py-2 border border-gray-200 rounded-lg text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
 
-            placeholder="Chủ động, nghiêm túc, tích cực tham gia thảo luận..."
+            placeholder={t("Chủ động, nghiêm túc, tích cực tham gia thảo luận...")}
           />
         </div>
 
         <div className="flex gap-3 pt-2 border-t border-gray-100">
           <button className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50">
-            Lưu nháp
+            {t("Lưu nháp")}
           </button>
 
           <button className="px-4 py-2.5 border border-blue-200 bg-blue-50 rounded-xl text-sm font-semibold text-blue-700 hover:bg-blue-100 flex items-center gap-2">
-            <MessageSquare size={14} /> Gửi cố vấn
+            <MessageSquare size={14} /> {t("Gửi cố vấn")}
           </button>
 
           <button className="ml-auto px-5 py-2.5 bg-[#EA580C] text-white rounded-xl text-sm font-bold hover:bg-[#C2410C] flex items-center gap-2">
-            <Save size={14} /> Hoàn tất cập nhật
+            <Save size={14} /> {t("Hoàn tất cập nhật")}
           </button>
         </div>
       </div>
@@ -290,6 +292,7 @@ export const TeacherEntry = () => {
 // ── Screen 7: Counseling Workspace ───────────────────────────────────────────
 
 export const CounselingWorkspace = () => {
+  const t = useT();
   const [note, setNote] = useState("");
 
   const plans = [
@@ -342,7 +345,7 @@ export const CounselingWorkspace = () => {
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Không gian Tư vấn</h1>
+        <h1 className="text-xl font-bold text-gray-900">{t("Không gian Tư vấn")}</h1>
 
         <p className="text-sm text-gray-500 mt-0.5">
           Nguyễn Minh Anh · HS001 · Lớp 9A
@@ -353,7 +356,7 @@ export const CounselingWorkspace = () => {
         <div className="lg:col-span-2 space-y-5">
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-4">
-              Kế hoạch hành động
+              {t("Kế hoạch hành động")}
             </h3>
 
             <div className="space-y-3">
@@ -387,7 +390,7 @@ export const CounselingWorkspace = () => {
 
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-3">
-              Ghi chú buổi tư vấn hôm nay
+              {t("Ghi chú buổi tư vấn hôm nay")}
             </h3>
 
             <textarea
@@ -397,18 +400,18 @@ export const CounselingWorkspace = () => {
 
               rows={4}
 
-              placeholder="Ghi lại nội dung, kết quả và cam kết của buổi tư vấn hôm nay..."
+              placeholder={t("Ghi lại nội dung, kết quả và cam kết của buổi tư vấn hôm nay...")}
 
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
 
             <div className="flex justify-end gap-2 mt-3">
               <button className="px-4 py-2 border border-gray-200 rounded-xl text-sm text-gray-600 hover:bg-gray-50 font-medium">
-                Hủy
+                {t("Hủy")}
               </button>
 
               <button className="px-4 py-2 bg-[#EA580C] text-white rounded-xl text-sm font-bold hover:bg-[#C2410C] flex items-center gap-2">
-                <Save size={13} /> Lưu ghi chú
+                <Save size={13} /> {t("Lưu ghi chú")}
               </button>
             </div>
           </div>
@@ -417,7 +420,7 @@ export const CounselingWorkspace = () => {
         <div className="space-y-4">
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-3">
-              Gợi ý hành động
+              {t("Gợi ý hành động")}
             </h3>
 
             <div className="space-y-1.5">
@@ -455,7 +458,7 @@ export const CounselingWorkspace = () => {
 
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-3">
-              Kết quả bài test
+              {t("Kết quả bài test")}
             </h3>
 
             <div className="space-y-2.5">

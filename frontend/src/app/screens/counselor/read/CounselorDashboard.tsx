@@ -130,6 +130,7 @@ import {
   resolveStudentProfile,
   type StudentProfileRecord,
 } from "../../../logic/studentProfile";
+import { useLanguage } from "../../../i18n";
 
 /* ── Dashboard ── */
 
@@ -176,6 +177,7 @@ export const CounselorDashboard = ({
 }: {
   navigate: (v: string, params?: { studentId?: string }) => void;
 }) => {
+  const { language, t } = useLanguage();
   const { studentsInClass, gradeData } = useAppData();
   const [showSupportModal, setShowSupportModal] = useState(false);
   const [selectedSupportStudent, setSelectedSupportStudent] = useState<
@@ -221,6 +223,30 @@ export const CounselorDashboard = ({
     })
     .sort((a, b) => meetingDate(a).getTime() - meetingDate(b).getTime())
     .slice(0, 5);
+  const formatMeetingTime = (value: string) => {
+    if (language === "vi") return formatDashboardMeetingTime(value);
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    const time = date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    if (sameCalendarDay(date, now)) return `Today ${time}`;
+    if (sameCalendarDay(date, tomorrow)) return `Tomorrow ${time}`;
+
+    return date.toLocaleDateString("en-US", {
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   useEffect(() => {
     const controller = new AbortController();
@@ -270,13 +296,13 @@ export const CounselorDashboard = ({
     if (!selectedSupportStudent) return;
     if (!supportSchedule) {
       setSupportActionStatus("error");
-      setSupportActionNotice("Vui lòng chọn thời gian hẹn gặp.");
+      setSupportActionNotice(t("Vui lòng chọn thời gian hẹn gặp."));
       return;
     }
     const meetingUrl = supportMeetingUrl.trim();
     if (supportMeetingType === "online" && !meetingUrl) {
       setSupportActionStatus("error");
-      setSupportActionNotice("Vui lòng nhập link meeting online.");
+      setSupportActionNotice(t("Vui lòng nhập link meeting online."));
       return;
     }
 
@@ -294,14 +320,18 @@ export const CounselorDashboard = ({
       .then((payload) => {
         setMeetings((current) => [payload.meeting, ...current]);
         setSupportActionStatus("idle");
-        setSupportActionNotice(`Đã tạo lịch hẹn với ${selectedSupportStudent.name}.`);
+        setSupportActionNotice(
+          language === "en"
+            ? `Created a meeting with ${selectedSupportStudent.name}.`
+            : `Đã tạo lịch hẹn với ${selectedSupportStudent.name}.`,
+        );
         setSupportSchedule(toDateTimeLocalValue(new Date(Date.now() + 24 * 60 * 60 * 1000)));
         setSupportMeetingType("offline");
         setSupportMeetingUrl("");
       })
       .catch((error) => {
         setSupportActionStatus("error");
-        setSupportActionNotice(error.message || "Không tạo được lịch hẹn.");
+        setSupportActionNotice(error.message || t("Không tạo được lịch hẹn."));
       });
   };
 
@@ -319,7 +349,7 @@ export const CounselorDashboard = ({
         </p>
 
         <p className="text-xs text-gray-500 font-mono">
-          {student.id} · Hồ sơ {student.progress}%
+          {student.id} · {t("Hồ sơ")} {student.progress}%
         </p>
       </div>
 
@@ -352,10 +382,12 @@ export const CounselorDashboard = ({
   return (
     <div className="space-y-5">
       <div>
-        <h1 className="text-xl font-bold text-gray-900">Dashboard Cố vấn 📋</h1>
+        <h1 className="text-xl font-bold text-gray-900">
+          {t("Dashboard Cố vấn")} 📋
+        </h1>
 
         <p className="text-sm text-gray-500 mt-0.5">
-          Tổng quan hoạt động học sinh · Năm học 2024–2025
+          {t("Tổng quan hoạt động học sinh")} · {t("Năm học 2024–2025")}
         </p>
       </div>
 
@@ -363,7 +395,11 @@ export const CounselorDashboard = ({
         <StatCard
           title="Học sinh quản lý"
           value={`${managedStudents}`}
-          sub={`${managedClasses} lớp, ${gradeData.length} khối`}
+          sub={
+            language === "en"
+              ? `${managedClasses} classes, ${gradeData.length} grades`
+              : `${managedClasses} lớp, ${gradeData.length} khối`
+          }
           icon={Users}
           color="blue"
         />
@@ -371,7 +407,7 @@ export const CounselorDashboard = ({
         <StatCard
           title="Bài học đã giao"
           value="24"
-          sub="18 đã hoàn thành"
+          sub={language === "en" ? "18 completed" : "18 đã hoàn thành"}
           icon={BookOpen}
           color="green"
         />
@@ -395,7 +431,9 @@ export const CounselorDashboard = ({
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-4">Hoạt động trong tuần</h3>
+          <h3 className="font-bold text-gray-800 mb-4">
+            {t("Hoạt động trong tuần")}
+          </h3>
 
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={weeklyActivity} barSize={14}>
@@ -428,7 +466,7 @@ export const CounselorDashboard = ({
                 dataKey="lessons"
                 fill="#3B82F6"
                 radius={[4, 4, 0, 0]}
-                name="Bài học"
+                name={t("Bài học")}
               />
 
               <Bar
@@ -436,7 +474,7 @@ export const CounselorDashboard = ({
                 dataKey="surveys"
                 fill="#F59E0B"
                 radius={[4, 4, 0, 0]}
-                name="Khảo sát"
+                name={t("Khảo sát")}
               />
             </BarChart>
           </ResponsiveContainer>
@@ -444,18 +482,20 @@ export const CounselorDashboard = ({
           <div className="flex gap-4 mt-2 justify-center">
             <div className="flex items-center gap-1.5 text-xs text-gray-600">
               <div className="w-3 h-3 rounded bg-blue-500" />
-              Bài học
+              {t("Bài học")}
             </div>
 
             <div className="flex items-center gap-1.5 text-xs text-gray-600">
               <div className="w-3 h-3 rounded bg-amber-400" />
-              Khảo sát
+              {t("Khảo sát")}
             </div>
           </div>
         </div>
 
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-          <h3 className="font-bold text-gray-800 mb-4">Tiến độ theo khối</h3>
+          <h3 className="font-bold text-gray-800 mb-4">
+            {t("Tiến độ theo khối")}
+          </h3>
 
           <div className="space-y-3">
             {gradeCompletionData.map((g) => {
@@ -488,7 +528,7 @@ export const CounselorDashboard = ({
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between gap-3 mb-3">
             <h3 className="font-bold text-gray-800">
-              🔴 Học sinh cần hỗ trợ ngay
+              🔴 {t("Học sinh cần hỗ trợ ngay")}
             </h3>
 
             {supportStudents.length > supportPreview.length && (
@@ -496,7 +536,7 @@ export const CounselorDashboard = ({
                 onClick={() => setShowSupportModal(true)}
                 className="text-xs font-bold text-red-600 hover:text-red-700"
               >
-                Xem thêm
+                {t("Xem thêm")}
               </button>
             )}
           </div>
@@ -504,7 +544,7 @@ export const CounselorDashboard = ({
           <div className="space-y-2.5">
             {supportPreview.length === 0 ? (
               <p className="text-sm text-gray-500">
-                Chưa có học sinh nào cần hỗ trợ ngay.
+                {t("Chưa có học sinh nào cần hỗ trợ ngay.")}
               </p>
             ) : (
               supportPreview.map(renderSupportStudent)
@@ -516,7 +556,9 @@ export const CounselorDashboard = ({
               onClick={() => setShowSupportModal(true)}
               className="mt-3 w-full rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-sm font-bold text-red-700 hover:bg-red-100"
             >
-              Xem toàn bộ {supportStudents.length} học sinh
+              {language === "en"
+                ? `View all ${supportStudents.length} students`
+                : `Xem toàn bộ ${supportStudents.length} học sinh`}
             </button>
           )}
         </div>
@@ -524,28 +566,28 @@ export const CounselorDashboard = ({
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
           <div className="flex items-center justify-between gap-3 mb-3">
             <h3 className="font-bold text-gray-800">
-              📅 Lịch tư vấn sắp tới
+              📅 {t("Lịch tư vấn sắp tới")}
             </h3>
             <button
               onClick={() => navigate("co-meeting")}
               className="text-xs font-bold text-blue-600 hover:text-blue-700"
             >
-              Xem lịch
+              {t("Xem lịch")}
             </button>
           </div>
 
           <div className="space-y-2.5">
             {meetingsStatus === "loading" ? (
               <p className="rounded-xl bg-gray-50 px-3 py-4 text-sm text-gray-500">
-                Đang tải lịch tư vấn từ database...
+                {t("Đang tải lịch tư vấn từ database...")}
               </p>
             ) : meetingsStatus === "error" ? (
               <p className="rounded-xl bg-red-50 px-3 py-4 text-sm font-semibold text-red-700">
-                Không tải được lịch tư vấn từ database.
+                {t("Không tải được lịch tư vấn từ database.")}
               </p>
             ) : upcomingMeetings.length === 0 ? (
               <p className="rounded-xl bg-gray-50 px-3 py-4 text-sm text-gray-500">
-                Chưa có lịch tư vấn sắp tới.
+                {t("Chưa có lịch tư vấn sắp tới.")}
               </p>
             ) : (
               upcomingMeetings.map((meeting) => (
@@ -577,7 +619,7 @@ export const CounselorDashboard = ({
                     </p>
 
                     <p className="text-xs text-gray-500">
-                      {formatDashboardMeetingTime(meeting.scheduledAt)} ·{" "}
+                      {formatMeetingTime(meeting.scheduledAt)} ·{" "}
                       {meeting.className}
                     </p>
                   </div>
@@ -605,10 +647,12 @@ export const CounselorDashboard = ({
             <div className="flex items-start justify-between gap-3 border-b border-gray-100 px-5 py-4">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">
-                  Học sinh cần hỗ trợ ngay
+                  {t("Học sinh cần hỗ trợ ngay")}
                 </h2>
                 <p className="text-sm text-gray-500 mt-1">
-                  {supportStudents.length} học sinh medium/high risk
+                  {language === "en"
+                    ? `${supportStudents.length} medium/high risk students`
+                    : `${supportStudents.length} học sinh medium/high risk`}
                 </p>
               </div>
 
@@ -616,7 +660,7 @@ export const CounselorDashboard = ({
                 onClick={() => setShowSupportModal(false)}
                 className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50"
               >
-                Đóng
+                {t("Đóng")}
               </button>
             </div>
 
@@ -647,17 +691,17 @@ export const CounselorDashboard = ({
                 onClick={closeSupportActions}
                 className="px-3 py-1.5 rounded-lg border border-gray-200 text-xs font-bold text-gray-600 hover:bg-gray-50"
               >
-                Đóng
+                {t("Đóng")}
               </button>
             </div>
 
             <div className="mt-4 flex items-center justify-between gap-3 rounded-xl bg-red-50 border border-red-100 p-3">
               <div>
                 <p className="text-sm font-bold text-red-800">
-                  Hồ sơ {selectedSupportStudent.progress}%
+                  {t("Hồ sơ")} {selectedSupportStudent.progress}%
                 </p>
                 <p className="text-xs text-red-700 mt-0.5">
-                  Mức hỗ trợ hiện tại
+                  {t("Mức hỗ trợ hiện tại")}
                 </p>
               </div>
               <RiskBadge level={selectedSupportStudent.risk} />
@@ -674,8 +718,8 @@ export const CounselorDashboard = ({
                   className="text-left rounded-2xl border border-blue-100 bg-blue-50 p-4 text-blue-700 hover:bg-blue-100"
                 >
                   <Clock size={18} />
-                  <p className="font-bold text-sm mt-3">Lên lịch hẹn gặp</p>
-                  <p className="text-xs mt-1 opacity-80">Tạo lịch hỗ trợ</p>
+                  <p className="font-bold text-sm mt-3">{t("Lên lịch hẹn gặp")}</p>
+                  <p className="text-xs mt-1 opacity-80">{t("Tạo lịch hỗ trợ")}</p>
                 </button>
 
                 <button
@@ -683,8 +727,8 @@ export const CounselorDashboard = ({
                   className="text-left rounded-2xl border border-emerald-100 bg-emerald-50 p-4 text-emerald-700 hover:bg-emerald-100"
                 >
                   <MessageSquare size={18} />
-                  <p className="font-bold text-sm mt-3">Nhắn tin</p>
-                  <p className="text-xs mt-1 opacity-80">Mở Messenger</p>
+                  <p className="font-bold text-sm mt-3">{t("Nhắn tin")}</p>
+                  <p className="text-xs mt-1 opacity-80">{t("Mở Messenger")}</p>
                 </button>
 
                 <button
@@ -692,8 +736,8 @@ export const CounselorDashboard = ({
                   className="text-left rounded-2xl border border-amber-100 bg-amber-50 p-4 text-amber-700 hover:bg-amber-100"
                 >
                   <UserCheck size={18} />
-                  <p className="font-bold text-sm mt-3">Chi tiết</p>
-                  <p className="text-xs mt-1 opacity-80">Xem hồ sơ</p>
+                  <p className="font-bold text-sm mt-3">{t("Chi tiết")}</p>
+                  <p className="text-xs mt-1 opacity-80">{t("Xem hồ sơ")}</p>
                 </button>
               </div>
             ) : (
@@ -706,7 +750,7 @@ export const CounselorDashboard = ({
                   }}
                   className="text-xs font-bold text-blue-600 hover:text-blue-700"
                 >
-                  Quay lại lựa chọn
+                  {t("Quay lại lựa chọn")}
                 </button>
 
                 {supportActionNotice && (
@@ -724,7 +768,7 @@ export const CounselorDashboard = ({
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <label className="space-y-1.5">
                     <span className="text-xs font-bold text-gray-500">
-                      Thời gian
+                      {t("Thời gian")}
                     </span>
                     <input
                       type="datetime-local"
@@ -736,23 +780,29 @@ export const CounselorDashboard = ({
 
                   <label className="space-y-1.5">
                     <span className="text-xs font-bold text-gray-500">
-                      Chủ đề
+                      {t("Chủ đề")}
                     </span>
                     <select
                       value={supportTopic}
                       onChange={(event) => setSupportTopic(event.target.value)}
                       className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                     >
-                      <option>Định hướng nghề nghiệp</option>
-                      <option>Review wellbeing</option>
-                      <option>Trao đổi với phụ huynh</option>
-                      <option>Điều chỉnh kế hoạch học tập</option>
+                      <option value="Định hướng nghề nghiệp">
+                        {t("Định hướng nghề nghiệp")}
+                      </option>
+                      <option value="Review wellbeing">Review wellbeing</option>
+                      <option value="Trao đổi với phụ huynh">
+                        {t("Trao đổi với phụ huynh")}
+                      </option>
+                      <option value="Điều chỉnh kế hoạch học tập">
+                        {t("Điều chỉnh kế hoạch học tập")}
+                      </option>
                     </select>
                   </label>
 
                   <label className="space-y-1.5">
                     <span className="text-xs font-bold text-gray-500">
-                      Loại hẹn gặp
+                      {t("Loại hẹn gặp")}
                     </span>
                     <select
                       value={supportMeetingType}
@@ -797,7 +847,7 @@ export const CounselorDashboard = ({
                     className="px-3 py-2 rounded-xl bg-blue-600 text-white text-xs font-bold hover:bg-blue-700 disabled:opacity-50 flex items-center gap-1.5"
                   >
                     <Save size={13} />
-                    {supportActionStatus === "saving" ? "Đang tạo" : "Tạo lịch"}
+                    {supportActionStatus === "saving" ? t("Đang tạo") : t("Tạo lịch")}
                   </button>
                 </div>
               </div>

@@ -130,6 +130,7 @@ import {
   resolveStudentProfile,
   type StudentProfileRecord,
 } from "../../../logic/studentProfile";
+import { useT } from "../../../i18n";
 
 export const CounselorReportBase = ({
   title,
@@ -137,16 +138,23 @@ export const CounselorReportBase = ({
 }: {
   title: string;
   children: React.ReactNode;
-}) => (
-  <div className="space-y-5">
-    <h1 className="text-xl font-bold text-gray-900">{title}</h1>
+}) => {
+  const t = useT();
 
-    {children}
-  </div>
-);
+  return (
+    <div className="space-y-5">
+      <h1 className="text-xl font-bold text-gray-900">{t(title)}</h1>
 
-export const CounselorReportStudentWork = () => (
-  <CounselorReportBase title="📋 Student Work">
+      {children}
+    </div>
+  );
+};
+
+export const CounselorReportStudentWork = () => {
+  const t = useT();
+
+  return (
+  <CounselorReportBase title="📋 Bài làm học sinh">
     <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
       {[
         ["Bài nộp", "312", "Tổng cộng"],
@@ -158,16 +166,16 @@ export const CounselorReportStudentWork = () => (
           key={i}
           className={`rounded-2xl p-5 text-white bg-gradient-to-br ${["from-blue-500 to-indigo-500", "from-emerald-500 to-teal-400", "from-amber-400 to-orange-500", "from-red-400 to-rose-500"][i]}`}
         >
-          <p className="text-white/70 text-xs">{l}</p>
+          <p className="text-white/70 text-xs">{t(l)}</p>
           <p className="text-3xl font-black">{v}</p>
-          <p className="text-white/70 text-xs">{s}</p>
+          <p className="text-white/70 text-xs">{t(s)}</p>
         </div>
       ))}
     </div>
 
     <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
       <h3 className="font-bold text-gray-800 mb-4">
-        Tiến độ nộp bài theo tuần
+        {t("Tiến độ nộp bài theo tuần")}
       </h3>
 
       <ResponsiveContainer width="100%" height={180}>
@@ -224,13 +232,15 @@ export const CounselorReportStudentWork = () => (
       </ResponsiveContainer>
     </div>
   </CounselorReportBase>
-);
+  );
+};
 
 export const CounselorReportEngagement = () => {
+  const t = useT();
   const { studentsInClass } = useAppData();
 
   return (
-    <CounselorReportBase title="📊 Engagement">
+    <CounselorReportBase title="📊 Tương tác">
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           ["Đăng nhập/tuần", "4.2 lần", "Trung bình"],
@@ -242,16 +252,16 @@ export const CounselorReportEngagement = () => {
             key={i}
             className={`rounded-2xl p-5 text-white bg-gradient-to-br ${["from-violet-500 to-purple-500", "from-blue-500 to-sky-400", "from-emerald-500 to-teal-400", "from-orange-500 to-amber-400"][i]}`}
           >
-            <p className="text-white/70 text-xs">{l}</p>
+            <p className="text-white/70 text-xs">{t(l)}</p>
             <p className="text-2xl font-black">{v}</p>
-            <p className="text-white/70 text-xs">{s}</p>
+            <p className="text-white/70 text-xs">{t(s)}</p>
           </div>
         ))}
       </div>
 
       <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
         <h3 className="font-bold text-gray-800 mb-4">
-          Học sinh ít tương tác nhất
+          {t("Học sinh ít tương tác nhất")}
         </h3>
 
         <div className="space-y-2.5">
@@ -270,7 +280,7 @@ export const CounselorReportEngagement = () => {
                     {s.name}
                   </p>
                   <p className="text-xs text-gray-500">
-                    Hồ sơ {s.progress}% · {s.testStatus}
+                    {t("Hồ sơ")} {s.progress}% · {t(s.testStatus)}
                   </p>
                 </div>
 
@@ -283,12 +293,15 @@ export const CounselorReportEngagement = () => {
   );
 };
 
-export const CounselorReportCollegePlanning = () => (
-  <CounselorReportBase title="🎓 College Planning">
+export const CounselorReportCollegePlanning = () => {
+  const t = useT();
+
+  return (
+  <CounselorReportBase title="🎓 Kế hoạch đại học">
     <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
       <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
         <h3 className="font-bold text-gray-800 mb-4">
-          Xu hướng trường mục tiêu
+          {t("Xu hướng trường mục tiêu")}
         </h3>
 
         <div className="space-y-2.5">
@@ -320,7 +333,7 @@ export const CounselorReportCollegePlanning = () => (
       </div>
 
       <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-        <h3 className="font-bold text-gray-800 mb-4">Phân bố ngành mục tiêu</h3>
+        <h3 className="font-bold text-gray-800 mb-4">{t("Phân bố ngành mục tiêu")}</h3>
 
         <div className="space-y-2.5">
           {[
@@ -337,7 +350,7 @@ export const CounselorReportCollegePlanning = () => (
               />
 
               <span className="text-xs text-gray-600 flex-1">
-                {f as string}
+                {t(f as string)}
               </span>
 
               <span className="text-xs font-bold text-gray-700">
@@ -349,7 +362,7 @@ export const CounselorReportCollegePlanning = () => (
       </div>
 
       <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-        <h3 className="font-bold text-gray-800 mb-4">Trạng thái hồ sơ ĐH</h3>
+        <h3 className="font-bold text-gray-800 mb-4">{t("Trạng thái hồ sơ ĐH")}</h3>
 
         <div className="space-y-3">
           {[
@@ -359,8 +372,8 @@ export const CounselorReportCollegePlanning = () => (
           ].map(([l, n, c]) => (
             <div key={l as string}>
               <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-600">{l as string}</span>
-                <span className="font-bold">{n as number} HS</span>
+                <span className="text-gray-600">{t(l as string)}</span>
+                <span className="font-bold">{n as number} {t("HS")}</span>
               </div>
 
               <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
@@ -375,5 +388,6 @@ export const CounselorReportCollegePlanning = () => (
       </div>
     </div>
   </CounselorReportBase>
-);
+  );
+};
 

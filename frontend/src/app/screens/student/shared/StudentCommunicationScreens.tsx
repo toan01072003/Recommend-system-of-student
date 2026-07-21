@@ -129,6 +129,7 @@ import {
   type MessageRecord,
   type MessageRole,
 } from "../../../api/client";
+import { useLanguage } from "../../../i18n";
 
 type MeetingViewMode = "day" | "week" | "month";
 
@@ -254,6 +255,7 @@ export const MessengerView = ({
   role: string;
   initialStudentId?: string;
 }) => {
+  const { t } = useLanguage();
   const currentRole: MessageRole = role === "student" ? "student" : "counselor";
   const { studentsInClass: appStudents } = useAppData();
   const [studentPortalId] = useState(() =>
@@ -327,10 +329,10 @@ export const MessengerView = ({
         id: student.id,
         studentId: student.id,
         name: student.name,
-        role: `Học sinh lớp ${student.className}`,
+        role: `${t("Học sinh lớp")} ${student.className}`,
         className: student.className,
         avatar: student.name.charAt(student.name.lastIndexOf(" ") + 1),
-        lastMsg: last?.text || "Chưa có tin nhắn",
+        lastMsg: last?.text || t("Chưa có tin nhắn"),
         time: last ? formatMessageTime(last.sentAt) : "",
         unread,
       };
@@ -462,10 +464,10 @@ export const MessengerView = ({
       <div className="w-72 flex-shrink-0 border-r border-gray-100 flex flex-col">
         <div className="p-4 border-b border-gray-100">
           <div className="flex items-center justify-between gap-2 mb-3">
-            <h2 className="font-bold text-gray-900">Tin nhắn</h2>
+            <h2 className="font-bold text-gray-900">{t("Tin nhắn")}</h2>
             {totalUnread > 0 && (
               <span className="text-xs font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                {totalUnread} mới
+                {totalUnread} {t("mới")}
               </span>
             )}
           </div>
@@ -477,14 +479,14 @@ export const MessengerView = ({
             <input
               value={search}
               onChange={(e) => setSearch(e.target.value)}
-              placeholder="Tìm kiếm..."
+              placeholder={t("Tìm kiếm...")}
               className="w-full pl-8 pr-3 py-2 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-orange-400"
             />
           </div>
         </div>
         {status === "error" && (
           <div className="mx-3 mt-3 rounded-xl bg-red-50 border border-red-100 px-3 py-2 text-xs font-semibold text-red-700">
-            {error}
+            {t(error)}
           </div>
         )}
         <div className="flex-1 overflow-y-auto">
@@ -523,7 +525,9 @@ export const MessengerView = ({
             </button>
           ))}
           {status === "loading" && (
-            <div className="p-4 text-sm text-gray-500">Đang tải tin nhắn...</div>
+            <div className="p-4 text-sm text-gray-500">
+              {t("Đang tải tin nhắn...")}
+            </div>
           )}
         </div>
       </div>
@@ -545,7 +549,7 @@ export const MessengerView = ({
           </div>
           <div className="ml-auto flex items-center gap-1.5">
             <div className="w-2 h-2 bg-green-400 rounded-full" />
-            <span className="text-xs text-gray-500">Đang hoạt động</span>
+            <span className="text-xs text-gray-500">{t("Đang hoạt động")}</span>
           </div>
         </div>
 
@@ -553,7 +557,7 @@ export const MessengerView = ({
         <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4 bg-gray-50/50">
           {activeMessages.length === 0 ? (
             <div className="h-full flex items-center justify-center text-sm text-gray-400">
-              Chưa có tin nhắn. Hãy bắt đầu cuộc trò chuyện.
+              {t("Chưa có tin nhắn. Hãy bắt đầu cuộc trò chuyện.")}
             </div>
           ) : (
             activeMessages.map((msg) => {
@@ -585,8 +589,8 @@ export const MessengerView = ({
                         <>
                           {" · "}
                           {messageSeenByRecipient(msg, currentRole)
-                            ? "Đã xem"
-                            : "Đã gửi"}
+                            ? t("Đã xem")
+                            : t("Đã gửi")}
                         </>
                       )}
                     </span>
@@ -603,7 +607,7 @@ export const MessengerView = ({
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
-            placeholder="Nhập tin nhắn..."
+            placeholder={t("Nhập tin nhắn...")}
             className="flex-1 px-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:bg-white transition-colors"
           />
           <button
@@ -624,6 +628,7 @@ export const MeetingCenter = ({
 }: {
   role: "student" | "counselor";
 }) => {
+  const { t, formatDate, formatTime, formatDateTime } = useLanguage();
   const { studentsInClass: appStudents } = useAppData();
   const [viewMode, setViewMode] = useState<MeetingViewMode>("week");
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -834,11 +839,11 @@ export const MeetingCenter = ({
     <div className="space-y-5">
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Meeting</h1>
+          <h1 className="text-xl font-bold text-gray-900">{t("Lịch hẹn")}</h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {role === "student"
-              ? "Lịch hẹn hỗ trợ từ cố vấn hướng nghiệp"
-              : "Lịch hẹn hỗ trợ đã tạo cho học sinh"}
+              ? t("Lịch hẹn hỗ trợ từ cố vấn hướng nghiệp")
+              : t("Lịch hẹn hỗ trợ đã tạo cho học sinh")}
           </p>
         </div>
 
@@ -864,7 +869,7 @@ export const MeetingCenter = ({
                     : "text-gray-500 hover:bg-gray-50"
                 }`}
               >
-                {label}
+                {t(label)}
               </button>
             ))}
           </div>
@@ -879,10 +884,10 @@ export const MeetingCenter = ({
             </div>
             <div>
               <p className="text-sm font-bold">
-                Bạn có {newMeetings.length} lịch hẹn mới từ cố vấn.
+                {t("Bạn có")} {newMeetings.length} {t("lịch hẹn mới từ cố vấn.")}
               </p>
               <p className="text-xs mt-0.5 opacity-80">
-                Xem chi tiết trong calendar và danh sách lịch sắp tới bên dưới.
+                {t("Xem chi tiết trong calendar và danh sách lịch sắp tới bên dưới.")}
               </p>
             </div>
           </div>
@@ -891,23 +896,23 @@ export const MeetingCenter = ({
 
       {status === "error" && (
         <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
-          {error}
+          {t(error)}
         </div>
       )}
       {error && status !== "error" && (
         <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
-          {error}
+          {t(error)}
         </div>
       )}
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="font-bold text-gray-900">Tạo lịch meeting</h2>
+            <h2 className="font-bold text-gray-900">{t("Tạo lịch meeting")}</h2>
             <p className="text-xs text-gray-500 mt-0.5">
               {role === "student"
-                ? `Tạo lịch cho học sinh ${studentId}`
-                : "Chọn học sinh và điền thông tin lịch hẹn"}
+                ? `${t("Tạo lịch cho học sinh")} ${studentId}`
+                : t("Chọn học sinh và điền thông tin lịch hẹn")}
             </p>
           </div>
           {role === "counselor" && selectedFormStudent && (
@@ -921,18 +926,18 @@ export const MeetingCenter = ({
           <div className="grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] gap-3">
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                Tìm học sinh
+                {t("Tìm học sinh")}
               </label>
               <input
                 value={studentSearch}
                 onChange={(event) => setStudentSearch(event.target.value)}
                 className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100"
-                placeholder="Tên, mã học sinh hoặc lớp"
+                placeholder={t("Tên, mã học sinh hoặc lớp")}
               />
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                Chọn học sinh
+                {t("Chọn học sinh")}
               </label>
               <select
                 value={formStudentId}
@@ -952,7 +957,7 @@ export const MeetingCenter = ({
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-              Thời gian
+              {t("Thời gian")}
             </label>
             <input
               type="datetime-local"
@@ -963,18 +968,18 @@ export const MeetingCenter = ({
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-              Chủ đề meeting
+              {t("Chủ đề meeting")}
             </label>
             <input
               value={meetingTopic}
               onChange={(event) => setMeetingTopic(event.target.value)}
               className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-orange-100"
-              placeholder="VD: Tư vấn định hướng nghề nghiệp"
+              placeholder={t("VD: Tư vấn định hướng nghề nghiệp")}
             />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-              Loại hẹn gặp
+              {t("Loại hẹn gặp")}
             </label>
             <select
               value={meetingType}
@@ -988,7 +993,7 @@ export const MeetingCenter = ({
           {meetingType === "online" && (
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                Link meeting online
+                {t("Link meeting online")}
               </label>
               <input
                 value={meetingUrl}
@@ -1005,7 +1010,7 @@ export const MeetingCenter = ({
           className={`w-full lg:w-fit px-5 py-2.5 rounded-xl bg-gradient-to-r ${accent} text-white text-sm font-bold flex items-center justify-center gap-2 disabled:opacity-60`}
         >
           <Save size={15} />
-          {formStatus === "saving" ? "Đang lưu..." : "Save"}
+          {formStatus === "saving" ? t("Đang lưu...") : t("Lưu")}
         </button>
       </div>
 
@@ -1013,14 +1018,14 @@ export const MeetingCenter = ({
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-bold text-gray-900">Calendar</h2>
+              <h2 className="font-bold text-gray-900">{t("Calendar")}</h2>
               <p className="text-xs text-gray-500 mt-0.5">
-                {meetings.length} lịch hẹn
+                {meetings.length} {t("lịch hẹn")}
               </p>
             </div>
             {status === "loading" && (
               <span className="text-xs font-semibold text-gray-400">
-                Đang tải...
+                {t("Đang tải...")}
               </span>
             )}
           </div>
@@ -1051,7 +1056,7 @@ export const MeetingCenter = ({
                             : "text-gray-400"
                       }`}
                     >
-                      {date.toLocaleDateString("vi-VN", {
+                      {formatDate(date, {
                         weekday: viewMode === "month" ? undefined : "short",
                         day: "2-digit",
                         month: "2-digit",
@@ -1078,12 +1083,12 @@ export const MeetingCenter = ({
                             </p>
                             {meetingHasPassed(meeting) && !meeting.meetingNote && (
                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 flex-shrink-0">
-                                Chưa note
+                                {t("Chưa note")}
                               </span>
                             )}
                           </div>
                           <p className="text-[11px] opacity-80 mt-0.5">
-                            {meetingDate(meeting).toLocaleTimeString("vi-VN", {
+                            {formatTime(meetingDate(meeting), {
                               hour: "2-digit",
                               minute: "2-digit",
                             })}
@@ -1098,7 +1103,7 @@ export const MeetingCenter = ({
                     {dateMeetings.length > (viewMode === "month" ? 2 : 5) && (
                       <p className="text-[11px] text-gray-400 font-semibold">
                         +{dateMeetings.length - (viewMode === "month" ? 2 : 5)}{" "}
-                        lịch khác
+                        {t("lịch khác")}
                       </p>
                     )}
                   </div>
@@ -1110,18 +1115,18 @@ export const MeetingCenter = ({
 
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100">
-            <h2 className="font-bold text-gray-900">Lịch sắp tới</h2>
+            <h2 className="font-bold text-gray-900">{t("Lịch sắp tới")}</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {upcoming.length} lịch chưa diễn ra
+              {upcoming.length} {t("lịch chưa diễn ra")}
             </p>
           </div>
 
           <div className="divide-y divide-gray-50">
             {status === "loading" ? (
-              <div className="p-5 text-sm text-gray-500">Đang tải lịch...</div>
+              <div className="p-5 text-sm text-gray-500">{t("Đang tải lịch...")}</div>
             ) : upcoming.length === 0 ? (
               <div className="p-5 text-sm text-gray-500">
-                Chưa có lịch hẹn sắp tới.
+                {t("Chưa có lịch hẹn sắp tới.")}
               </div>
             ) : (
               upcoming.slice(0, 12).map((meeting) => (
@@ -1138,16 +1143,16 @@ export const MeetingCenter = ({
                         </p>
                         {role === "student" && !meeting.studentSeenAt && (
                           <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                            Mới
+                            {t("Mới")}
                           </span>
                         )}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        {formatMeetingDateTime(meeting.scheduledAt)}
+                        {formatDateTime(meeting.scheduledAt)}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {role === "student"
-                          ? `Cố vấn: ${meeting.counselorName}`
+                          ? `${t("Cố vấn")}: ${meeting.counselorName}`
                           : `${meeting.studentName} · ${meeting.className}`}
                       </p>
                       {meeting.meetingType === "online" && meeting.meetingUrl && (
@@ -1174,14 +1179,14 @@ export const MeetingCenter = ({
       </div>
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900">Lịch sử meeting</h2>
+          <h2 className="font-bold text-gray-900">{t("Lịch sử meeting")}</h2>
           <p className="text-xs text-gray-500 mt-0.5">
-            {history.length} lịch hẹn đã ghi nhận
+            {history.length} {t("lịch hẹn đã ghi nhận")}
           </p>
         </div>
         <div className="divide-y divide-gray-50">
           {history.length === 0 ? (
-            <div className="p-5 text-sm text-gray-500">Chưa có meeting nào.</div>
+            <div className="p-5 text-sm text-gray-500">{t("Chưa có meeting nào.")}</div>
           ) : (
             history.map((meeting) => {
               const passed = meetingHasPassed(meeting);
@@ -1204,20 +1209,20 @@ export const MeetingCenter = ({
                               : "bg-emerald-100 text-emerald-700"
                           }`}
                         >
-                          {passed ? "Đã diễn ra" : "Chưa diễn ra"}
+                        {passed ? t("Đã diễn ra") : t("Chưa diễn ra")}
                         </span>
                         {passed && !meeting.meetingNote && (
                           <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                            Chưa có note
+                            {t("Chưa có note")}
                           </span>
                         )}
                       </div>
                       <p className="text-xs text-gray-500 mt-1">
-                        {formatMeetingDateTime(meeting.scheduledAt)}
+                        {formatDateTime(meeting.scheduledAt)}
                       </p>
                       <p className="text-xs text-gray-500 mt-0.5">
                         {role === "student"
-                          ? `Cố vấn: ${meeting.counselorName}`
+                          ? `${t("Cố vấn")}: ${meeting.counselorName}`
                           : `${meeting.studentName} · ${meeting.className}`}
                       </p>
                     </div>
@@ -1243,10 +1248,10 @@ export const MeetingCenter = ({
             <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">
-                  Chi tiết meeting
+                  {t("Chi tiết meeting")}
                 </h2>
                 <p className="text-xs text-gray-500 mt-1">
-                  ID lịch hẹn #{selectedMeeting.id}
+                  {t("ID lịch hẹn")} #{selectedMeeting.id}
                 </p>
               </div>
               <button
@@ -1259,14 +1264,14 @@ export const MeetingCenter = ({
             <div className="p-5 space-y-4">
               {meetingHasPassed(selectedMeeting) && !selectedMeeting.meetingNote && (
                 <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                  Meeting này đã diễn ra nhưng chưa có note cuộc họp.
+                  {t("Meeting này đã diễn ra nhưng chưa có note cuộc họp.")}
                 </div>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase">
-                    Học sinh
+                    {t("Học sinh")}
                   </p>
                   <p className="font-semibold text-gray-800">
                     {selectedMeeting.studentName} · {selectedMeeting.className}
@@ -1274,7 +1279,7 @@ export const MeetingCenter = ({
                 </div>
                 <div>
                   <p className="text-xs font-bold text-gray-400 uppercase">
-                    Cố vấn
+                    {t("Cố vấn")}
                   </p>
                   <p className="font-semibold text-gray-800">
                     {selectedMeeting.counselorName}
@@ -1286,7 +1291,7 @@ export const MeetingCenter = ({
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                      Chủ đề meeting
+                      {t("Chủ đề meeting")}
                     </label>
                     <input
                       value={detailTopic}
@@ -1297,7 +1302,7 @@ export const MeetingCenter = ({
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div>
                       <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                        Thời gian
+                        {t("Thời gian")}
                       </label>
                       <input
                         type="datetime-local"
@@ -1308,7 +1313,7 @@ export const MeetingCenter = ({
                     </div>
                     <div>
                       <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                        Loại hẹn gặp
+                        {t("Loại hẹn gặp")}
                       </label>
                       <select
                         value={detailType}
@@ -1325,7 +1330,7 @@ export const MeetingCenter = ({
                   {detailType === "online" && (
                     <div>
                       <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                        Link meeting online
+                        {t("Link meeting online")}
                       </label>
                       <input
                         value={detailUrl}
@@ -1339,7 +1344,7 @@ export const MeetingCenter = ({
                 <div className="rounded-2xl border border-gray-100 bg-gray-50 p-4 space-y-2">
                   <p className="font-bold text-gray-900">{selectedMeeting.topic}</p>
                   <p className="text-sm text-gray-600">
-                    {formatMeetingDateTime(selectedMeeting.scheduledAt)}
+                    {formatDateTime(selectedMeeting.scheduledAt)}
                   </p>
                   <p className="text-sm text-gray-600">
                     {selectedMeeting.meetingType === "online" ? "Online" : "Offline"}
@@ -1360,7 +1365,7 @@ export const MeetingCenter = ({
 
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                  Note cuộc họp
+                  {t("Note cuộc họp")}
                 </label>
                 {role === "counselor" && meetingHasPassed(selectedMeeting) ? (
                   <textarea
@@ -1368,11 +1373,11 @@ export const MeetingCenter = ({
                     value={detailNote}
                     onChange={(event) => setDetailNote(event.target.value)}
                     className="w-full px-3 py-2.5 rounded-xl border border-gray-200 bg-gray-50 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 resize-none"
-                    placeholder="Ghi lại điểm chính của cuộc họp..."
+                    placeholder={t("Ghi lại điểm chính của cuộc họp...")}
                   />
                 ) : (
                   <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 whitespace-pre-wrap">
-                    {selectedMeeting.meetingNote || "Chưa có note cuộc họp."}
+                    {selectedMeeting.meetingNote || t("Chưa có note cuộc họp.")}
                   </div>
                 )}
               </div>
@@ -1384,7 +1389,7 @@ export const MeetingCenter = ({
                     className="px-4 py-2.5 rounded-xl border border-blue-200 bg-blue-50 text-blue-700 text-sm font-bold hover:bg-blue-100"
                   >
                     <Edit2 size={14} className="inline mr-1" />
-                    Edit
+                    {t("Chỉnh sửa")}
                   </button>
                 )}
                 {role === "counselor" && !meetingHasPassed(selectedMeeting) && editMode && (
@@ -1394,14 +1399,14 @@ export const MeetingCenter = ({
                       disabled={detailStatus === "saving"}
                       className="px-4 py-2.5 rounded-xl border border-gray-200 bg-white text-gray-600 text-sm font-bold hover:bg-gray-50 disabled:opacity-60"
                     >
-                      Hủy
+                      {t("Hủy")}
                     </button>
                     <button
                       onClick={saveMeetingEdit}
                       disabled={detailStatus === "saving"}
                       className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-60"
                     >
-                      {detailStatus === "saving" ? "Đang lưu..." : "Lưu chỉnh sửa"}
+                      {detailStatus === "saving" ? t("Đang lưu...") : t("Lưu chỉnh sửa")}
                     </button>
                   </>
                 )}
@@ -1411,7 +1416,7 @@ export const MeetingCenter = ({
                     disabled={detailStatus === "saving"}
                     className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-60"
                   >
-                    {detailStatus === "saving" ? "Đang lưu..." : "Lưu note"}
+                    {detailStatus === "saving" ? t("Đang lưu...") : t("Lưu note")}
                   </button>
                 )}
               </div>
@@ -1424,6 +1429,7 @@ export const MeetingCenter = ({
 };
 
 export const AdvisementNotesStudent = () => {
+  const { t } = useLanguage();
   const [notes, setNotes] = useState<AdviceNote[]>(SAMPLE_NOTES);
   const [selected, setSelected] = useState<AdviceNote | null>(null);
 
@@ -1450,15 +1456,15 @@ export const AdvisementNotesStudent = () => {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-bold text-gray-900">
-            Lời khuyên từ Giáo viên 📬
+            {t("Lời khuyên từ Giáo viên")} 📬
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
             {unreadCount > 0 ? (
               <span className="text-orange-600 font-semibold">
-                {unreadCount} lời khuyên chưa đọc
+                {unreadCount} {t("lời khuyên chưa đọc")}
               </span>
             ) : (
-              "Tất cả đã đọc ✓"
+              `${t("Tất cả đã đọc")} ✓`
             )}
           </p>
         </div>
@@ -1475,7 +1481,7 @@ export const AdvisementNotesStudent = () => {
             onClick={() => setSelected(null)}
             className="flex items-center gap-1.5 text-sm font-semibold text-orange-600 hover:text-orange-800"
           >
-            <ArrowRight size={13} className="rotate-180" /> Quay lại
+            <ArrowRight size={13} className="rotate-180" /> {t("Quay lại")}
           </button>
           <div className="bg-white rounded-2xl border-2 border-orange-100 shadow-sm overflow-hidden">
             <div className="h-1.5 bg-gradient-to-r from-orange-400 to-pink-500" />
@@ -1485,7 +1491,7 @@ export const AdvisementNotesStudent = () => {
                   <span
                     className={`text-xs font-bold px-2 py-0.5 rounded-full border ${priorityCls[selected.priority]} mb-2 inline-block`}
                   >
-                    {priorityLabel[selected.priority]}
+                    {t(priorityLabel[selected.priority])}
                   </span>
                   <h2 className="text-lg font-bold text-gray-900">
                     {selected.subject}
@@ -1514,7 +1520,7 @@ export const AdvisementNotesStudent = () => {
                   }}
                   className="px-5 py-2.5 bg-gradient-to-r from-orange-500 to-pink-500 text-white rounded-xl text-sm font-bold hover:opacity-90"
                 >
-                  ✓ Đã đọc & Hiểu
+                  ✓ {t("Đã đọc & Hiểu")}
                 </button>
               </div>
             </div>
@@ -1535,7 +1541,7 @@ export const AdvisementNotesStudent = () => {
                 <span
                   className={`text-xs font-bold px-2 py-0.5 rounded-full border ${priorityCls[note.priority]}`}
                 >
-                  {priorityLabel[note.priority]}
+                  {t(priorityLabel[note.priority])}
                 </span>
                 <div className="flex items-center gap-1.5 flex-shrink-0">
                   {!note.read && (
@@ -1563,7 +1569,7 @@ export const AdvisementNotesStudent = () => {
                 </span>
                 {!note.read && (
                   <span className="ml-auto text-xs font-bold text-orange-600">
-                    Chưa đọc →
+                    {t("Chưa đọc")} →
                   </span>
                 )}
               </div>
@@ -1576,6 +1582,7 @@ export const AdvisementNotesStudent = () => {
 };
 
 export const AdvisementNotesCounselor = () => {
+  const { t, formatDateTime } = useLanguage();
   const { studentsInClass } = useAppData();
   const [notes, setNotes] = useState<AdviceNoteRecord[]>([]);
   const [showForm, setShowForm] = useState(false);
@@ -1632,7 +1639,7 @@ export const AdvisementNotesCounselor = () => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
 
-    return date.toLocaleString("vi-VN", {
+    return formatDateTime(date, {
       hour: "2-digit",
       minute: "2-digit",
       day: "2-digit",
@@ -1708,10 +1715,10 @@ export const AdvisementNotesCounselor = () => {
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <div>
           <h1 className="text-xl font-bold text-gray-900">
-            Lời khuyên cho Học sinh
+            {t("Lời khuyên cho Học sinh")}
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {total} advice note đã tạo bởi {DEFAULT_COUNSELOR_NAME}
+            {total} {t("advice note đã tạo bởi")} {DEFAULT_COUNSELOR_NAME}
           </p>
         </div>
 
@@ -1726,7 +1733,7 @@ export const AdvisementNotesCounselor = () => {
           >
             {Object.entries(sortLabels).map(([value, label]) => (
               <option key={value} value={value}>
-                Sắp xếp: {label}
+                {t("Sắp xếp")}: {t(label)}
               </option>
             ))}
           </select>
@@ -1739,16 +1746,16 @@ export const AdvisementNotesCounselor = () => {
             }}
             className="px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-100"
           >
-            <option value={20}>20 / trang</option>
-            <option value={25}>25 / trang</option>
-            <option value={30}>30 / trang</option>
+            <option value={20}>20 / {t("trang")}</option>
+            <option value={25}>25 / {t("trang")}</option>
+            <option value={30}>30 / {t("trang")}</option>
           </select>
 
           <button
             onClick={() => setShowForm((v) => !v)}
             className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:opacity-90"
           >
-            <Plus size={15} /> Tạo note mới
+            <Plus size={15} /> {t("Tạo note mới")}
           </button>
         </div>
       </div>
@@ -1756,12 +1763,12 @@ export const AdvisementNotesCounselor = () => {
       {showForm && (
         <div className="bg-white rounded-2xl border-2 border-blue-200 shadow-sm p-5 space-y-4">
           <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            <FileText size={16} className="text-blue-600" /> Soạn lời khuyên mới
+            <FileText size={16} className="text-blue-600" /> {t("Soạn lời khuyên mới")}
           </h3>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-bold text-gray-600 mb-1.5">
-                Gửi đến học sinh
+                {t("Gửi đến học sinh")}
               </label>
               <select
                 value={form.studentId}
@@ -1770,7 +1777,7 @@ export const AdvisementNotesCounselor = () => {
                 }
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="">-- Chọn học sinh --</option>
+                <option value="">-- {t("Chọn học sinh")} --</option>
                 {studentsInClass.map((student) => (
                   <option key={student.id} value={student.id}>
                     {student.name} · {student.className}
@@ -1780,7 +1787,7 @@ export const AdvisementNotesCounselor = () => {
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-600 mb-1.5">
-                Mức độ ưu tiên
+                {t("Mức độ ưu tiên")}
               </label>
               <select
                 value={form.priority}
@@ -1792,32 +1799,32 @@ export const AdvisementNotesCounselor = () => {
                 }
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="high">🔴 Quan trọng</option>
-                <option value="medium">🟡 Lưu ý</option>
-                <option value="low">⚪ Thông tin</option>
+                <option value="high">🔴 {t("Quan trọng")}</option>
+                <option value="medium">🟡 {t("Lưu ý")}</option>
+                <option value="low">⚪ {t("Thông tin")}</option>
               </select>
             </div>
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-600 mb-1.5">
-              Tiêu đề
+              {t("Tiêu đề")}
             </label>
             <input
               value={form.subject}
               onChange={(e) => setForm({ ...form, subject: e.target.value })}
-              placeholder="VD: Lộ trình học tập học kỳ 2..."
+              placeholder={t("VD: Lộ trình học tập học kỳ 2...")}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-600 mb-1.5">
-              Nội dung lời khuyên
+              {t("Nội dung lời khuyên")}
             </label>
             <textarea
               value={form.body}
               onChange={(e) => setForm({ ...form, body: e.target.value })}
               rows={5}
-              placeholder="Nhập lời khuyên chi tiết dành cho học sinh..."
+              placeholder={t("Nhập lời khuyên chi tiết dành cho học sinh...")}
               className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500 resize-none"
             />
           </div>
@@ -1826,14 +1833,14 @@ export const AdvisementNotesCounselor = () => {
               onClick={() => setShowForm(false)}
               className="px-4 py-2.5 border border-gray-200 rounded-xl text-sm font-medium text-gray-600 hover:bg-gray-50"
             >
-              Huỷ
+              {t("Huỷ")}
             </button>
             <button
               onClick={send}
               disabled={!form.studentId || !form.subject || !form.body}
               className="px-5 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-bold hover:opacity-90 disabled:opacity-40 flex items-center gap-2"
             >
-              <ArrowRight size={14} /> Gửi lời khuyên
+              <ArrowRight size={14} /> {t("Gửi lời khuyên")}
             </button>
           </div>
         </div>
@@ -1841,21 +1848,21 @@ export const AdvisementNotesCounselor = () => {
 
       {status === "error" && (
         <div className="rounded-2xl border border-red-100 bg-red-50 p-4 text-sm font-semibold text-red-700">
-          {error}
+          {t(error)}
         </div>
       )}
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
           <div>
-            <h2 className="font-bold text-gray-900">Lịch sử advice note</h2>
+            <h2 className="font-bold text-gray-900">{t("Lịch sử advice note")}</h2>
             <p className="text-xs text-gray-500 mt-0.5">
-              {firstItem}-{lastItem} / {total} · {sortLabels[sort]}
+              {firstItem}-{lastItem} / {total} · {t(sortLabels[sort])}
             </p>
           </div>
           {(status === "loading" || status === "deleting") && (
             <span className="text-xs font-semibold text-gray-400">
-              {status === "deleting" ? "Đang xóa..." : "Đang tải..."}
+              {status === "deleting" ? t("Đang xóa...") : t("Đang tải...")}
             </span>
           )}
         </div>
@@ -1863,11 +1870,11 @@ export const AdvisementNotesCounselor = () => {
         <div className="divide-y divide-gray-50">
           {status === "loading" && notes.length === 0 ? (
             <div className="p-6 text-sm text-gray-500">
-              Đang tải advice notes...
+              {t("Đang tải advice notes...")}
             </div>
           ) : notes.length === 0 ? (
             <div className="p-6 text-sm text-gray-500">
-              Chưa có advice note nào.
+              {t("Chưa có advice note nào.")}
             </div>
           ) : (
             notes.map((note) => (
@@ -1878,7 +1885,7 @@ export const AdvisementNotesCounselor = () => {
                       <span
                         className={`text-xs font-bold px-2 py-0.5 rounded-full border ${priorityCls[note.priority]}`}
                       >
-                        {priorityLabel[note.priority]}
+                        {t(priorityLabel[note.priority])}
                       </span>
                       <span className="text-xs text-gray-400 font-mono">
                         {formatAdviceDate(note.createdAt)}
@@ -1906,7 +1913,7 @@ export const AdvisementNotesCounselor = () => {
                             : "bg-orange-100 text-orange-700"
                         }`}
                       >
-                        {note.studentSeenAt ? "Đã đọc" : "Chưa đọc"}
+                        {note.studentSeenAt ? t("Đã đọc") : t("Chưa đọc")}
                       </span>
                     </div>
                   </div>
@@ -1915,7 +1922,7 @@ export const AdvisementNotesCounselor = () => {
                     onClick={() => removeNote(note.id)}
                     disabled={status === "deleting"}
                     className="w-9 h-9 rounded-xl border border-red-100 bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 disabled:opacity-50 flex-shrink-0"
-                    title="Xóa advice note"
+                    title={t("Xóa advice note")}
                   >
                     <Trash2 size={15} />
                   </button>
@@ -1928,7 +1935,7 @@ export const AdvisementNotesCounselor = () => {
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-xs text-gray-500">
-          Trang {page} · Hiển thị {pageSize} note mỗi trang
+          {t("Trang")} {page} · {t("Hiển thị")} {pageSize} {t("note mỗi trang")}
         </p>
         <div className="flex items-center gap-2">
           <button
@@ -1936,14 +1943,14 @@ export const AdvisementNotesCounselor = () => {
             disabled={page <= 1}
             className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40"
           >
-            Trước
+            {t("Trước")}
           </button>
           <button
             onClick={() => setPage((value) => value + 1)}
             disabled={!hasMore}
             className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-xs font-bold text-gray-600 hover:bg-gray-50 disabled:opacity-40"
           >
-            Sau
+            {t("Sau")}
           </button>
         </div>
       </div>

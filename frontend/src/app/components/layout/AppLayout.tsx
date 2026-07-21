@@ -36,78 +36,85 @@ import {
   UserCheck,
   Users,
 } from "lucide-react";
-import { LanguageSwitcher, useT } from "../../i18n";
+import { LanguageSwitcher, useLanguage, useT } from "../../i18n";
 
-type NavItem = { id: string; label: string; icon: any };
-type NavGroup = { group: string; icon: any; items: NavItem[] };
+type NavItem = { id: string; label: string; icon: any; enLabel?: string };
+type NavGroup = {
+  group: string;
+  icon: any;
+  items: NavItem[];
+  enGroup?: string;
+};
 
 const counselorNavGroups: NavGroup[] = [
   {
-    group: "Dashboard",
+    group: "Bảng điều khiển",
     icon: LayoutDashboard,
     items: [{ id: "co-dashboard", label: "Tổng quan", icon: LayoutDashboard }],
   },
   {
-    group: "Students",
+    group: "Học sinh",
+    enGroup: "Students",
     icon: Users,
     items: [
-      { id: "co-students-list", label: "Students List", icon: UserCheck },
-      { id: "co-student-groups", label: "Student Groups", icon: Layers },
+      { id: "co-students-list", label: "Danh sách học sinh", icon: UserCheck },
+      { id: "co-student-groups", label: "Nhóm học sinh", icon: Layers },
     ],
   },
   {
-    group: "Families",
+    group: "Gia đình",
     icon: Heart,
-    items: [{ id: "co-families", label: "Families", icon: Heart }],
+    items: [{ id: "co-families", label: "Gia đình", icon: Heart }],
   },
   {
-    group: "Features",
+    group: "Chức năng",
     icon: Lightbulb,
     items: [
-      { id: "co-lessons", label: "Lessons", icon: BookOpen },
-      { id: "co-assignments", label: "Assignment", icon: ClipboardList },
-      { id: "co-surveys", label: "Surveys", icon: FileText },
-      { id: "co-courses", label: "Course & Diploma", icon: GraduationCap },
-      { id: "co-test-scores", label: "Test Scores", icon: BarChart2 },
+      { id: "co-lessons", label: "Bài học", icon: BookOpen },
+      { id: "co-assignments", label: "Bài tập", icon: ClipboardList },
+      { id: "co-surveys", label: "Khảo sát", icon: FileText },
+      { id: "co-courses", label: "Khóa học & Chứng chỉ", icon: GraduationCap },
+      { id: "co-test-scores", label: "Điểm kiểm tra", icon: BarChart2 },
     ],
   },
   {
-    group: "Reports",
+    group: "Báo cáo",
     icon: PieChart,
     items: [
-      { id: "co-report-work", label: "Student Work", icon: Trophy },
-      { id: "co-report-lessons", label: "Lesson Progress", icon: TrendingUp },
-      { id: "co-report-assignment", label: "Assignment Report", icon: Award },
-      { id: "co-report-engagement", label: "Engagement", icon: Activity },
-      { id: "co-report-college", label: "College Planning", icon: Flag },
+      { id: "co-report-work", label: "Bài làm học sinh", icon: Trophy },
+      { id: "co-report-lessons", label: "Tiến độ bài học", icon: TrendingUp },
+      { id: "co-report-assignment", label: "Báo cáo bài tập", icon: Award },
+      { id: "co-report-engagement", label: "Tương tác", icon: Activity },
+      { id: "co-report-college", label: "Kế hoạch đại học", icon: Flag },
     ],
   },
   {
-    group: "Connector",
+    group: "Kết nối",
+    enGroup: "Connector",
     icon: MessageSquare,
     items: [
-      { id: "co-messenger", label: "Messenger", icon: MessageSquare },
-      { id: "co-advice", label: "Advice Notes", icon: BookMarked },
-      { id: "co-meeting", label: "Meeting", icon: CalendarDays },
+      { id: "co-messenger", label: "Tin nhắn", icon: MessageSquare },
+      { id: "co-advice", label: "Ghi chú tư vấn", icon: BookMarked },
+      { id: "co-meeting", label: "Lịch hẹn", icon: CalendarDays },
     ],
   },
 ];
 
 const studentNavGroups: NavGroup[] = [
   {
-    group: "Home",
+    group: "Trang chủ",
     icon: Home,
     items: [
-      { id: "st-dashboard", label: "Dashboard", icon: LayoutDashboard },
-      { id: "st-references", label: "References", icon: BookOpen },
-      { id: "st-lessons", label: "Lessons", icon: BookMarked },
-      { id: "st-surveys", label: "Surveys", icon: ClipboardList },
-      { id: "st-assignment", label: "Assignment", icon: FileText },
-      { id: "st-games", label: "Real Games", icon: Gamepad2 },
+      { id: "st-dashboard", label: "Bảng điều khiển", icon: LayoutDashboard },
+      { id: "st-references", label: "Tham chiếu", icon: BookOpen },
+      { id: "st-lessons", label: "Bài học", icon: BookMarked },
+      { id: "st-surveys", label: "Khảo sát", icon: ClipboardList },
+      { id: "st-assignment", label: "Bài tập", icon: FileText },
+      { id: "st-games", label: "Trò chơi thực tế", icon: Gamepad2 },
     ],
   },
   {
-    group: "Explore",
+    group: "Khám phá",
     icon: Compass,
     items: [
       { id: "st-explore", label: "Khám phá ngành nghề", icon: MapPin },
@@ -115,30 +122,30 @@ const studentNavGroups: NavGroup[] = [
     ],
   },
   {
-    group: "About Me",
+    group: "Về tôi",
     icon: User,
     items: [
-      { id: "st-personal", label: "Personal Information", icon: User },
-      { id: "st-portfolio", label: "Portfolios", icon: FolderOpen },
-      { id: "st-resume", label: "Resume", icon: FileText },
-      { id: "st-applications", label: "Application Results", icon: Trophy },
+      { id: "st-personal", label: "Thông tin cá nhân", icon: User },
+      { id: "st-portfolio", label: "Hồ sơ năng lực", icon: FolderOpen },
+      { id: "st-resume", label: "CV", icon: FileText },
+      { id: "st-applications", label: "Kết quả ứng tuyển", icon: Trophy },
     ],
   },
   {
-    group: "Plans",
+    group: "Kế hoạch",
     icon: Map,
     items: [
-      { id: "st-plan-grade", label: "Plan for Grade", icon: BookOpen },
-      { id: "st-plan-pathways", label: "Plan for Pathways", icon: Target },
+      { id: "st-plan-grade", label: "Kế hoạch theo lớp", icon: BookOpen },
+      { id: "st-plan-pathways", label: "Kế hoạch lộ trình", icon: Target },
     ],
   },
   {
-    group: "Connection",
+    group: "Kết nối",
     icon: MessageSquare,
     items: [
-      { id: "st-messenger", label: "Messenger", icon: MessageSquare },
-      { id: "st-advice", label: "Advisement Notes", icon: BookMarked },
-      { id: "st-meeting", label: "Meeting", icon: CalendarDays },
+      { id: "st-messenger", label: "Tin nhắn", icon: MessageSquare },
+      { id: "st-advice", label: "Ghi chú tư vấn", icon: BookMarked },
+      { id: "st-meeting", label: "Lịch hẹn", icon: CalendarDays },
     ],
   },
 ];
@@ -191,11 +198,13 @@ const GroupedSidebar = ({
   userSub: string;
   userGrad: string;
 }) => {
-  const t = useT();
+  const { language, t } = useLanguage();
+  const labelText = (label: string, english?: string) =>
+    language === "en" ? english ?? t(label) : label;
   const defaultOpen =
     navGroups.find((g) => g.items.some((i) => i.id === view))?.group ??
     navGroups[0]?.group;
-  const homeGroup = navGroups.find((g) => g.group === "Home")?.group;
+  const homeGroup = navGroups.find((g) => g.group === "Trang chủ")?.group;
   const [openGroups, setOpenGroups] = useState<string[]>(
     Array.from(new Set([defaultOpen, homeGroup].filter(Boolean) as string[])),
   );
@@ -245,7 +254,7 @@ const GroupedSidebar = ({
               >
                 <group.icon size={15} className="flex-shrink-0" />
                 <span className="text-sm font-bold flex-1">
-                  {t(group.group)}
+                  {labelText(group.group, group.enGroup)}
                 </span>
                 <ChevronDown
                   size={12}
@@ -261,7 +270,7 @@ const GroupedSidebar = ({
                       className={`w-full flex items-center gap-2 px-3 py-2 rounded-xl text-left transition-all text-xs ${view === item.id ? activeCls + " font-bold shadow-sm" : "text-white/60 hover:bg-white/10 hover:text-white font-medium"}`}
                     >
                       <item.icon size={13} className="flex-shrink-0" />
-                      {t(item.label)}
+                      {labelText(item.label, item.enLabel)}
                     </button>
                   ))}
                 </div>
@@ -342,6 +351,9 @@ export const Sidebar = ({
 }) => {
   const nav = navByRole[role] ?? [];
   const t = useT();
+  const roleLabel = roleLabels[role] ?? "";
+  const roleHeader =
+    role === "admin" ? t(roleLabel) : roleLabel;
   return (
     <aside className="w-52 bg-[#1C2B4A] flex flex-col flex-shrink-0 h-screen">
       <div className="p-4 border-b border-white/10 flex items-center gap-2.5">
@@ -355,7 +367,7 @@ export const Sidebar = ({
       </div>
       <nav className="flex-1 py-3 overflow-y-auto">
         <p className="px-4 pb-2 text-blue-300 text-xs font-bold uppercase tracking-wider">
-          {t(roleLabels[role] ?? "")}
+          {roleHeader}
         </p>
         {nav.map((item) => (
           <button
@@ -390,6 +402,7 @@ export const Sidebar = ({
 export const TopNav = ({ role }: { role: string }) => {
   const t = useT();
   const roleLabel = roleLabels[role] ?? "";
+  const displayRoleLabel = role === "admin" ? t(roleLabel) : roleLabel;
 
   return (
     <header
@@ -426,7 +439,7 @@ export const TopNav = ({ role }: { role: string }) => {
             {roleLabel.charAt(0)}
           </div>
           <span className="text-sm font-semibold text-gray-700 hidden sm:block">
-            {t(roleLabel)}
+            {displayRoleLabel}
           </span>
         </div>
       </div>

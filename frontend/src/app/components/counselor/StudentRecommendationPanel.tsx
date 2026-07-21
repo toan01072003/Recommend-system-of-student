@@ -11,6 +11,7 @@ import {
   buildRecommendationAnswers,
   recommendationAssessment,
 } from "../../logic/recommendation";
+import { useT } from "../../i18n";
 
 type StudentProfile = (typeof studentsInClass)[number];
 
@@ -19,6 +20,7 @@ export const StudentRecommendationPanel = ({
 }: {
   student: StudentProfile;
 }) => {
+  const t = useT();
   const [recommendation, setRecommendation] =
     useState<RecommendationResponse | null>(null);
   const [recommendationStatus, setRecommendationStatus] = useState<
@@ -50,13 +52,13 @@ export const StudentRecommendationPanel = ({
       .catch((error) => {
         if (error.name === "AbortError") return;
         setRecommendationError(
-          error.message || "Không kết nối được backend recommendation.",
+          error.message || t("Không kết nối được backend recommendation."),
         );
         setRecommendationStatus("error");
       });
 
     return () => controller.abort();
-  }, [recommendationStatus, student]);
+  }, [recommendationStatus, student, t]);
 
   return (
     <div className="space-y-5">
@@ -67,10 +69,11 @@ export const StudentRecommendationPanel = ({
               <Clock size={18} className="text-amber-600" />
             </div>
             <div>
-              <h3 className="font-bold text-gray-800">Chưa có kết quả gợi ý</h3>
+              <h3 className="font-bold text-gray-800">
+                {t("Chưa có kết quả gợi ý")}
+              </h3>
               <p className="text-sm text-gray-500 mt-0.5">
-                Học sinh cần hoàn thành bài test Holland/RIASEC trước khi hệ
-                thống tạo gợi ý nghề nghiệp.
+                {t("Học sinh cần hoàn thành bài test Holland/RIASEC trước khi hệ thống tạo gợi ý nghề nghiệp.")}
               </p>
             </div>
           </div>
@@ -79,7 +82,7 @@ export const StudentRecommendationPanel = ({
         <div className="bg-white rounded-2xl p-8 border border-gray-100 shadow-sm text-center">
           <div className="w-10 h-10 rounded-full border-4 border-blue-100 border-t-blue-600 animate-spin mx-auto mb-3" />
           <p className="text-sm font-semibold text-gray-700">
-            Đang lấy kết quả từ recommendation engine...
+            {t("Đang lấy kết quả từ recommendation engine...")}
           </p>
         </div>
       ) : recommendationStatus === "error" ? (
@@ -90,13 +93,13 @@ export const StudentRecommendationPanel = ({
             </div>
             <div>
               <h3 className="font-bold text-gray-800">
-                Không lấy được kết quả
+                {t("Không lấy được kết quả")}
               </h3>
               <p className="text-sm text-red-600 mt-0.5">
                 {recommendationError}
               </p>
               <p className="text-xs text-gray-500 mt-1">
-                Kiểm tra backend đang chạy tại cổng 8001.
+                {t("Kiểm tra backend đang chạy tại cổng 8001.")}
               </p>
             </div>
           </div>
@@ -108,15 +111,15 @@ export const StudentRecommendationPanel = ({
               <div className="flex items-start justify-between gap-3 mb-4">
                 <div>
                   <h3 className="font-bold text-gray-800">
-                    Gợi ý nghề nghiệp từ RIASEC
+                    {t("Gợi ý nghề nghiệp từ RIASEC")}
                   </h3>
                   <p className="text-xs text-gray-500 mt-1">
-                    Nguồn: {questionCount ?? 60} câu O*NET Interest Profiler và
-                    `career_vectors_onet.csv`.
+                    {t("Nguồn")}: {questionCount ?? 60}{" "}
+                    {t("câu O*NET Interest Profiler và")} `career_vectors_onet.csv`.
                   </p>
                 </div>
                 <span className="px-3 py-1 bg-emerald-100 text-emerald-700 rounded-full text-xs font-bold">
-                  Đã tính toán
+                  {t("Đã tính toán")}
                 </span>
               </div>
               <div className="space-y-3">
@@ -171,7 +174,7 @@ export const StudentRecommendationPanel = ({
             <div className="space-y-5">
               <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
                 <h3 className="font-bold text-gray-800 mb-4">
-                  Vector học sinh
+                  {t("Vector học sinh")}
                 </h3>
                 <div className="space-y-3">
                   {Object.entries(recommendation.student_vector).map(
@@ -207,7 +210,7 @@ export const StudentRecommendationPanel = ({
 
               <div className="bg-blue-50 rounded-2xl p-5 border border-blue-100">
                 <h3 className="font-bold text-blue-900 mb-2">
-                  Đánh giá cố vấn
+                  {t("Đánh giá cố vấn")}
                 </h3>
                 <p className="text-sm text-blue-800 leading-relaxed">
                   {recommendationAssessment(student, recommendation)}
@@ -216,15 +219,13 @@ export const StudentRecommendationPanel = ({
                   <div className="flex items-start gap-2">
                     <CheckCircle size={13} className="mt-0.5 flex-shrink-0" />
                     <span>
-                      Ưu tiên trao đổi về nhóm nghề top 3 và điều kiện học tập
-                      cần chuẩn bị.
+                      {t("Ưu tiên trao đổi về nhóm nghề top 3 và điều kiện học tập cần chuẩn bị.")}
                     </span>
                   </div>
                   <div className="flex items-start gap-2">
                     <Target size={13} className="mt-0.5 flex-shrink-0" />
                     <span>
-                      Đối chiếu thêm điểm học tập, sở thích cá nhân và kỳ vọng
-                      phụ huynh trước khi chốt lộ trình.
+                      {t("Đối chiếu thêm điểm học tập, sở thích cá nhân và kỳ vọng phụ huynh trước khi chốt lộ trình.")}
                     </span>
                   </div>
                 </div>

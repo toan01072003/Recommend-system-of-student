@@ -111,6 +111,7 @@ import {
   buildStudentSkillRadar,
   scoreTone,
 } from "../../../logic/recommendation";
+import { useT } from "../../../i18n";
 
 export const UniversityCard = ({
   uni,
@@ -248,6 +249,7 @@ export const UniversityDetail = ({
   onReact: (id: string, emoji: string) => void;
   onSelectRelated: (id: string) => void;
 }) => {
+  const t = useT();
   const [showWhy, setShowWhy] = useState(false);
   const [videoPlaying, setVideoPlaying] = useState(false);
   const liked = Object.entries(reactions)
@@ -265,7 +267,7 @@ export const UniversityDetail = ({
         className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-800 transition-colors"
       >
         {" "}
-        <ArrowRight size={13} className="rotate-180" /> Quay lại danh sách{" "}
+        <ArrowRight size={13} className="rotate-180" /> {t("Quay lại danh sách")}{" "}
       </button>{" "}
       {/* Hero */}{" "}
       <div
@@ -306,7 +308,7 @@ export const UniversityDetail = ({
             className="flex items-center gap-1.5 px-3.5 py-2 rounded-full bg-gradient-to-r from-blue-500 to-indigo-600 text-white text-xs font-bold shadow-lg hover:opacity-90"
           >
             {" "}
-            💭 Why?{" "}
+            💭 {t("Why?")}{" "}
           </button>{" "}
           <button
             onClick={onToggleFav}
@@ -358,7 +360,7 @@ export const UniversityDetail = ({
               {" "}
               <s.icon size={13} className={s.cls} />{" "}
               <span className="text-xs text-gray-500 font-medium">
-                {s.label}
+                {t(s.label)}
               </span>{" "}
             </div>{" "}
             <p className={`text-sm font-bold ${s.cls} leading-snug`}>
@@ -375,7 +377,7 @@ export const UniversityDetail = ({
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             {" "}
             <h3 className="font-bold text-gray-800 mb-2">
-              🏫 Giới thiệu trường
+              🏫 {t("Giới thiệu trường")}
             </h3>{" "}
             <p className="text-sm text-gray-600 leading-relaxed">
               {uni.fullDesc}
@@ -384,7 +386,7 @@ export const UniversityDetail = ({
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             {" "}
             <h3 className="font-bold text-gray-800 mb-3">
-              📚 Ngành đào tạo nổi bật
+              📚 {t("Ngành đào tạo nổi bật")}
             </h3>{" "}
             <div className="flex flex-wrap gap-2">
               {" "}
@@ -403,7 +405,7 @@ export const UniversityDetail = ({
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             {" "}
             <h3 className="font-bold text-gray-800 mb-3">
-              📷 Hình ảnh khuôn viên
+              📷 {t("Hình ảnh khuôn viên")}
             </h3>{" "}
             <div className="grid grid-cols-3 gap-2">
               {" "}
@@ -425,7 +427,7 @@ export const UniversityDetail = ({
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             {" "}
             <h3 className="font-bold text-gray-800 mb-3">
-              🎬 Video giới thiệu trường
+              🎬 {t("Video giới thiệu trường")}
             </h3>{" "}
             <div
               className="relative rounded-xl overflow-hidden cursor-pointer bg-gray-900"
@@ -458,7 +460,7 @@ export const UniversityDetail = ({
                   {" "}
                   <div>
                     <p className="text-4xl mb-2">▶</p>
-                    <p className="text-sm opacity-80">Video đang phát...</p>
+                    <p className="text-sm opacity-80">{t("Video đang phát...")}</p>
                   </div>{" "}
                 </div>
               )}{" "}
@@ -481,10 +483,10 @@ export const UniversityDetail = ({
                 <div className="text-left">
                   {" "}
                   <p className="text-sm font-bold text-blue-700">
-                    Tôi thích điều gì?
+                    {t("Tôi thích điều gì?")}
                   </p>{" "}
                   <p className="text-xs text-blue-500">
-                    Khám phá cuộc sống sinh viên ở đây
+                    {t("Khám phá cuộc sống sinh viên ở đây")}
                   </p>{" "}
                 </div>{" "}
               </div>{" "}
@@ -502,9 +504,9 @@ export const UniversityDetail = ({
                 {" "}
                 <div>
                   {" "}
-                  <h3 className="font-bold">💭 Tôi thích điều gì?</h3>{" "}
+                  <h3 className="font-bold">💭 {t("Tôi thích điều gì?")}</h3>{" "}
                   <p className="text-xs text-white/80 mt-0.5">
-                    Chọn cảm xúc với từng trải nghiệm
+                    {t("Chọn cảm xúc với từng trải nghiệm")}
                   </p>{" "}
                 </div>{" "}
                 <button
@@ -552,7 +554,7 @@ export const UniversityDetail = ({
                 <div className="p-3 border-t border-blue-100 bg-indigo-50">
                   {" "}
                   <p className="text-xs font-bold text-indigo-800 mb-1.5">
-                    ✨ Đã lưu vào sở thích:
+                    ✨ {t("Đã lưu vào sở thích")}:
                   </p>{" "}
                   <div className="flex flex-wrap gap-1">
                     {" "}
@@ -578,7 +580,7 @@ export const UniversityDetail = ({
           <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
             {" "}
             <h3 className="font-bold text-gray-800 mb-3 text-sm">
-              🔗 Trường liên quan
+              🔗 {t("Trường liên quan")}
             </h3>{" "}
             <div className="space-y-2">
               {" "}
@@ -626,6 +628,7 @@ export const StudentUniversities = ({
 }: {
   initialUniId?: string | null;
 }) => {
+  const t = useT();
   const [search, setSearch] = useState("");
   const [activeType, setActiveType] = useState("Tất cả");
   const [favorites, setFavorites] = useState<string[]>([]);
@@ -674,10 +677,10 @@ export const StudentUniversities = ({
       <div>
         {" "}
         <h1 className="text-xl font-bold text-gray-900">
-          Khám phá Đại học 🎓
+          {t("Khám phá Đại học")} 🎓
         </h1>{" "}
         <p className="text-sm text-gray-500 mt-0.5">
-          Tìm hiểu các trường đại học phù hợp với bạn
+          {t("Tìm hiểu các trường đại học phù hợp với bạn")}
         </p>{" "}
       </div>{" "}
       <div className="flex flex-wrap gap-3 items-center">
@@ -692,7 +695,7 @@ export const StudentUniversities = ({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-sm focus:outline-none focus:border-blue-400"
-            placeholder="Tìm trường, ngành..."
+            placeholder={t("Tìm trường, ngành...")}
           />{" "}
         </div>{" "}
         <button
@@ -700,25 +703,25 @@ export const StudentUniversities = ({
           className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${showFavs ? "border-red-400 bg-red-50 text-red-600" : "border-gray-200 bg-white text-gray-500 hover:border-red-300"}`}
         >
           {" "}
-          <Heart size={14} fill={showFavs ? "currentColor" : "none"} /> Yêu
-          thích {favorites.length > 0 && `(${favorites.length})`}{" "}
+          <Heart size={14} fill={showFavs ? "currentColor" : "none"} />{" "}
+          {t("Yêu thích")} {favorites.length > 0 && `(${favorites.length})`}{" "}
         </button>{" "}
       </div>{" "}
       <div className="flex gap-2 flex-wrap">
         {" "}
-        {UNI_TYPES.map((t) => (
+        {UNI_TYPES.map((type) => (
           <button
-            key={t}
-            onClick={() => setActiveType(t)}
-            className={`px-3.5 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${activeType === t ? "border-blue-500 bg-blue-500 text-white" : "border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600"}`}
+            key={type}
+            onClick={() => setActiveType(type)}
+            className={`px-3.5 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${activeType === type ? "border-blue-500 bg-blue-500 text-white" : "border-gray-200 bg-white text-gray-600 hover:border-blue-300 hover:text-blue-600"}`}
           >
             {" "}
-            {t}{" "}
+            {t(type)}{" "}
           </button>
         ))}{" "}
       </div>{" "}
       <p className="text-xs text-gray-500 font-medium">
-        {filtered.length} trường đại học
+        {filtered.length} {t("trường đại học")}
       </p>{" "}
       {filtered.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -740,8 +743,8 @@ export const StudentUniversities = ({
         <div className="text-center py-16 text-gray-400">
           {" "}
           <p className="text-4xl mb-3">🎓</p>{" "}
-          <p className="font-semibold">Không tìm thấy trường</p>{" "}
-          <p className="text-sm mt-1">Thử từ khoá khác hoặc bỏ bộ lọc</p>{" "}
+          <p className="font-semibold">{t("Không tìm thấy trường")}</p>{" "}
+          <p className="text-sm mt-1">{t("Thử từ khoá khác hoặc bỏ bộ lọc")}</p>{" "}
         </div>
       )}{" "}
     </div>

@@ -117,6 +117,7 @@ import {
   type StudentProfileRecord,
 } from "../../logic/studentProfile";
 import { fetchStudent } from "../../api/client";
+import { useLanguage } from "../../i18n";
 
 // ── Screen 2: School Overview ────────────────────────────────────────────────
 export const SchoolOverview = ({
@@ -124,6 +125,7 @@ export const SchoolOverview = ({
 }: {
   navigate: (v: string) => void;
 }) => {
+  const { language, t } = useLanguage();
   const { gradeData, heatmapData } = useAppData();
   const totalStudents = gradeData.reduce((sum, item) => sum + item.students, 0);
   const totalTests = gradeData.reduce((sum, item) => sum + item.tests, 0);
@@ -137,10 +139,10 @@ export const SchoolOverview = ({
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-gray-900">
-          Tổng quan toàn trường
+          {t("Tổng quan toàn trường")}
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          THCS & THPT Nguyễn Du · Năm học 2024–2025
+          {t("THCS & THPT Nguyễn Du")} · {t("Năm học 2024–2025")}
         </p>
       </div>
 
@@ -148,7 +150,11 @@ export const SchoolOverview = ({
         <StatCard
           title="Tổng học sinh"
           value={`${totalStudents}`}
-          sub={`${gradeData.length} khối lớp`}
+          sub={
+            language === "en"
+              ? `${gradeData.length} grade groups`
+              : `${gradeData.length} khối lớp`
+          }
           icon={Users}
           color="blue"
         />
@@ -169,7 +175,11 @@ export const SchoolOverview = ({
         <StatCard
           title="Bài test hoàn thành"
           value={`${totalTests}`}
-          sub={`${totalTests} / ${totalStudents} HS`}
+          sub={
+            language === "en"
+              ? `${totalTests} / ${totalStudents} students`
+              : `${totalTests} / ${totalStudents} HS`
+          }
           icon={FileText}
           color="navy"
         />
@@ -178,7 +188,7 @@ export const SchoolOverview = ({
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
         <div className="lg:col-span-2 bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
           <h3 className="font-semibold text-gray-800 mb-4">
-            Tỷ lệ hoàn thành hồ sơ theo khối
+            {t("Tỷ lệ hoàn thành hồ sơ theo khối")}
           </h3>
           <ResponsiveContainer width="100%" height={200}>
             <BarChart data={gradeData} barSize={28}>
@@ -205,7 +215,7 @@ export const SchoolOverview = ({
               />
               <Tooltip
                 key="tooltip"
-                formatter={(v: number) => [`${v}%`, "Hoàn thành"]}
+                formatter={(v: number) => [`${v}%`, t("Hoàn thành")]}
                 cursor={{ fill: "#f0f4f8" }}
               />
               <Bar
@@ -219,7 +229,7 @@ export const SchoolOverview = ({
         </div>
         <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
           <h3 className="font-semibold text-gray-800 mb-4">
-            Học sinh theo khối
+            {t("Học sinh theo khối")}
           </h3>
           <div className="space-y-3">
             {gradeData.map((g) => (
@@ -247,14 +257,14 @@ export const SchoolOverview = ({
       {/* Heatmap */}
       <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
         <h3 className="font-semibold text-gray-800 mb-4">
-          Heatmap hoàn thành hồ sơ theo lớp
+          {t("Heatmap hoàn thành hồ sơ theo lớp")}
         </h3>
         <div className="overflow-x-auto">
           <table className="w-full text-xs">
             <thead>
               <tr>
                 <th className="text-left text-gray-400 font-medium pb-3 pr-4 w-16">
-                  Khối
+                  {t("Khối")}
                 </th>
                 {["A", "B", "C", "D", "E", "F", "G", "H"].map((c) => (
                   <th
@@ -314,7 +324,9 @@ export const SchoolOverview = ({
 
       {/* Alerts */}
       <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
-        <h3 className="font-semibold text-gray-800 mb-4">Cảnh báo cần xử lý</h3>
+        <h3 className="font-semibold text-gray-800 mb-4">
+          {t("Cảnh báo cần xử lý")}
+        </h3>
         <div className="space-y-2.5">
           {[
             {
@@ -359,10 +371,10 @@ export const SchoolOverview = ({
                         : "text-blue-500"
                   }
                 />
-                <span className="text-sm text-gray-700">{a.msg}</span>
+                <span className="text-sm text-gray-700">{t(a.msg)}</span>
               </div>
               <button className="text-xs font-semibold text-orange-600 hover:text-orange-800 whitespace-nowrap ml-4 flex items-center gap-0.5">
-                {a.action} <ArrowRight size={11} />
+                {t(a.action)} <ArrowRight size={11} />
               </button>
             </div>
           ))}
@@ -378,6 +390,7 @@ export const GradeDashboard = ({
 }: {
   navigate: (v: string, params?: { className?: string }) => void;
 }) => {
+  const { language, t } = useLanguage();
   const { gradeData, classesData, studentsInClass, careerInterestDist } =
     useAppData();
   const [selectedGrade, setSelectedGrade] = useState("9");
@@ -392,7 +405,7 @@ export const GradeDashboard = ({
     1,
   );
   const selectedCareerTop = careerInterestDist[0] ?? {
-    name: "Chưa có",
+    name: t("Chưa có"),
     value: 0,
   };
   const selectedCompletion = selectedGradeStudents.length
@@ -414,9 +427,9 @@ export const GradeDashboard = ({
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">
-            Dashboard Khối {selectedGrade}
+            {t("Dashboard Khối")} {selectedGrade}
           </h1>
-          <p className="text-sm text-gray-500 mt-0.5">Năm học 2024–2025</p>
+          <p className="text-sm text-gray-500 mt-0.5">{t("Năm học 2024–2025")}</p>
         </div>
         <div className="flex gap-1.5">
           {gradeData
@@ -441,28 +454,32 @@ export const GradeDashboard = ({
         <StatCard
           title="Số lớp"
           value={`${selectedGradeClasses.length}`}
-          sub={`Khối ${selectedGrade}`}
+          sub={language === "en" ? `Grade ${selectedGrade}` : `Khối ${selectedGrade}`}
           icon={LayoutDashboard}
           color="blue"
         />
         <StatCard
           title="Tổng học sinh"
           value={`${selectedGradeStudents.length}`}
-          sub={`Dữ liệu synthetic`}
+          sub="Dữ liệu synthetic"
           icon={Users}
           color="navy"
         />
         <StatCard
           title="Hoàn thành hồ sơ"
           value={`${selectedCompletion}%`}
-          sub={`Điểm TB ${selectedAvg}`}
+          sub={language === "en" ? `Average ${selectedAvg}` : `Điểm TB ${selectedAvg}`}
           icon={CheckCircle}
           color="green"
         />
         <StatCard
           title="Nhóm ngành top 1"
           value={selectedCareerTop.name}
-          sub={`${selectedCareerTop.value} HS quan tâm`}
+          sub={
+            language === "en"
+              ? `${selectedCareerTop.value} interested students`
+              : `${selectedCareerTop.value} HS quan tâm`
+          }
           icon={Star}
           color="yellow"
         />
@@ -471,7 +488,7 @@ export const GradeDashboard = ({
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
         <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
           <h3 className="font-semibold text-gray-800 mb-4">
-            Phân bố nhóm ngành quan tâm
+            {t("Phân bố nhóm ngành quan tâm")}
           </h3>
           <div className="space-y-3.5">
             {careerInterestDist.map((item) => (
@@ -502,7 +519,7 @@ export const GradeDashboard = ({
 
         <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
           <h3 className="font-semibold text-gray-800 mb-4">
-            Danh sách lớp — Khối {selectedGrade}
+            {t("Danh sách lớp")} — {t("Khối")} {selectedGrade}
           </h3>
           <div className="space-y-2">
             {selectedGradeClasses.map((cls) => (
@@ -519,10 +536,10 @@ export const GradeDashboard = ({
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1.5">
                     <span className="text-sm font-semibold text-gray-800">
-                      Lớp {cls.name}
+                      {t("Lớp")} {cls.name}
                     </span>
                     <span className="text-xs text-gray-500 font-mono">
-                      {cls.students} HS
+                      {language === "en" ? `${cls.students} students` : `${cls.students} HS`}
                     </span>
                   </div>
                   <ProgressBar value={cls.completion} />
@@ -535,7 +552,7 @@ export const GradeDashboard = ({
                   </span>
                   {cls.risk > 0 && (
                     <div className="text-xs text-red-500">
-                      {cls.risk} cần HT
+                      {language === "en" ? `${cls.risk} need support` : `${cls.risk} cần HT`}
                     </div>
                   )}
                 </div>
@@ -563,6 +580,7 @@ export const ClassDashboard = ({
     params?: { className?: string; studentId?: string },
   ) => void;
 }) => {
+  const { language, t } = useLanguage();
   const { studentsInClass } = useAppData();
   const [filter, setFilter] = useState("all");
   const [search, setSearch] = useState("");
@@ -602,10 +620,13 @@ export const ClassDashboard = ({
       <div className="flex items-start justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-xl font-bold text-gray-900">
-            Lớp {activeClassName}
+            {t("Lớp")} {activeClassName}
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Dữ liệu synthetic từ Excel · {classStudents.length} học sinh
+            {t("Dữ liệu synthetic từ Excel")} ·{" "}
+            {language === "en"
+              ? `${classStudents.length} students`
+              : `${classStudents.length} học sinh`}
           </p>
         </div>
         <div className="flex gap-2">
@@ -613,10 +634,10 @@ export const ClassDashboard = ({
             onClick={() => navigate("teacher-entry")}
             className="px-4 py-2 bg-white border border-gray-200 rounded-xl text-sm font-semibold text-gray-700 hover:bg-gray-50 flex items-center gap-2"
           >
-            <Plus size={14} /> Nhập dữ liệu
+            <Plus size={14} /> {t("Nhập dữ liệu")}
           </button>
           <button className="px-4 py-2 bg-[#EA580C] text-white rounded-xl text-sm font-semibold hover:bg-[#C2410C] flex items-center gap-2">
-            <MessageSquare size={14} /> Tạo lịch tư vấn
+            <MessageSquare size={14} /> {t("Tạo lịch tư vấn")}
           </button>
         </div>
       </div>
@@ -625,14 +646,22 @@ export const ClassDashboard = ({
         <StatCard
           title="Hoàn thành hồ sơ"
           value={`${classCompletion}%`}
-          sub={`${classStudents.length} học sinh`}
+          sub={
+            language === "en"
+              ? `${classStudents.length} students`
+              : `${classStudents.length} học sinh`
+          }
           icon={CheckCircle}
           color="green"
         />
         <StatCard
           title="Test hướng nghiệp"
           value={`${completedTests}`}
-          sub={`${completedTests} / ${classStudents.length} HS`}
+          sub={
+            language === "en"
+              ? `${completedTests} / ${classStudents.length} students`
+              : `${completedTests} / ${classStudents.length} HS`
+          }
           icon={FileText}
           color="blue"
         />
@@ -663,7 +692,7 @@ export const ClassDashboard = ({
               value={search}
               onChange={(e) => setSearch(e.target.value)}
               className="w-full pl-8 pr-3 py-2 text-sm border border-gray-200 rounded-lg bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
-              placeholder="Tìm kiếm học sinh..."
+              placeholder={t("Tìm kiếm học sinh...")}
             />
           </div>
           {[
@@ -680,7 +709,7 @@ export const ClassDashboard = ({
                   : "bg-gray-100 text-gray-600 hover:bg-gray-200"
               }`}
             >
-              {f.label}
+              {t(f.label)}
             </button>
           ))}
         </div>
@@ -689,22 +718,22 @@ export const ClassDashboard = ({
             <thead>
               <tr className="bg-gray-50">
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Học sinh
+                  {t("Học sinh")}
                 </th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Điểm TB
+                  {t("Điểm TB")}
                 </th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden md:table-cell">
-                  Nhóm ngành
+                  {t("Nhóm ngành")}
                 </th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
                   Test
                 </th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide hidden lg:table-cell">
-                  Hồ sơ
+                  {t("Hồ sơ")}
                 </th>
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide">
-                  Tình trạng
+                  {t("Tình trạng")}
                 </th>
                 <th className="py-3 px-4" />
               </tr>
@@ -762,7 +791,7 @@ export const ClassDashboard = ({
                       }
                       className="text-xs font-semibold text-orange-600 hover:text-orange-800 whitespace-nowrap flex items-center gap-0.5"
                     >
-                      Xem hồ sơ <ArrowRight size={11} />
+                      {t("Xem hồ sơ")} <ArrowRight size={11} />
                     </button>
                   </td>
                 </tr>
@@ -777,6 +806,7 @@ export const ClassDashboard = ({
 
 // ── Screen 5: Student 360 Profile ────────────────────────────────────────────
 export const StudentProfile = ({ studentId }: { studentId?: string }) => {
+  const { t } = useLanguage();
   const { studentsInClass } = useAppData();
   const [activeTab, setActiveTab] = useState("academic");
   const [wellbeingRequested, setWellbeingRequested] = useState(false);
@@ -835,10 +865,10 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
     return (
       <div className="bg-white rounded-xl p-10 border border-gray-100 shadow-sm text-center">
         <h1 className="text-lg font-bold text-gray-800">
-          Không tìm thấy học sinh
+          {t("Không tìm thấy học sinh")}
         </h1>
         <p className="text-sm text-gray-500 mt-2">
-          Vui lòng quay lại danh sách lớp và chọn lại hồ sơ cần xem.
+          {t("Vui lòng quay lại danh sách lớp và chọn lại hồ sơ cần xem.")}
         </p>
       </div>
     );
@@ -848,12 +878,12 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
     return (
       <div className="bg-white rounded-xl p-10 border border-gray-100 shadow-sm text-center">
         <h1 className="text-lg font-bold text-gray-800">
-          Đang tải hồ sơ chi tiết
+          {t("Đang tải hồ sơ chi tiết")}
         </h1>
         <p className="text-sm text-gray-500 mt-2">
           {detailStatus === "error"
-            ? "Không tải được dữ liệu chi tiết từ API. Vui lòng thử lại sau."
-            : `Đang lấy dữ liệu đầy đủ cho ${profile.name}.`}
+            ? t("Không tải được dữ liệu chi tiết từ API. Vui lòng thử lại sau.")
+            : `${t("Đang lấy dữ liệu đầy đủ cho")} ${profile.name}.`}
         </p>
       </div>
     );
@@ -874,13 +904,13 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
                     {profile.name}
                   </h1>
                   <p className="text-sm text-gray-500 mt-0.5">
-                    Lớp {profile.className} · Mã HS:{" "}
+                    {t("Lớp")} {profile.className} · {t("Mã HS")}:{" "}
                     <span className="font-mono">{profile.id}</span> ·{" "}
                     {profile.typeClass}
                   </p>
                 </div>
                 <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-full border border-green-200 whitespace-nowrap">
-                  ✓ Hồ sơ {profile.progress}%
+                  ✓ {t("Hồ sơ")} {profile.progress}%
                 </span>
               </div>
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 mt-4">
@@ -912,7 +942,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
                   },
                 ].map((item) => (
                   <div key={item.label} className="bg-gray-50 rounded-xl p-3">
-                    <p className="text-xs text-gray-400">{item.label}</p>
+                    <p className="text-xs text-gray-400">{t(item.label)}</p>
                     <p className={`text-sm font-bold mt-0.5 ${item.cls}`}>
                       {item.value}
                     </p>
@@ -934,7 +964,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
                     : "border-transparent text-gray-500 hover:text-gray-700"
                 } ${tab.locked ? "cursor-default" : ""}`}
               >
-                {tab.label}
+                {t(tab.label)}
                 {tab.locked && <Lock size={11} className="opacity-60" />}
               </button>
             ))}
@@ -947,7 +977,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-4">
-              Xu hướng học tập
+              {t("Xu hướng học tập")}
             </h3>
             <ResponsiveContainer width="100%" height={195}>
               <LineChart data={profile.academicTrend}>
@@ -979,14 +1009,14 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
                   stroke="#EA580C"
                   strokeWidth={2.5}
                   dot={{ r: 4, fill: "#EA580C", strokeWidth: 0 }}
-                  name="Điểm TB"
+                  name={t("Điểm TB")}
                 />
               </LineChart>
             </ResponsiveContainer>
           </div>
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-4">
-              Điểm số theo môn
+              {t("Điểm số theo môn")}
             </h3>
             <div className="space-y-3">
               {profile.scores.map((s) => (
@@ -1015,7 +1045,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
               ))}
             </div>
             <div className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-100 text-xs text-amber-700">
-              <strong>Thành tích:</strong> {profile.achievements} ·{" "}
+              <strong>{t("Thành tích")}:</strong> {profile.achievements} ·{" "}
               {profile.awards} · {profile.certificates}
             </div>
           </div>
@@ -1027,7 +1057,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-4">
-              Bản đồ kỹ năng & Sở thích
+              {t("Bản đồ kỹ năng & Sở thích")}
             </h3>
             <ResponsiveContainer width="100%" height={250}>
               <RadarChart data={buildStudentSkillRadar(profile)}>
@@ -1045,7 +1075,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
                 />
                 <Radar
                   key="radar-score"
-                  name="Điểm"
+                  name={t("Điểm")}
                   dataKey="score"
                   stroke="#8B5CF6"
                   fill="#8B5CF6"
@@ -1057,7 +1087,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
           </div>
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-4">
-              Độ phù hợp nghề nghiệp
+              {t("Độ phù hợp nghề nghiệp")}
             </h3>
             <div className="space-y-3.5">
               {buildStudentCareerMatches(profile).map((c, i) => (
@@ -1081,8 +1111,8 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
               ))}
             </div>
             <div className="mt-4 p-3 bg-blue-50 rounded-xl border border-blue-100 text-xs text-blue-700">
-              <strong>Lộ trình gợi ý:</strong> Tập trung Toán–Lý–Tin · Tham gia
-              CLB Robotics · Học Python cơ bản
+              <strong>{t("Lộ trình gợi ý")}:</strong>{" "}
+              {t("Tập trung Toán–Lý–Tin · Tham gia CLB Robotics · Học Python cơ bản")}
             </div>
           </div>
         </div>
@@ -1095,27 +1125,25 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
             <Lock size={22} className="text-gray-400" />
           </div>
           <h3 className="font-bold text-gray-700 mb-2">
-            Dữ liệu Wellbeing — Bảo mật cao
+            {t("Dữ liệu Wellbeing — Bảo mật cao")}
           </h3>
           <p className="text-sm text-gray-500 max-w-sm mx-auto mb-5">
-            Thông tin sức khỏe tinh thần và cảm xúc chỉ hiển thị với người có
-            quyền truy cập đặc biệt được phê duyệt.
+            {t("Thông tin sức khỏe tinh thần và cảm xúc chỉ hiển thị với người có quyền truy cập đặc biệt được phê duyệt.")}
           </p>
           <div className="inline-flex items-center gap-2 px-4 py-2 bg-red-50 text-red-600 rounded-xl text-sm border border-red-100 mb-5">
-            <AlertTriangle size={14} /> Lưu ý: Học sinh này cần được cố vấn hỗ
-            trợ thêm
+            <AlertTriangle size={14} /> {t("Lưu ý: Học sinh này cần được cố vấn hỗ trợ thêm")}
           </div>
           <div>
             {wellbeingRequested ? (
               <div className="inline-flex items-center gap-2 px-5 py-2.5 bg-green-50 text-green-700 rounded-xl text-sm border border-green-200">
-                <CheckCircle size={14} /> Yêu cầu đã gửi — chờ phê duyệt
+                <CheckCircle size={14} /> {t("Yêu cầu đã gửi — chờ phê duyệt")}
               </div>
             ) : (
               <button
                 onClick={() => setWellbeingRequested(true)}
                 className="px-5 py-2.5 bg-[#EA580C] text-white rounded-xl text-sm font-semibold hover:bg-[#C2410C]"
               >
-                Yêu cầu quyền truy cập
+                {t("Yêu cầu quyền truy cập")}
               </button>
             )}
           </div>
@@ -1127,7 +1155,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-4">
-              Timeline tư vấn
+              {t("Timeline tư vấn")}
             </h3>
             <div className="space-y-4">
               {[
@@ -1171,11 +1199,11 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
                       {item.date}
                     </p>
                     <p className="text-sm font-semibold text-gray-700">
-                      {item.title}
+                      {t(item.title)}
                     </p>
                     {item.note && (
                       <p className="text-xs text-gray-500 mt-0.5">
-                        {item.note}
+                        {t(item.note)}
                       </p>
                     )}
                   </div>
@@ -1185,7 +1213,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
           </div>
           <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
             <h3 className="font-semibold text-gray-800 mb-4">
-              Việc cần làm tiếp theo
+              {t("Việc cần làm tiếp theo")}
             </h3>
             <div className="space-y-2">
               {[
@@ -1224,7 +1252,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
                   <span
                     className={`text-sm flex-1 ${item.done ? "line-through text-gray-400" : "text-gray-700"}`}
                   >
-                    {item.task}
+                    {t(item.task)}
                   </span>
                   <span
                     className={`text-xs px-2 py-0.5 rounded-full font-medium flex-shrink-0 ${
@@ -1235,7 +1263,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
                           : "bg-gray-100 text-gray-500"
                     }`}
                   >
-                    {item.priority}
+                    {t(item.priority)}
                   </span>
                 </div>
               ))}
@@ -1247,11 +1275,11 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
       {(activeTab === "personal" || activeTab === "parent-exp") && (
         <div className="bg-white rounded-xl p-10 border border-gray-100 shadow-sm text-center">
           <p className="text-gray-400 text-sm">
-            Nội dung tab{" "}
+            {t("Nội dung tab")}{" "}
             <strong className="text-gray-600">
-              {tabs.find((t) => t.id === activeTab)?.label}
+              {t(tabs.find((tab) => tab.id === activeTab)?.label ?? "")}
             </strong>{" "}
-            đang được cập nhật bởi học sinh và phụ huynh.
+            {t("đang được cập nhật bởi học sinh và phụ huynh.")}
           </p>
         </div>
       )}
@@ -1261,6 +1289,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
 
 // ── Screen 10: Data Quality (Admin) ─────────────────────────────────────────
 export const DataQuality = () => {
+  const { t } = useLanguage();
   const permTable = [
     {
       type: "Academic Profile",
@@ -1327,10 +1356,10 @@ export const DataQuality = () => {
     <div className="space-y-5">
       <div>
         <h1 className="text-xl font-bold text-gray-900">
-          Chất lượng & Bảo mật Dữ liệu
+          {t("Chất lượng & Bảo mật Dữ liệu")}
         </h1>
         <p className="text-sm text-gray-500 mt-0.5">
-          Dành cho Quản trị viên · Cập nhật: 25/06/2025 08:32
+          {t("Dành cho Quản trị viên")} · {t("Cập nhật")}: 25/06/2025 08:32
         </p>
       </div>
 
@@ -1358,7 +1387,7 @@ export const DataQuality = () => {
         />
         <StatCard
           title="Dữ liệu nhạy cảm"
-          value="Bảo mật"
+          value={t("Bảo mật")}
           sub="Wellbeing — 2 lớp xác thực"
           icon={Lock}
           color="navy"
@@ -1367,21 +1396,21 @@ export const DataQuality = () => {
 
       <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
         <h3 className="font-semibold text-gray-800 mb-4">
-          Phân quyền truy cập dữ liệu
+          {t("Phân quyền truy cập dữ liệu")}
         </h3>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="bg-gray-50 rounded-lg">
                 <th className="text-left py-3 px-4 text-xs font-semibold text-gray-500 uppercase tracking-wide rounded-l-lg">
-                  Loại dữ liệu
+                  {t("Loại dữ liệu")}
                 </th>
                 {["Admin", "Cố vấn", "GV", "Phụ huynh", "Học sinh"].map((h) => (
                   <th
                     key={h}
                     className="text-center py-3 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide"
                   >
-                    {h}
+                    {t(h)}
                   </th>
                 ))}
               </tr>
@@ -1396,7 +1425,7 @@ export const DataQuality = () => {
                       </span>
                       {row.sensitive && (
                         <span className="flex items-center gap-1 text-xs text-red-600 bg-red-50 border border-red-100 px-2 py-0.5 rounded-full font-semibold">
-                          <Lock size={9} /> Nhạy cảm
+                          <Lock size={9} /> {t("Nhạy cảm")}
                         </span>
                       )}
                     </div>
@@ -1421,7 +1450,7 @@ export const DataQuality = () => {
 
       <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
         <h3 className="font-semibold text-gray-800 mb-4">
-          Nhật ký hoạt động gần đây
+          {t("Nhật ký hoạt động gần đây")}
         </h3>
         <div className="space-y-1.5">
           {[
@@ -1461,7 +1490,7 @@ export const DataQuality = () => {
               className="flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50"
             >
               <span className="text-xs text-gray-400 font-mono w-16 flex-shrink-0">
-                {log.time}
+                {t(log.time)}
               </span>
               <div
                 className={`w-2 h-2 rounded-full flex-shrink-0 ${log.type === "error" ? "bg-red-500" : log.type === "sensitive" ? "bg-amber-400" : "bg-green-400"}`}
@@ -1470,7 +1499,7 @@ export const DataQuality = () => {
                 {log.user}
               </span>
               <span className="text-gray-600 text-sm min-w-0 truncate">
-                {log.action}
+                {t(log.action)}
               </span>
             </div>
           ))}

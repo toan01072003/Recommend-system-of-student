@@ -130,10 +130,12 @@ import {
   resolveStudentProfile,
   type StudentProfileRecord,
 } from "../../../logic/studentProfile";
+import { useT } from "../../../i18n";
 
 /* ── Families ── */
 
 export const CounselorFamilies = () => {
+  const t = useT();
   const families = [
     {
       student: "Nguyễn Minh Anh",
@@ -184,7 +186,9 @@ export const CounselorFamilies = () => {
 
   return (
     <div className="space-y-5">
-      <h1 className="text-xl font-bold text-gray-900">Gia đình Học sinh 👨‍👩‍👧</h1>
+      <h1 className="text-xl font-bold text-gray-900">
+        {t("Gia đình Học sinh")} 👨‍👩‍👧
+      </h1>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
         {families.map((f) => (
@@ -197,30 +201,30 @@ export const CounselorFamilies = () => {
                 <p className="font-bold text-gray-900">{f.parent}</p>
 
                 <p className="text-xs text-blue-600 font-semibold">
-                  PH của: {f.student}
+                  {t("PH của")}: {f.student}
                 </p>
               </div>
 
               <span
                 className={`text-xs font-bold px-2.5 py-1 rounded-full ${engCls[f.engagement]}`}
               >
-                {f.engagement}
+                {t(f.engagement)}
               </span>
             </div>
 
             <div className="space-y-1.5 text-xs text-gray-600">
               <div className="flex items-center gap-2">
-                <span className="text-gray-400 w-24">Điện thoại</span>
+                <span className="text-gray-400 w-24">{t("Điện thoại")}</span>
                 <span className="font-mono font-medium">{f.phone}</span>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-gray-400 w-24">Email</span>
-                <span>{f.email || "Chưa có"}</span>
+                <span className="text-gray-400 w-24">{t("Email")}</span>
+                <span>{f.email || t("Chưa có")}</span>
               </div>
 
               <div className="flex items-center gap-2">
-                <span className="text-gray-400 w-24">Liên hệ lần cuối</span>
+                <span className="text-gray-400 w-24">{t("Liên hệ lần cuối")}</span>
                 <span>{f.lastContact}</span>
               </div>
             </div>
@@ -231,11 +235,11 @@ export const CounselorFamilies = () => {
 
             <div className="flex gap-2 mt-3">
               <button className="flex-1 py-2 bg-blue-100 text-blue-700 rounded-xl text-xs font-bold hover:bg-blue-200 transition-colors">
-                📱 Nhắn tin
+                📱 {t("Nhắn tin")}
               </button>
 
               <button className="flex-1 py-2 bg-gray-100 text-gray-700 rounded-xl text-xs font-bold hover:bg-gray-200 transition-colors">
-                📝 Ghi chú
+                📝 {t("Ghi chú")}
               </button>
             </div>
           </div>

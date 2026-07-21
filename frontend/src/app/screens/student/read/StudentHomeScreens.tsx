@@ -122,6 +122,7 @@ import {
   currentStudentReferenceId,
   referenceEmotionMeta,
 } from "../../../logic/referenceActions";
+import { useLanguage } from "../../../i18n";
 
 const studentMeetingDate = (meeting: MeetingRecord) => new Date(meeting.scheduledAt);
 
@@ -504,6 +505,7 @@ export const StudentDashboard = ({
 }: {
   setView: (v: string) => void;
 }) => {
+  const { language, t } = useLanguage();
   const { studentsInClass: appStudents } = useAppData();
   const selectedStudentId = currentStudentReferenceId();
   const student =
@@ -511,7 +513,7 @@ export const StudentDashboard = ({
     appStudents[0] ??
     null;
   const studentId = student?.id ?? selectedStudentId;
-  const studentName = student?.name ?? "Học sinh";
+  const studentName = student?.name ?? t("Học sinh");
   const shortName = studentName.split(/\s+/).slice(-2).join(" ") || studentName;
   const profileProgress = Math.max(
     0,
@@ -526,7 +528,7 @@ export const StudentDashboard = ({
     student?.currentExploredCareer ||
     student?.favoriteCareer ||
     student?.careerFit ||
-    "ngành phù hợp";
+    t("ngành phù hợp");
   const averageScore =
     student?.avg !== undefined ? Number(student.avg).toFixed(1) : "-";
   const [referenceSummary, setReferenceSummary] = useState({
@@ -605,38 +607,53 @@ export const StudentDashboard = ({
     referenceSummary.selected < referenceSummary.total;
   const nudge = shouldCompleteReferences
       ? {
-        title: "Bạn còn hành động chung chưa có cảm xúc.",
-        body: `Đã chọn ${referenceSummary.selected}/${referenceSummary.total}. Mở References để xem và tiếp tục cập nhật.`,
-        action: "Mở References",
+        title: t("Bạn còn hành động chung chưa có cảm xúc."),
+        body:
+          language === "en"
+            ? `${referenceSummary.selected}/${referenceSummary.total} selected. Open References to review and keep updating.`
+            : `Đã chọn ${referenceSummary.selected}/${referenceSummary.total}. Mở References để xem và tiếp tục cập nhật.`,
+        action: t("Mở References"),
         view: "st-references",
       }
     : surveyDone
       ? {
-          title: "Dữ liệu hướng nghiệp đã được cập nhật.",
-          body: `Hồ sơ ${studentId} đang ghi nhận ${topCareer} là hướng quan tâm hiện tại.`,
-          action: "Khám phá thêm",
+          title: t("Dữ liệu hướng nghiệp đã được cập nhật."),
+          body:
+            language === "en"
+              ? `Profile ${studentId} currently records ${topCareer} as the active interest direction.`
+              : `Hồ sơ ${studentId} đang ghi nhận ${topCareer} là hướng quan tâm hiện tại.`,
+          action: t("Khám phá thêm"),
           view: "st-explore",
         }
       : {
-          title: "Bạn chưa làm bài khảo sát hướng nghiệp.",
-          body: "Hoàn thành khảo sát để cố vấn có dữ liệu mới nhất từ database.",
-          action: "Làm ngay",
+          title: t("Bạn chưa làm bài khảo sát hướng nghiệp."),
+          body: t("Hoàn thành khảo sát để cố vấn có dữ liệu mới nhất từ database."),
+          action: t("Làm ngay"),
           view: "st-surveys",
-        };
+      };
+
+  const localizedReferenceHighlight = (() => {
+    const separator = referenceSummary.highlight.indexOf(": ");
+    if (separator <= 0) return t(referenceSummary.highlight);
+
+    const label = referenceSummary.highlight.slice(0, separator);
+    const rest = referenceSummary.highlight.slice(separator + 2);
+    return `${t(label)}: ${rest}`;
+  })();
 
   const quickStats = [
     {
       emoji: "🧑‍🎓",
       label: "Hồ sơ",
       value: `${profileProgress}%`,
-      sub: student?.riasecTop3 ? `RIASEC ${student.riasecTop3}` : "Từ database",
+      sub: student?.riasecTop3 ? `RIASEC ${student.riasecTop3}` : t("Từ database"),
       bg: "from-orange-400 to-amber-400",
     },
     {
       emoji: "📝",
       label: "Khảo sát",
-      value: surveyDone ? "Đã làm" : "Cần làm",
-      sub: student?.testStatus ?? "Chưa có dữ liệu",
+      value: surveyDone ? t("Đã làm") : t("Cần làm"),
+      sub: student?.testStatus ?? t("Chưa có dữ liệu"),
       bg: "from-pink-500 to-rose-400",
     },
     {
@@ -652,15 +669,15 @@ export const StudentDashboard = ({
       value: referenceSummary.loading
         ? "..."
         : `${referenceSummary.selected}/${referenceSummary.total}`,
-      sub: referenceSummary.highlight,
+      sub: localizedReferenceHighlight,
       bg: "from-violet-500 to-indigo-500",
     },
   ];
   const todayTasks = [
     {
       label: shouldCompleteReferences
-        ? "Chọn cảm xúc cho các hành động chung"
-        : "References đã đồng bộ với database",
+        ? t("Chọn cảm xúc cho các hành động chung")
+        : t("References đã đồng bộ với database"),
       tag: "References",
       tagCls: "bg-violet-100 text-violet-700",
       done: !shouldCompleteReferences,
@@ -668,8 +685,8 @@ export const StudentDashboard = ({
     },
     {
       label: surveyDone
-        ? "Khảo sát hướng nghiệp đã hoàn thành"
-        : "Làm khảo sát hướng nghiệp",
+        ? t("Khảo sát hướng nghiệp đã hoàn thành")
+        : t("Làm khảo sát hướng nghiệp"),
       tag: "Surveys",
       tagCls: "bg-pink-100 text-pink-700",
       done: surveyDone,
@@ -677,8 +694,10 @@ export const StudentDashboard = ({
     },
     {
       label: exploredCount
-        ? `Tiếp tục khám phá ${topCareer}`
-        : "Khám phá ngành nghề đầu tiên",
+        ? language === "en"
+          ? `Continue exploring ${topCareer}`
+          : `Tiếp tục khám phá ${topCareer}`
+        : t("Khám phá ngành nghề đầu tiên"),
       tag: "Explore",
       tagCls: "bg-orange-100 text-orange-700",
       done: exploredCount > 0,
@@ -692,6 +711,31 @@ export const StudentDashboard = ({
     })
     .sort((a, b) => studentMeetingDate(a).getTime() - studentMeetingDate(b).getTime())
     .slice(0, 3);
+  const formatMeetingTime = (value: string) => {
+    if (language === "vi") return formatStudentMeetingTime(value);
+
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) return value;
+
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(now.getDate() + 1);
+    const time = date.toLocaleTimeString("en-US", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+
+    if (sameStudentMeetingDay(date, now)) return `Today ${time}`;
+    if (sameStudentMeetingDay(date, tomorrow)) return `Tomorrow ${time}`;
+
+    return date.toLocaleDateString("en-US", {
+      weekday: "short",
+      day: "2-digit",
+      month: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
   return (
     <div className="space-y-5">
@@ -713,13 +757,13 @@ export const StudentDashboard = ({
           </div>
           <h1 className="text-2xl font-bold mt-0.5 mb-1">{shortName} ơi!</h1>
           <p className="text-white/80 text-sm mb-4">
-            Điểm TB <strong className="text-white">{averageScore}</strong> ·{" "}
-            Nhóm quan tâm <strong className="text-white">{topCareer}</strong>
+            {t("Điểm TB")} <strong className="text-white">{averageScore}</strong> ·{" "}
+            {t("Nhóm quan tâm")} <strong className="text-white">{topCareer}</strong>
           </p>
           <div className="bg-white/20 rounded-2xl p-3.5 backdrop-blur-sm">
             <div className="flex justify-between mb-1.5">
               <span className="text-xs font-bold text-white/90">
-                Hồ sơ hướng nghiệp
+                {t("Hồ sơ hướng nghiệp")}
               </span>
               <span className="text-xs font-bold text-white">
                 {profileProgress}%
@@ -733,8 +777,10 @@ export const StudentDashboard = ({
             </div>
             <p className="text-xs text-white/70 mt-1.5">
               {remainingProgress > 0
-                ? `Còn ${remainingProgress}% nữa là hoàn thiện hồ sơ.`
-                : "Hồ sơ đã hoàn thiện theo dữ liệu hiện tại."}
+                ? language === "en"
+                  ? `${remainingProgress}% left to complete the profile.`
+                  : `Còn ${remainingProgress}% nữa là hoàn thiện hồ sơ.`
+                : t("Hồ sơ đã hoàn thiện theo dữ liệu hiện tại.")}
             </p>
           </div>
         </div>
@@ -762,7 +808,7 @@ export const StudentDashboard = ({
           >
             <span className="text-2xl block mb-1">{card.emoji}</span>
             <p className="text-2xl font-bold leading-tight">{card.value}</p>
-            <p className="text-xs font-bold opacity-90">{card.label}</p>
+            <p className="text-xs font-bold opacity-90">{t(card.label)}</p>
             <p className="text-xs opacity-75 mt-0.5 line-clamp-2">
               {card.sub}
             </p>
@@ -772,7 +818,7 @@ export const StudentDashboard = ({
 
       <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-5">
         <h3 className="font-bold text-gray-800 mb-3 flex items-center gap-2">
-          <span>📅</span> Việc cần làm hôm nay
+          <span>📅</span> {t("Việc cần làm hôm nay")}
         </h3>
         <div className="space-y-2">
           {todayTasks.map((item) => (
@@ -804,28 +850,28 @@ export const StudentDashboard = ({
       <div className="bg-white rounded-2xl border border-blue-100 shadow-sm p-5">
         <div className="flex items-center justify-between gap-3 mb-3">
           <h3 className="font-bold text-gray-800 flex items-center gap-2">
-            <span>🗓️</span> Lịch tư vấn sắp tới
+            <span>🗓️</span> {t("Lịch tư vấn sắp tới")}
           </h3>
           <button
             onClick={() => setView("st-meeting")}
             className="text-xs font-bold text-blue-600 hover:text-blue-700"
           >
-            Xem lịch
+            {t("Xem lịch")}
           </button>
         </div>
 
         <div className="space-y-2.5">
           {meetingsStatus === "loading" ? (
             <p className="rounded-xl bg-gray-50 px-3 py-4 text-sm text-gray-500">
-              Đang tải lịch tư vấn từ database...
+              {t("Đang tải lịch tư vấn từ database...")}
             </p>
           ) : meetingsStatus === "error" ? (
             <p className="rounded-xl bg-red-50 px-3 py-4 text-sm font-semibold text-red-700">
-              Không tải được lịch tư vấn.
+              {t("Không tải được lịch tư vấn.")}
             </p>
           ) : upcomingMeetings.length === 0 ? (
             <p className="rounded-xl bg-gray-50 px-3 py-4 text-sm text-gray-500">
-              Bạn chưa có lịch tư vấn sắp tới.
+              {t("Bạn chưa có lịch tư vấn sắp tới.")}
             </p>
           ) : (
             upcomingMeetings.map((meeting) => (
@@ -848,7 +894,7 @@ export const StudentDashboard = ({
                     {meeting.topic}
                   </p>
                   <p className="text-xs text-gray-500">
-                    {formatStudentMeetingTime(meeting.scheduledAt)} · Cố vấn{" "}
+                    {formatMeetingTime(meeting.scheduledAt)} · {t("Cố vấn")}{" "}
                     {meeting.counselorName}
                   </p>
                 </div>
@@ -908,14 +954,14 @@ export const StudentDashboard = ({
           >
             <span className="text-3xl block mb-2">{card.emoji}</span>
             <h3 className="font-bold text-gray-800 text-sm mb-1">
-              {card.title}
+              {t(card.title)}
             </h3>
-            <p className="text-xs text-gray-500 mb-3 min-h-8">{card.desc}</p>
+            <p className="text-xs text-gray-500 mb-3 min-h-8">{t(card.desc)}</p>
             <button
               onClick={card.action}
               className={`px-3 py-1.5 rounded-xl text-xs font-bold ${card.btn} flex items-center gap-1`}
             >
-              Xem ngay <ArrowRight size={11} />
+              {t("Xem ngay")} <ArrowRight size={11} />
             </button>
           </div>
         ))}

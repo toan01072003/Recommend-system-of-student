@@ -122,6 +122,7 @@ import {
   careerReferenceActions,
   currentStudentReferenceId,
 } from "../../../logic/referenceActions";
+import { useT } from "../../../i18n";
 
 type StudentExploreUpdateResponse = {
   student: {
@@ -174,6 +175,7 @@ export const ExploreCareerDetail = ({
   onSelectRelated: (id: string) => void;
   onNavigateToUni?: (uniId: string) => void;
 }) => {
+  const t = useT();
   const [videoPlaying, setVideoPlaying] = useState(false);
   const isCurrentCareer = currentExploredCareer === career.name;
   const hasActivityReactions = hasCareerActivityReactions(career, reactions);
@@ -193,7 +195,7 @@ export const ExploreCareerDetail = ({
         className="flex items-center gap-1.5 text-sm font-semibold text-orange-600 hover:text-orange-800 transition-colors"
       >
         {" "}
-        <ArrowRight size={13} className="rotate-180" /> Quay lại danh sách{" "}
+        <ArrowRight size={13} className="rotate-180" /> {t("Quay lại danh sách")}{" "}
       </button>{" "}
       {/* Hero image */}{" "}
       <div
@@ -230,7 +232,7 @@ export const ExploreCareerDetail = ({
             }`}
           >
             {" "}
-            💭 {activitySaving ? "Đang lưu..." : hasActivityReactions ? "Đã làm - sửa lại" : "Tôi thích điều gì?"}{" "}
+            💭 {activitySaving ? t("Đang lưu...") : hasActivityReactions ? t("Đã làm - sửa lại") : t("Tôi thích điều gì?")}{" "}
           </button>{" "}
           <button
             onClick={onToggleFav}
@@ -247,10 +249,12 @@ export const ExploreCareerDetail = ({
       <div className="bg-white rounded-2xl border border-orange-100 shadow-sm p-4 flex items-center justify-between gap-3 flex-wrap">
         <div>
           <p className="text-sm font-bold text-gray-900">
-            {isCurrentCareer ? "Đang khám phá ngành nghề này" : "Lưu ngành nghề đang khám phá"}
+            {isCurrentCareer
+              ? t("Đang khám phá ngành nghề này")
+              : t("Lưu ngành nghề đang khám phá")}
           </p>
           <p className="text-xs text-gray-500 mt-0.5">
-            Xác nhận để cập nhật nghề đang khám phá trong hồ sơ của bạn.
+            {t("Xác nhận để cập nhật nghề đang khám phá trong hồ sơ của bạn.")}
           </p>
         </div>
         <button
@@ -264,10 +268,10 @@ export const ExploreCareerDetail = ({
         >
           <CheckCircle size={13} />
           {isCurrentCareer
-            ? "Đang khám phá"
+            ? t("Đang khám phá")
             : confirming
-              ? "Đang lưu..."
-              : "Xác nhận khám phá ngành nghề này"}
+              ? t("Đang lưu...")
+              : t("Xác nhận khám phá ngành nghề này")}
         </button>
       </div>
       {/* Quick info */}{" "}
@@ -308,7 +312,7 @@ export const ExploreCareerDetail = ({
               {" "}
               <info.icon size={13} className={info.cls} />{" "}
               <span className="text-xs text-gray-500 font-medium">
-                {info.label}
+                {t(info.label)}
               </span>{" "}
             </div>{" "}
             <p className={`text-sm font-bold ${info.cls}`}>{info.value}</p>{" "}
@@ -323,7 +327,7 @@ export const ExploreCareerDetail = ({
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             {" "}
             <h3 className="font-bold text-gray-800 mb-2">
-              📋 Mô tả công việc
+              📋 {t("Mô tả công việc")}
             </h3>{" "}
             <p className="text-sm text-gray-600 leading-relaxed">
               {career.fullDesc}
@@ -332,7 +336,7 @@ export const ExploreCareerDetail = ({
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             {" "}
             <h3 className="font-bold text-gray-800 mb-3">
-              📷 Hình ảnh thực tế
+              📷 {t("Hình ảnh thực tế")}
             </h3>{" "}
             <div className="grid grid-cols-3 gap-2">
               {" "}
@@ -354,7 +358,7 @@ export const ExploreCareerDetail = ({
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             {" "}
             <h3 className="font-bold text-gray-800 mb-3">
-              🎬 Video giới thiệu nghề nghiệp
+              🎬 {t("Video giới thiệu nghề nghiệp")}
             </h3>{" "}
             <div
               className="relative rounded-xl overflow-hidden cursor-pointer bg-gray-900"
@@ -388,7 +392,7 @@ export const ExploreCareerDetail = ({
                   <div>
                     <p className="text-4xl mb-2">▶</p>
                     <p className="text-sm font-semibold opacity-80">
-                      Video đang phát...
+                      {t("Video đang phát...")}
                     </p>
                   </div>{" "}
                 </div>
@@ -398,7 +402,7 @@ export const ExploreCareerDetail = ({
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
             {" "}
             <h3 className="font-bold text-gray-800 mb-3">
-              ⚡ Kỹ năng cần có
+              ⚡ {t("Kỹ năng cần có")}
             </h3>{" "}
             <div className="flex flex-wrap gap-2">
               {" "}
@@ -418,10 +422,10 @@ export const ExploreCareerDetail = ({
             <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between">
               {" "}
               <h3 className="font-bold text-gray-800">
-                🎓 Trường đào tạo ngành này
+                🎓 {t("Trường đào tạo ngành này")}
               </h3>{" "}
               <span className="text-xs text-gray-400 font-medium">
-                {career.universities.length} trường
+                {career.universities.length} {t("trường")}
               </span>{" "}
             </div>{" "}
             <div className="divide-y divide-gray-50">
@@ -463,7 +467,7 @@ export const ExploreCareerDetail = ({
                         </span>{" "}
                         {canNav && (
                           <span className="text-xs text-blue-500 font-medium hidden group-hover:inline">
-                            · Xem trường →
+                            · {t("Xem trường")} →
                           </span>
                         )}{" "}
                       </div>{" "}
@@ -878,6 +882,7 @@ export const ExploreTestModal = ({
   currentExploredCareer?: string;
   confirmingCareerId?: string | null;
 }) => {
+  const t = useT();
   const [filters, setFilters] = useState<TestFilters>({
     minSalary: 0,
     education: [],
@@ -904,8 +909,8 @@ export const ExploreTestModal = ({
   const SALARY_STEPS = [0, 5, 10, 15, 20, 25, 30, 40, 50];
   const salaryLabel =
     filters.minSalary === 0
-      ? "Không yêu cầu"
-      : `${filters.minSalary} triệu+/tháng`;
+      ? t("Không yêu cầu")
+      : `${filters.minSalary} ${t("triệu+/tháng")}`;
   const visibleClusters = showAllClusters
     ? CLUSTER_OPTS
     : CLUSTER_OPTS.slice(0, 4);
@@ -914,7 +919,7 @@ export const ExploreTestModal = ({
     <div className="flex items-center gap-0 mb-3">
       {" "}
       <span className="text-sm font-bold text-gray-800 w-44 flex-shrink-0">
-        {label}
+        {t(label)}
       </span>{" "}
       <div className="flex-1 h-px bg-gray-100" />{" "}
     </div>
@@ -934,10 +939,10 @@ export const ExploreTestModal = ({
             <div>
               {" "}
               <h2 className="text-lg font-bold text-gray-900">
-                Kết quả khám phá 🎯
+                {t("Kết quả khám phá")} 🎯
               </h2>{" "}
               <p className="text-sm text-gray-500 mt-0.5">
-                Dựa trên tiêu chí bạn đã chọn
+                {t("Dựa trên tiêu chí bạn đã chọn")}
               </p>{" "}
             </div>{" "}
             <div className="flex items-center gap-2">
@@ -947,7 +952,7 @@ export const ExploreTestModal = ({
                 className="px-4 py-2 rounded-xl border border-gray-200 text-sm font-medium text-gray-600 hover:bg-gray-50"
               >
                 {" "}
-                ← Chỉnh lại{" "}
+                ← {t("Chỉnh lại")}{" "}
               </button>{" "}
               <button
                 onClick={onClose}
@@ -1046,7 +1051,7 @@ export const ExploreTestModal = ({
                       }}
                       className="px-3 py-2 rounded-xl border border-gray-200 bg-white text-gray-600 text-xs font-bold hover:bg-gray-50 flex items-center justify-center gap-1"
                     >
-                      Xem chi tiết <ArrowRight size={12} />
+                      {t("Xem chi tiết")} <ArrowRight size={12} />
                     </button>
                     <button
                       onClick={() => onConfirmCareer(career)}
@@ -1062,10 +1067,10 @@ export const ExploreTestModal = ({
                     >
                       <CheckCircle size={12} />
                       {currentExploredCareer === career.name
-                        ? "Đang khám phá"
+                        ? t("Đang khám phá")
                         : confirmingCareerId === career.id
-                          ? "Đang lưu..."
-                          : "Xác nhận khám phá"}
+                          ? t("Đang lưu...")
+                          : t("Xác nhận khám phá")}
                     </button>
                   </div>
                 </div>
@@ -1092,10 +1097,10 @@ export const ExploreTestModal = ({
           <div>
             {" "}
             <h2 className="text-lg font-bold text-white">
-              🔍 Test Khám phá Nghề nghiệp
+              🔍 {t("Test Khám phá Nghề nghiệp")}
             </h2>{" "}
             <p className="text-sm text-blue-200 mt-0.5">
-              Chọn tiêu chí để tìm ngành nghề phù hợp nhất với bạn
+              {t("Chọn tiêu chí để tìm ngành nghề phù hợp nhất với bạn")}
             </p>{" "}
           </div>{" "}
           <button
@@ -1116,7 +1121,7 @@ export const ExploreTestModal = ({
             <div className="flex items-center gap-4">
               {" "}
               <span className="text-xs text-gray-400 font-mono w-20 flex-shrink-0">
-                Không yêu cầu
+                {t("Không yêu cầu")}
               </span>{" "}
               <input
                 type="range"
@@ -1212,7 +1217,7 @@ export const ExploreTestModal = ({
                       <span className="font-medium">{o}</span>{" "}
                       {isSuggested && (
                         <span className="ml-1.5 text-xs text-blue-500 font-semibold">
-                          (gợi ý cho bạn)
+                          ({t("gợi ý cho bạn")})
                         </span>
                       )}{" "}
                     </div>{" "}
@@ -1226,7 +1231,7 @@ export const ExploreTestModal = ({
                 className="mt-2 flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-800"
               >
                 {" "}
-                <Plus size={14} /> Xem thêm nhóm ngành{" "}
+                <Plus size={14} /> {t("Xem thêm nhóm ngành")}{" "}
               </button>
             )}{" "}
           </div>{" "}
@@ -1281,7 +1286,7 @@ export const ExploreTestModal = ({
             className="text-sm font-medium text-gray-500 hover:text-gray-700 transition-colors"
           >
             {" "}
-            Đặt lại tất cả{" "}
+            {t("Đặt lại tất cả")}{" "}
           </button>{" "}
           <button
             onClick={handleSubmit}
@@ -1289,7 +1294,7 @@ export const ExploreTestModal = ({
             style={{ background: "linear-gradient(135deg,#2563EB,#7C3AED)" }}
           >
             {" "}
-            Tìm ngành phù hợp <ArrowRight size={15} />{" "}
+            {t("Tìm ngành phù hợp")} <ArrowRight size={15} />{" "}
           </button>{" "}
         </div>{" "}
       </div>{" "}
@@ -1301,6 +1306,7 @@ export const StudentExplore = ({
 }: {
   onNavigateToUni?: (uniId: string) => void;
 }) => {
+  const t = useT();
   const { studentsInClass: appStudents, updateStudentInAppData } = useAppData();
   const [search, setSearch] = useState("");
   const [activeField, setActiveField] = useState("Tất cả");
@@ -1465,7 +1471,7 @@ export const StudentExplore = ({
                 : "border-emerald-100 bg-emerald-50 text-emerald-700"
             }`}
           >
-            {notice}
+            {t(notice)}
           </div>
         )}
         {activityCareer && (
@@ -1500,10 +1506,10 @@ export const StudentExplore = ({
         <div>
           {" "}
           <h1 className="text-xl font-bold text-gray-900">
-            Khám phá Ngành nghề 🧭
+            {t("Khám phá Ngành nghề")} 🧭
           </h1>{" "}
           <p className="text-sm text-gray-500 mt-0.5">
-            Tìm hiểu ngành nghề và khám phá điều bạn yêu thích
+            {t("Tìm hiểu ngành nghề và khám phá điều bạn yêu thích")}
           </p>{" "}
         </div>{" "}
         {/* Test button */}{" "}
@@ -1513,7 +1519,7 @@ export const StudentExplore = ({
           style={{ background: "linear-gradient(135deg,#2563EB,#7C3AED)" }}
         >
           {" "}
-          <span className="text-base">🔍</span> Test Khám phá{" "}
+          <span className="text-base">🔍</span> {t("Test Khám phá")}{" "}
         </button>{" "}
       </div>{" "}
       {notice && (
@@ -1540,7 +1546,7 @@ export const StudentExplore = ({
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-4 py-2.5 rounded-xl border-2 border-gray-200 bg-white text-sm focus:outline-none focus:border-orange-400"
-            placeholder="Tìm ngành nghề..."
+            placeholder={t("Tìm ngành nghề...")}
           />{" "}
         </div>{" "}
         <button
@@ -1548,8 +1554,8 @@ export const StudentExplore = ({
           className={`flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl border-2 text-sm font-semibold transition-all ${showFavs ? "border-red-400 bg-red-50 text-red-600" : "border-gray-200 bg-white text-gray-500 hover:border-red-300"}`}
         >
           {" "}
-          <Heart size={14} fill={showFavs ? "currentColor" : "none"} /> Yêu
-          thích {favoriteHistoryCount > 0 && `(${favoriteHistoryCount})`}{" "}
+          <Heart size={14} fill={showFavs ? "currentColor" : "none"} />{" "}
+          {t("Yêu thích")} {favoriteHistoryCount > 0 && `(${favoriteHistoryCount})`}{" "}
         </button>{" "}
       </div>{" "}
       {/* Field chips */}{" "}
@@ -1562,12 +1568,12 @@ export const StudentExplore = ({
             className={`px-3.5 py-1.5 rounded-full text-xs font-bold border-2 transition-all ${activeField === f ? "border-orange-500 bg-orange-500 text-white" : "border-gray-200 bg-white text-gray-600 hover:border-orange-300 hover:text-orange-600"}`}
           >
             {" "}
-            {f}{" "}
+            {t(f)}{" "}
           </button>
         ))}{" "}
       </div>{" "}
       <p className="text-xs text-gray-500 font-medium">
-        {filtered.length} ngành nghề
+        {filtered.length} {t("ngành nghề")}
       </p>{" "}
       {filtered.length > 0 ? (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-5">
@@ -1591,8 +1597,8 @@ export const StudentExplore = ({
         <div className="text-center py-16 text-gray-400">
           {" "}
           <p className="text-4xl mb-3">🔍</p>{" "}
-          <p className="font-semibold">Không tìm thấy kết quả</p>{" "}
-          <p className="text-sm mt-1">Thử từ khoá khác hoặc bỏ bộ lọc</p>{" "}
+          <p className="font-semibold">{t("Không tìm thấy kết quả")}</p>{" "}
+          <p className="text-sm mt-1">{t("Thử từ khoá khác hoặc bỏ bộ lọc")}</p>{" "}
         </div>
       )}{" "}
     </div>

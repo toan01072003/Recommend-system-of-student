@@ -111,18 +111,22 @@ import {
   buildStudentSkillRadar,
   scoreTone,
 } from "../../logic/recommendation";
+import { useT } from "../../i18n";
 
 // ── Screen 9: Parent Portal ───────────────────────────────────────────────────
 
-export const ParentPortal = () => (
+export const ParentPortal = () => {
+  const t = useT();
+
+  return (
   <div className="space-y-5">
     <div>
       <h1 className="text-xl font-bold text-gray-900">
-        Cổng thông tin Phụ huynh
+        {t("Cổng thông tin Phụ huynh")}
       </h1>
 
       <p className="text-sm text-gray-500 mt-0.5">
-        Theo dõi tiến độ của con — Nguyễn Minh Anh · Lớp 9A
+        {t("Theo dõi tiến độ của con")} — Nguyễn Minh Anh · {t("Lớp 9A")}
       </p>
     </div>
 
@@ -163,7 +167,7 @@ export const ParentPortal = () => (
     <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
       <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
         <h3 className="font-semibold text-gray-800 mb-4">
-          Phụ huynh nên làm gì tiếp theo?
+          {t("Phụ huynh nên làm gì tiếp theo?")}
         </h3>
 
         <div className="space-y-2.5">
@@ -212,13 +216,13 @@ export const ParentPortal = () => (
 
       <div className="bg-white rounded-xl p-5 border border-gray-100 shadow-sm">
         <h3 className="font-semibold text-gray-800 mb-4">
-          Cập nhật kỳ vọng gia đình
+          {t("Cập nhật kỳ vọng gia đình")}
         </h3>
 
         <div className="space-y-4">
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-2">
-              Định hướng học tập
+              {t("Định hướng học tập")}
             </label>
 
             <div className="flex gap-2 flex-wrap">
@@ -227,7 +231,7 @@ export const ParentPortal = () => (
                   key={opt}
                   className={`px-3 py-2 rounded-xl text-sm font-medium border-2 transition-colors ${i === 0 ? "border-blue-500 bg-blue-50 text-blue-700" : "border-gray-200 text-gray-600 hover:border-gray-300"}`}
                 >
-                  {opt}
+                  {t(opt)}
                 </button>
               ))}
             </div>
@@ -235,7 +239,7 @@ export const ParentPortal = () => (
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Ngân sách dự kiến / năm học
+              {t("Ngân sách dự kiến / năm học")}
             </label>
 
             <select className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500">
@@ -251,7 +255,7 @@ export const ParentPortal = () => (
 
           <div>
             <label className="block text-sm font-medium text-gray-700 mb-1.5">
-              Kỳ vọng của gia đình
+              {t("Kỳ vọng của gia đình")}
             </label>
 
             <textarea
@@ -264,7 +268,7 @@ export const ParentPortal = () => (
           </div>
 
           <button className="w-full py-2.5 bg-[#EA580C] text-white rounded-xl text-sm font-bold hover:bg-[#C2410C]">
-            Lưu cập nhật
+            {t("Lưu cập nhật")}
           </button>
         </div>
       </div>
@@ -275,15 +279,14 @@ export const ParentPortal = () => (
 
       <div>
         <p className="text-sm font-bold text-amber-800">
-          Lưu ý về dữ liệu Wellbeing
+          {t("Lưu ý về dữ liệu Wellbeing")}
         </p>
 
         <p className="text-xs text-amber-700 mt-0.5">
-          Một số thông tin sức khỏe tinh thần của con không được hiển thị để bảo
-          vệ quyền riêng tư của con em. Nếu cần biết thêm, vui lòng liên hệ trực
-          tiếp với cố vấn hướng nghiệp tại trường.
+          {t("Một số thông tin sức khỏe tinh thần của con không được hiển thị để bảo vệ quyền riêng tư của con em. Nếu cần biết thêm, vui lòng liên hệ trực tiếp với cố vấn hướng nghiệp tại trường.")}
         </p>
       </div>
     </div>
   </div>
-);
+  );
+};

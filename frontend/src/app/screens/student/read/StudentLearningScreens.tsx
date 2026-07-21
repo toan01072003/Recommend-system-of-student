@@ -111,8 +111,10 @@ import {
   buildStudentSkillRadar,
   scoreTone,
 } from "../../../logic/recommendation";
+import { useT } from "../../../i18n";
 
 export const StudentLessons = () => {
+  const t = useT();
   const lessons = [
     {
       id: 1,
@@ -168,9 +170,11 @@ export const StudentLessons = () => {
       {" "}
       <div>
         {" "}
-        <h1 className="text-xl font-bold text-gray-900">Bài học 📖</h1>{" "}
+        <h1 className="text-xl font-bold text-gray-900">
+          {t("Bài học")} 📖
+        </h1>{" "}
         <p className="text-sm text-gray-500 mt-0.5">
-          2 / 6 bài đã hoàn thành
+          2 / 6 {t("bài đã hoàn thành")}
         </p>{" "}
       </div>{" "}
       <div className="h-3 bg-gray-100 rounded-full overflow-hidden">
@@ -224,10 +228,10 @@ export const StudentLessons = () => {
             >
               {" "}
               {l.progress === 100
-                ? "Xem lại"
+                ? t("Xem lại")
                 : l.progress > 0
-                  ? "Tiếp tục"
-                  : "Bắt đầu"}{" "}
+                  ? t("Tiếp tục")
+                  : t("Bắt đầu")}{" "}
             </button>{" "}
           </div>
         ))}{" "}
@@ -237,6 +241,7 @@ export const StudentLessons = () => {
 };
 
 export const StudentAssignment = () => {
+  const t = useT();
   const assignments = [
     {
       title: "Viết về ước mơ nghề nghiệp của bạn",
@@ -277,9 +282,11 @@ export const StudentAssignment = () => {
         {" "}
         <div>
           {" "}
-          <h1 className="text-xl font-bold text-gray-900">Bài tập ✅</h1>{" "}
+          <h1 className="text-xl font-bold text-gray-900">
+            {t("Bài tập")} ✅
+          </h1>{" "}
           <p className="text-sm text-gray-500 mt-0.5">
-            1 hoàn thành · 3 còn lại
+            1 {t("hoàn thành")} · 3 {t("còn lại")}
           </p>{" "}
         </div>{" "}
         <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-black text-emerald-600 bg-emerald-100">
@@ -313,11 +320,11 @@ export const StudentAssignment = () => {
                   className={`text-xs px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${a.done ? "bg-emerald-100 text-emerald-700" : a.urgent ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-700"}`}
                 >
                   {" "}
-                  {a.done ? "Xong" : a.urgent ? "Gấp!" : "Chờ nộp"}{" "}
+                  {a.done ? t("Xong") : a.urgent ? t("Gấp!") : t("Chờ nộp")}{" "}
                 </span>{" "}
               </div>{" "}
               <p className="text-xs text-gray-500 mt-1">
-                📅 Hạn nộp: {a.due} · 📌 {a.subject}
+                📅 {t("Hạn nộp")}: {a.due} · 📌 {a.subject}
               </p>{" "}
             </div>{" "}
           </div>
@@ -327,6 +334,7 @@ export const StudentAssignment = () => {
   );
 };
 export const StudentGames = () => {
+  const t = useT();
   const games = [
     {
       emoji: "🏙️",
@@ -374,9 +382,11 @@ export const StudentGames = () => {
       {" "}
       <div>
         {" "}
-        <h1 className="text-xl font-bold text-gray-900">Real Games 🎮</h1>{" "}
+        <h1 className="text-xl font-bold text-gray-900">
+          {t("Trò chơi thực tế")} 🎮
+        </h1>{" "}
         <p className="text-sm text-gray-500 mt-0.5">
-          Khám phá nghề nghiệp qua trò chơi thực tế
+          {t("Khám phá nghề nghiệp qua trò chơi thực tế")}
         </p>{" "}
       </div>{" "}
       <div className="bg-gradient-to-r from-violet-500 to-indigo-500 rounded-2xl p-4 flex items-center gap-4 text-white shadow-md">
@@ -385,14 +395,16 @@ export const StudentGames = () => {
         <div>
           {" "}
           <p className="text-xs text-white/80 font-semibold">
-            Điểm XP của bạn
+            {t("Điểm XP của bạn")}
           </p>{" "}
           <p className="text-3xl font-black">150 XP</p>{" "}
-          <p className="text-xs text-white/70">Hạng 12 trong lớp 9A</p>{" "}
+          <p className="text-xs text-white/70">
+            {t("Hạng 12 trong lớp 9A")}
+          </p>{" "}
         </div>{" "}
         <div className="ml-auto text-right">
           {" "}
-          <p className="text-xs text-white/80">Huy hiệu đạt được</p>{" "}
+          <p className="text-xs text-white/80">{t("Huy hiệu đạt được")}</p>{" "}
           <div className="flex gap-1 mt-1">
             {" "}
             {["🥉", "🔬", "🌱"].map((b) => (
@@ -437,7 +449,7 @@ export const StudentGames = () => {
               className={`px-3 py-1.5 rounded-xl text-xs font-bold flex-shrink-0 ${g.played ? "bg-violet-100 text-violet-700" : "bg-violet-500 text-white"}`}
             >
               {" "}
-              {g.played ? "Chơi lại" : "Chơi ngay"}{" "}
+              {g.played ? t("Chơi lại") : t("Chơi ngay")}{" "}
             </button>{" "}
           </div>
         ))}{" "}

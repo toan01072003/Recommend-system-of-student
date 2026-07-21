@@ -120,8 +120,10 @@ import {
   type SurveyRecord,
   type SurveyResultRecord,
 } from "../../../api/client";
+import { useLanguage } from "../../../i18n";
 
 export const StudentSurveys = () => {
+  const { t, formatDateTime } = useLanguage();
   const [step, setStep] = useState<"list" | "quiz" | "detail">("list");
   const [surveys, setSurveys] = useState<SurveyRecord[]>([]);
   const [activeSurvey, setActiveSurvey] = useState<SurveyRecord | null>(null);
@@ -155,7 +157,7 @@ export const StudentSurveys = () => {
   const formatTime = (value: string) => {
     const date = new Date(value);
     if (Number.isNaN(date.getTime())) return value;
-    return date.toLocaleString("vi-VN", {
+    return formatDateTime(date, {
       day: "2-digit",
       month: "2-digit",
       year: "numeric",
@@ -271,13 +273,13 @@ export const StudentSurveys = () => {
           className="flex items-center gap-1.5 text-sm font-semibold text-pink-600"
         >
           <ArrowRight size={14} className="rotate-180" />
-          Quay lại
+          {t("Quay lại")}
         </button>
 
         <div>
           <div className="flex justify-between mb-2 text-sm">
             <span className="font-bold text-pink-600">
-              Câu {qIdx + 1} / {activeSurvey.questions.length}
+              {t("Câu")} {qIdx + 1} / {activeSurvey.questions.length}
             </span>
             <span className="text-gray-500">
               {Math.round(((qIdx + 1) / activeSurvey.questions.length) * 100)}%
@@ -293,14 +295,16 @@ export const StudentSurveys = () => {
 
         {notice && (
           <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
-            {notice}
+            {t(notice)}
           </div>
         )}
 
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
           <p className="text-lg font-bold text-gray-900">{question.text}</p>
           {question.area && (
-            <p className="text-xs font-bold text-pink-700 mt-2">Nhóm: {question.area}</p>
+            <p className="text-xs font-bold text-pink-700 mt-2">
+              {t("Nhóm")}: {question.area}
+            </p>
           )}
           {question.type === "text" ? (
             <textarea
@@ -313,7 +317,7 @@ export const StudentSurveys = () => {
               }
               rows={5}
               className="w-full rounded-lg border border-gray-200 px-3 py-2 text-sm mt-5"
-              placeholder="Nhập câu trả lời của bạn"
+              placeholder={t("Nhập câu trả lời của bạn")}
             />
           ) : question.type === "multiple_choice" ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-5">
@@ -368,14 +372,14 @@ export const StudentSurveys = () => {
             disabled={qIdx === 0}
             className="px-4 py-2 rounded-lg border border-gray-200 text-sm font-bold text-gray-700 disabled:opacity-40"
           >
-            Câu trước
+            {t("Câu trước")}
           </button>
           {qIdx < activeSurvey.questions.length - 1 ? (
             <button
               onClick={() => setQIdx((index) => Math.min(activeSurvey.questions.length - 1, index + 1))}
               className="px-4 py-2 rounded-lg bg-pink-600 text-white text-sm font-bold"
             >
-              Câu tiếp
+              {t("Câu tiếp")}
             </button>
           ) : (
             <button
@@ -383,7 +387,7 @@ export const StudentSurveys = () => {
               disabled={status === "saving"}
               className="px-4 py-2 rounded-lg bg-pink-600 text-white text-sm font-bold disabled:opacity-60"
             >
-              {status === "saving" ? "Đang nộp" : "Nộp bài"}
+              {status === "saving" ? t("Đang nộp") : t("Nộp bài")}
             </button>
           )}
         </div>
@@ -402,30 +406,34 @@ export const StudentSurveys = () => {
           className="flex items-center gap-1.5 text-sm font-semibold text-pink-600"
         >
           <ArrowRight size={14} className="rotate-180" />
-          Quay lại
+          {t("Quay lại")}
         </button>
 
         <div className="bg-white rounded-xl border border-gray-100 shadow-sm p-5">
-          <p className="text-sm font-bold text-pink-700">Kết quả khảo sát</p>
+          <p className="text-sm font-bold text-pink-700">
+            {t("Kết quả khảo sát")}
+          </p>
           <h1 className="text-xl font-bold text-gray-900 mt-1">{activeSurvey.title}</h1>
           <p className="text-sm text-gray-500 mt-1">
-            Hoàn thành lúc {formatTime(activeResult.submittedAt)}
+            {t("Hoàn thành lúc")} {formatTime(activeResult.submittedAt)}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 mt-5">
             <div className="rounded-lg bg-gray-50 p-3">
-              <p className="text-xs font-bold text-gray-500">Số câu</p>
+              <p className="text-xs font-bold text-gray-500">{t("Số câu")}</p>
               <p className="text-lg font-black text-gray-900">
                 {activeResult.result.answeredCount}/{activeResult.result.totalQuestions}
               </p>
             </div>
             <div className="rounded-lg bg-gray-50 p-3">
-              <p className="text-xs font-bold text-gray-500">Điểm TB</p>
+              <p className="text-xs font-bold text-gray-500">{t("Điểm TB")}</p>
               <p className="text-lg font-black text-gray-900">
                 {activeResult.result.averageScore ?? "-"}
               </p>
             </div>
             <div className="rounded-lg bg-gray-50 p-3">
-              <p className="text-xs font-bold text-gray-500">Nhóm nổi bật</p>
+              <p className="text-xs font-bold text-gray-500">
+                {t("Nhóm nổi bật")}
+              </p>
               <p className="text-sm font-black text-gray-900">
                 {activeResult.result.summary || "-"}
               </p>
@@ -438,10 +446,12 @@ export const StudentSurveys = () => {
             const value = answersByQuestion.get(String(question.id));
             return (
               <div key={question.id} className="p-4">
-                <p className="text-xs font-bold text-gray-400">Câu {index + 1}</p>
+                <p className="text-xs font-bold text-gray-400">
+                  {t("Câu")} {index + 1}
+                </p>
                 <p className="font-semibold text-gray-900 mt-1">{question.text}</p>
                 <p className="text-sm font-bold text-pink-700 mt-2">
-                  Trả lời: {value !== undefined ? answerLabel(activeSurvey, question, value) : "-"}
+                  {t("Trả lời")}: {value !== undefined ? answerLabel(activeSurvey, question, value) : "-"}
                 </p>
               </div>
             );
@@ -460,9 +470,9 @@ export const StudentSurveys = () => {
     <div className="space-y-5">
       <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
-          <h1 className="text-xl font-bold text-gray-900">Khảo sát</h1>
+          <h1 className="text-xl font-bold text-gray-900">{t("Khảo sát")}</h1>
           <p className="text-sm text-gray-500 mt-1">
-            {completedCount} / {surveys.length} khảo sát đã hoàn thành
+            {completedCount} / {surveys.length} {t("khảo sát đã hoàn thành")}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -476,21 +486,25 @@ export const StudentSurveys = () => {
       {openPendingCount > 0 && (
         <div className="rounded-xl border border-pink-100 bg-pink-50 px-4 py-3">
           <p className="text-sm font-bold text-pink-800">
-            Bạn có {openPendingCount} khảo sát mới cần hoàn thành.
+            {t("Bạn có")} {openPendingCount} {t("khảo sát mới cần hoàn thành.")}
           </p>
         </div>
       )}
 
       {notice && (
         <div className="rounded-lg bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
-          {notice}
+          {t(notice)}
         </div>
       )}
 
       {status === "loading" && surveys.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 p-5 text-sm text-gray-500">Đang tải khảo sát...</div>
+        <div className="bg-white rounded-xl border border-gray-100 p-5 text-sm text-gray-500">
+          {t("Đang tải khảo sát...")}
+        </div>
       ) : surveys.length === 0 ? (
-        <div className="bg-white rounded-xl border border-gray-100 p-5 text-sm text-gray-500">Hiện chưa có khảo sát nào được giao.</div>
+        <div className="bg-white rounded-xl border border-gray-100 p-5 text-sm text-gray-500">
+          {t("Hiện chưa có khảo sát nào được giao.")}
+        </div>
       ) : (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
           {surveys.map((survey) => {
@@ -512,20 +526,28 @@ export const StudentSurveys = () => {
                         ? "bg-pink-100 text-pink-700"
                         : "bg-gray-100 text-gray-600"
                   }`}>
-                    {isDone ? "Đã làm" : survey.status === "active" ? "Đang mở" : survey.status === "scheduled" ? "Sắp mở" : "Đã đóng"}
+                    {isDone
+                      ? t("Đã làm")
+                      : survey.status === "active"
+                        ? t("Đang mở")
+                        : survey.status === "scheduled"
+                          ? t("Sắp mở")
+                          : t("Đã đóng")}
                   </span>
                 </div>
                 <p className="text-sm text-gray-600 mt-3">
-                  {survey.description || `${survey.questions.length} câu hỏi`}
+                  {survey.description || `${survey.questions.length} ${t("câu hỏi")}`}
                 </p>
                 <div className="flex items-center justify-between mt-4">
-                  <span className="text-xs text-gray-500">{survey.questions.length} câu hỏi</span>
+                  <span className="text-xs text-gray-500">
+                    {survey.questions.length} {t("câu hỏi")}
+                  </span>
                   {isDone ? (
                     <button
                       onClick={() => openResult(survey)}
                       className="px-3 py-2 rounded-lg bg-emerald-100 text-emerald-700 text-xs font-bold"
                     >
-                      Xem kết quả
+                      {t("Xem kết quả")}
                     </button>
                   ) : (
                     <button
@@ -533,7 +555,11 @@ export const StudentSurveys = () => {
                       disabled={!canStart}
                       className="px-3 py-2 rounded-lg bg-pink-600 text-white text-xs font-bold disabled:bg-gray-100 disabled:text-gray-400"
                     >
-                      {survey.status === "scheduled" ? "Chưa mở" : survey.status === "closed" ? "Đã đóng" : "Bắt đầu"}
+                      {survey.status === "scheduled"
+                        ? t("Chưa mở")
+                        : survey.status === "closed"
+                          ? t("Đã đóng")
+                          : t("Bắt đầu")}
                     </button>
                   )}
                 </div>

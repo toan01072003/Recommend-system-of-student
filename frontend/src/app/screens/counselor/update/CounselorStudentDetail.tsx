@@ -137,6 +137,7 @@ import {
   resolveStudentProfile,
   type StudentProfileRecord,
 } from "../../../logic/studentProfile";
+import { useT } from "../../../i18n";
 
 /* ── Student Detail ── */
 
@@ -147,6 +148,7 @@ export const CounselorStudentDetail = ({
   student: StudentProfileRecord;
   onBack: () => void;
 }) => {
+  const t = useT();
   const [tab, setTab] = useState("academic");
   const [alumniRecommendation, setAlumniRecommendation] =
     useState<RecommendationResponse | null>(null);
@@ -465,21 +467,21 @@ export const CounselorStudentDetail = ({
   ).length;
 
   const tabs = [
-    { id: "academic", label: "Academic Profile" },
+    { id: "academic", label: "Hồ sơ học tập" },
 
-    { id: "personal", label: "Personal Statement" },
+    { id: "personal", label: "Bài luận cá nhân" },
 
-    { id: "career", label: "Career Profile" },
+    { id: "career", label: "Hồ sơ nghề nghiệp" },
 
-    { id: "references", label: "References" },
+    { id: "references", label: "Tham chiếu" },
 
     { id: "recommendation", label: "Gợi ý & Đánh giá" },
 
     { id: "wellbeing", label: "Wellbeing" },
 
-    { id: "parent", label: "Kỳ vọng PH" },
+    { id: "parent", label: "Kỳ vọng phụ huynh" },
 
-    { id: "alumni", label: "Alumni" },
+    { id: "alumni", label: "Cựu học sinh" },
   ];
 
   return (
@@ -488,7 +490,7 @@ export const CounselorStudentDetail = ({
         onClick={onBack}
         className="flex items-center gap-1.5 text-sm font-semibold text-blue-600 hover:text-blue-800"
       >
-        <ArrowRight size={13} className="rotate-180" /> Quay lại danh sách
+        <ArrowRight size={13} className="rotate-180" /> {t("Quay lại danh sách")}
       </button>
 
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
@@ -545,7 +547,7 @@ export const CounselorStudentDetail = ({
                 },
               ].map((item) => (
                 <div key={item.label} className="bg-gray-50 rounded-xl p-3">
-                  <p className="text-xs text-gray-400">{item.label}</p>
+                  <p className="text-xs text-gray-400">{t(item.label)}</p>
 
                   <p className={`text-sm font-bold mt-0.5 ${item.cls}`}>
                     {item.value}
@@ -558,14 +560,14 @@ export const CounselorStudentDetail = ({
 
         <div className="px-5 border-t border-gray-100">
           <div className="flex gap-0 overflow-x-auto -mb-px">
-            {tabs.map((t) => (
+            {tabs.map((tabItem) => (
               <button
-                key={t.id}
-                onClick={() => setTab(t.id)}
+                key={tabItem.id}
+                onClick={() => setTab(tabItem.id)}
 
-                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors flex-shrink-0 ${tab === t.id ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
+                className={`flex items-center gap-1.5 px-4 py-3 text-sm font-medium border-b-2 whitespace-nowrap transition-colors flex-shrink-0 ${tab === tabItem.id ? "border-blue-500 text-blue-600" : "border-transparent text-gray-500 hover:text-gray-700"}`}
               >
-                {t.label}
+                {t(tabItem.label)}
               </button>
             ))}
           </div>
@@ -648,7 +650,7 @@ export const CounselorStudentDetail = ({
             </div>
 
             <div className="mt-4 p-3 bg-amber-50 rounded-xl border border-amber-100 text-xs text-amber-700">
-              <strong>Thành tích:</strong> {student.achievements} ·{" "}
+              <strong>{t("Thành tích")}:</strong> {student.achievements} ·{" "}
               {student.awards} · {student.certificates}
             </div>
           </div>
@@ -657,7 +659,7 @@ export const CounselorStudentDetail = ({
 
       {tab === "personal" && (
         <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-4">
-          <h3 className="font-bold text-gray-800">Personal Statement</h3>
+          <h3 className="font-bold text-gray-800">{t("Bài luận cá nhân")}</h3>
 
           {[
             {
@@ -698,7 +700,7 @@ export const CounselorStudentDetail = ({
           ].map((f) => (
             <div key={f.label}>
               <p className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-1">
-                {f.label}
+                {t(f.label)}
               </p>
 
               <p className="text-sm text-gray-700 bg-gray-50 rounded-xl p-3">
@@ -712,7 +714,9 @@ export const CounselorStudentDetail = ({
       {tab === "career" && (
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-            <h3 className="font-bold text-gray-800 mb-4">Bản đồ kỹ năng</h3>
+            <h3 className="font-bold text-gray-800 mb-4">
+              {t("Bản đồ kỹ năng")}
+            </h3>
 
             <ResponsiveContainer width="100%" height={230}>
               <RadarChart data={buildStudentSkillRadar(student)}>
@@ -733,7 +737,7 @@ export const CounselorStudentDetail = ({
 
                 <Radar
                   key="r"
-                  name="Điểm"
+                  name={t("Điểm")}
                   dataKey="score"
                   stroke="#3B82F6"
                   fill="#3B82F6"
@@ -746,7 +750,7 @@ export const CounselorStudentDetail = ({
 
           <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm space-y-3">
             <h3 className="font-bold text-gray-800 mb-2">
-              Career Profile từ database
+              {t("Hồ sơ nghề nghiệp từ database")}
             </h3>
 
             {[
@@ -771,7 +775,7 @@ export const CounselorStudentDetail = ({
                 className="flex justify-between items-center p-2.5 bg-gray-50 rounded-xl"
               >
                 <span className="text-xs text-gray-500 font-medium">
-                  {k as string}
+                  {t(k as string)}
                 </span>
 
                 <span className="text-xs font-bold text-blue-700">
@@ -817,7 +821,7 @@ export const CounselorStudentDetail = ({
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3 flex-wrap">
             <div>
-              <h3 className="font-bold text-gray-800">References</h3>
+              <h3 className="font-bold text-gray-800">{t("Tham chiếu")}</h3>
               <p className="text-xs text-gray-500 mt-0.5">
                 Cảm xúc tổng hợp của {student.name} với các hành động chung.
               </p>
@@ -1205,14 +1209,14 @@ export const CounselorStudentDetail = ({
                   onKeyDown={(event) => {
                     if (event.key === "Enter") handleSendMessage();
                   }}
-                  placeholder="Nhập tin nhắn..."
+                  placeholder={t("Nhập tin nhắn...")}
                   className="flex-1 rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-100 focus:border-blue-400"
                 />
                 <button
                   onClick={handleSendMessage}
                   className="px-4 py-2 rounded-xl bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-700 flex items-center gap-1.5"
                 >
-                  <MessageSquare size={13} /> Gửi
+                  <MessageSquare size={13} /> {t("Gửi")}
                 </button>
               </div>
             </div>
@@ -1222,7 +1226,7 @@ export const CounselorStudentDetail = ({
             <div className="space-y-4">
             <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
               <div className="flex items-center justify-between gap-3 mb-4">
-                <h3 className="font-bold text-gray-800">Gửi note advice</h3>
+                <h3 className="font-bold text-gray-800">{t("Gửi note advice")}</h3>
                 <span className="text-xs font-semibold px-2.5 py-1 rounded-full bg-amber-50 text-amber-700">
                   {student.name}
                 </span>
@@ -1231,7 +1235,7 @@ export const CounselorStudentDetail = ({
               <div className="space-y-3">
                 <label className="space-y-1.5 block">
                   <span className="text-xs font-bold text-gray-500">
-                    Tiêu đề
+                    {t("Tiêu đề")}
                   </span>
                   <input
                     value={adviceSubject}
@@ -1242,7 +1246,7 @@ export const CounselorStudentDetail = ({
 
                 <label className="space-y-1.5 block">
                   <span className="text-xs font-bold text-gray-500">
-                    Mức độ ưu tiên
+                    {t("Mức độ ưu tiên")}
                   </span>
                   <select
                     value={advicePriority}
@@ -1251,21 +1255,21 @@ export const CounselorStudentDetail = ({
                     }
                     className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-100 focus:border-amber-400"
                   >
-                    <option value="high">Quan trọng</option>
-                    <option value="medium">Lưu ý</option>
-                    <option value="low">Thông tin</option>
+                    <option value="high">{t("Quan trọng")}</option>
+                    <option value="medium">{t("Lưu ý")}</option>
+                    <option value="low">{t("Thông tin")}</option>
                   </select>
                 </label>
 
                 <label className="space-y-1.5 block">
                   <span className="text-xs font-bold text-gray-500">
-                    Nội dung
+                    {t("Nội dung")}
                   </span>
                   <textarea
                     value={adviceNote}
                     onChange={(event) => setAdviceNote(event.target.value)}
                     rows={6}
-                    placeholder="Nhập lời khuyên gửi cho học sinh..."
+                    placeholder={t("Nhập lời khuyên gửi cho học sinh...")}
                     className="w-full rounded-xl border border-gray-200 px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-amber-100 focus:border-amber-400"
                   />
                 </label>
@@ -1276,12 +1280,12 @@ export const CounselorStudentDetail = ({
                       {adviceSubject || "Note advice"}
                     </p>
                     <p className="text-xs text-amber-700">
-                      Gửi tới {student.name} · {student.className} ·{" "}
+                      {t("Gửi tới")} {student.name} · {student.className} ·{" "}
                       {advicePriority === "high"
-                        ? "Quan trọng"
+                        ? t("Quan trọng")
                         : advicePriority === "medium"
-                          ? "Lưu ý"
-                          : "Thông tin"}
+                          ? t("Lưu ý")
+                          : t("Thông tin")}
                     </p>
                   </div>
                   <button
@@ -1290,7 +1294,7 @@ export const CounselorStudentDetail = ({
                     className="px-3 py-2 rounded-xl bg-amber-500 text-white text-xs font-bold hover:bg-amber-600 disabled:opacity-50 flex items-center gap-1.5"
                   >
                     <BookMarked size={13} />{" "}
-                    {adviceStatus === "saving" ? "Đang gửi" : "Gửi note"}
+                    {adviceStatus === "saving" ? t("Đang gửi") : t("Gửi note")}
                   </button>
                 </div>
               </div>
@@ -1299,10 +1303,10 @@ export const CounselorStudentDetail = ({
               <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
                 <div>
                   <h3 className="font-bold text-gray-800">
-                    Lịch sử advice note
+                    {t("Lịch sử advice note")}
                   </h3>
                   <p className="text-xs text-gray-500 mt-0.5">
-                    {adviceHistory.length} note đã gửi cho {student.name}
+                    {adviceHistory.length} {t("note đã gửi cho")} {student.name}
                   </p>
                 </div>
               </div>
@@ -1310,11 +1314,11 @@ export const CounselorStudentDetail = ({
               <div className="divide-y divide-gray-50">
                 {adviceStatus === "loading" ? (
                   <div className="p-5 text-sm text-gray-500">
-                    Đang tải lịch sử advice note...
+                    {t("Đang tải lịch sử advice note...")}
                   </div>
                 ) : adviceHistory.length === 0 ? (
                   <div className="p-5 text-sm text-gray-500">
-                    Chưa có advice note nào cho học sinh này.
+                    {t("Chưa có advice note nào cho học sinh này.")}
                   </div>
                 ) : (
                   adviceHistory.map((note) => (
