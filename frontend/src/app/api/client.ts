@@ -78,19 +78,24 @@ export type UpdateMeetingPayload = Partial<{
   meetingNote: string;
 }>;
 
-export type MessageRole = "student" | "counselor";
+export type MessageRole = "student" | "parent" | "counselor";
+export type ConversationType = "student" | "parent";
 
 export type MessageRecord = {
   id: number;
+  conversationType: ConversationType;
   studentId: string;
   studentName: string;
   className?: string;
+  parentId?: string | null;
+  parentName?: string | null;
   counselorId: string;
   counselorName: string;
   senderRole: MessageRole;
   text: string;
   sentAt: string;
   studentSeenAt?: string | null;
+  parentSeenAt?: string | null;
   counselorSeenAt?: string | null;
 };
 
@@ -100,10 +105,61 @@ export type MessagesResponse = {
 
 export type CreateMessagePayload = {
   studentId: string;
+  parentId?: string;
+  conversationType?: ConversationType;
   counselorId?: string;
   counselorName?: string;
   senderRole: MessageRole;
   text: string;
+};
+
+export type FamilyRecord = {
+  parentId: string;
+  parentName: string;
+  relationship: "father" | "mother" | "guardian" | string;
+  isPrimary: boolean;
+  phone?: string | null;
+  email?: string | null;
+  occupation?: string | null;
+  jobPosition?: string | null;
+  workplace?: string | null;
+  studentId: string;
+  studentName: string;
+  className?: string | null;
+  parentExpectation?: string | null;
+  parentFinanceLevel?: string | null;
+  counselorId: string;
+  lastContactAt?: string | null;
+  latestNoteSummary?: string | null;
+  latestNoteAt?: string | null;
+  noteCount: number;
+};
+
+export type FamiliesResponse = {
+  families: FamilyRecord[];
+};
+
+export type FamilyNoteRecord = {
+  id: number;
+  parentId: string;
+  studentId: string;
+  counselorId: string;
+  counselorName: string;
+  body: string;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type FamilyNotesResponse = {
+  notes: FamilyNoteRecord[];
+};
+
+export type CreateFamilyNotePayload = {
+  parentId: string;
+  studentId: string;
+  counselorId?: string;
+  counselorName?: string;
+  body: string;
 };
 
 export type AdvicePriority = "high" | "medium" | "low";
@@ -578,14 +634,19 @@ export function updateMeeting(
 export function fetchMessages(
   params: {
     role?: MessageRole;
+    conversationType?: ConversationType;
     studentId?: string;
+    parentId?: string;
     counselorId?: string;
   } = {},
   signal?: AbortSignal,
 ): Promise<MessagesResponse> {
   const search = new URLSearchParams();
   if (params.role) search.set("role", params.role);
+  if (params.conversationType)
+    search.set("conversation_type", params.conversationType);
   if (params.studentId) search.set("student_id", params.studentId);
+  if (params.parentId) search.set("parent_id", params.parentId);
   if (params.counselorId) search.set("counselor_id", params.counselorId);
   const query = search.toString();
 
@@ -610,12 +671,58 @@ export function createMessage(
 export function markMessagesSeen(
   payload: {
     role: MessageRole;
+    conversationType?: ConversationType;
     studentId: string;
+    parentId?: string;
     counselorId?: string;
   },
   signal?: AbortSignal,
 ): Promise<MessagesResponse> {
   return requestJson<MessagesResponse>("/api/messages/seen", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
+export function fetchFamilies(
+  params: { counselorId?: string } = {},
+  signal?: AbortSignal,
+): Promise<FamiliesResponse> {
+  const search = new URLSearchParams();
+  if (params.counselorId) search.set("counselor_id", params.counselorId);
+  const query = search.toString();
+
+  return requestJson<FamiliesResponse>(
+    `/api/families${query ? `?${query}` : ""}`,
+    { signal },
+  );
+}
+
+export function fetchFamilyNotes(
+  params: {
+    parentId: string;
+    studentId: string;
+    counselorId?: string;
+  },
+  signal?: AbortSignal,
+): Promise<FamilyNotesResponse> {
+  const search = new URLSearchParams();
+  search.set("parent_id", params.parentId);
+  search.set("student_id", params.studentId);
+  if (params.counselorId) search.set("counselor_id", params.counselorId);
+
+  return requestJson<FamilyNotesResponse>(`/api/family-notes?${search}`, {
+    signal,
+  });
+}
+
+export function createFamilyNote(
+  payload: CreateFamilyNotePayload,
+  signal?: AbortSignal,
+): Promise<{ note: FamilyNoteRecord }> {
+  return requestJson<{ note: FamilyNoteRecord }>("/api/family-notes", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

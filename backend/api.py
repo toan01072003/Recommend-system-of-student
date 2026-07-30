@@ -316,14 +316,18 @@ def update_meeting_payload(meeting_id: int, payload: dict) -> dict:
 
 def messages_payload(
     role: str | None = None,
+    conversation_type: str | None = None,
     student_id: str | None = None,
+    parent_id: str | None = None,
     counselor_id: str | None = None,
 ) -> dict:
     return {
         "messages": student_database.list_messages(
             STUDENT_DB,
             role=role,
+            conversation_type=conversation_type,
             student_id=student_id,
+            parent_id=parent_id,
             counselor_id=counselor_id,
         )
     }
@@ -340,6 +344,34 @@ def mark_messages_seen_payload(payload: dict) -> dict:
             STUDENT_DB,
         )
     }
+
+
+def families_payload(counselor_id: str | None = None) -> dict:
+    return {
+        "families": student_database.list_families(
+            STUDENT_DB,
+            counselor_id=counselor_id,
+        )
+    }
+
+
+def family_notes_payload(
+    parent_id: str,
+    student_id: str,
+    counselor_id: str | None = None,
+) -> dict:
+    return {
+        "notes": student_database.list_family_notes(
+            STUDENT_DB,
+            parent_id=parent_id,
+            student_id=student_id,
+            counselor_id=counselor_id,
+        )
+    }
+
+
+def create_family_note_payload(payload: dict) -> dict:
+    return {"note": student_database.create_family_note(payload, STUDENT_DB)}
 
 
 def advice_notes_payload(

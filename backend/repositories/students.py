@@ -75,6 +75,8 @@ STUDENT_FIELD_MAP = {
     "latestRecommendCareer": "latest_recommend_career",
     "recommendHistory": "recommend_history_json",
     "personalStatement": "personal_statement",
+    "skillMap": "skill_map_json",
+    "skillMapJson": "skill_map_json",
     "targetUniversityId": "target_university_id",
     "targetUniversityName": "target_university_name",
     "targetUniversityProgram": "target_university_program",
@@ -85,6 +87,8 @@ STUDENT_FIELD_MAP = {
     "medicalHistory": "medical_history_summary",
     "medicalHistorySummary": "medical_history_summary",
     "parentExpectation": "parent_expectation",
+    "expectFamily": "parent_expectation",
+    "expect-family": "parent_expectation",
     "parentFinanceLevel": "parent_finance_level",
     "risk": "risk_level",
     "riskLevel": "risk_level",
@@ -139,6 +143,7 @@ STUDENT_DEFAULTS: dict[str, Any] = {
     "latest_recommend_career": "",
     "recommend_history_json": "[]",
     "personal_statement": "",
+    "skill_map_json": "[]",
     "target_university_id": "",
     "target_university_name": "",
     "target_university_program": "",
@@ -158,6 +163,7 @@ JSON_COLUMNS = {
     "recommend_history_json",
     "favorite_careers_json",
     "target_universities_json",
+    "skill_map_json",
 }
 INT_COLUMNS = {
     "grade",

@@ -36,12 +36,14 @@ def connect(db_path: Path = DEFAULT_DB) -> sqlite3.Connection:
     conn.execute("PRAGMA foreign_keys = ON")
     conn.row_factory = sqlite3.Row
     ensure_recommendation_columns(conn)
+    seed_student_career_profile_data(conn)
     ensure_identity_tables(conn)
     seed_identity_data(conn)
     ensure_meetings_table(conn)
     seed_meeting_demo_data(conn)
     ensure_messages_table(conn)
     ensure_advice_notes_table(conn)
+    ensure_family_notes_table(conn)
     ensure_surveys_tables(conn)
     ensure_reference_tables(conn)
     return conn
@@ -54,6 +56,7 @@ def ensure_recommendation_columns(conn: sqlite3.Connection) -> None:
         ("latest_recommend_career", "TEXT"),
         ("recommend_history_json", "TEXT NOT NULL DEFAULT '[]'"),
         ("personal_statement", "TEXT"),
+        ("skill_map_json", "TEXT NOT NULL DEFAULT '[]'"),
         ("favorite_careers_json", "TEXT NOT NULL DEFAULT '[]'"),
         ("target_university_id", "TEXT"),
         ("target_university_name", "TEXT"),
@@ -112,6 +115,104 @@ def ensure_recommendation_columns(conn: sqlite3.Connection) -> None:
            OR target_universities_json = '[]'
         """
     )
+
+
+def _skill_map_for_student(row: sqlite3.Row) -> list[dict]:
+    confidence = row["confidence_level"] or ""
+    work_style = row["work_style"] or ""
+    iq = row["iq_score"] or 0
+    eq = row["eq_score"] or 0
+    avg = row["average_score"] or 0
+
+    return [
+        {
+            "skill": "Tư duy logic",
+            "score": min(100, max(40, int(iq) - 20)),
+            "fullMark": 100,
+        },
+        {
+            "skill": "Giao tiếp",
+            "score": min(100, max(40, int(eq))),
+            "fullMark": 100,
+        },
+        {
+            "skill": "Học thuật",
+            "score": min(100, max(0, round(float(avg) * 10))),
+            "fullMark": 100,
+        },
+        {
+            "skill": "Tự tin",
+            "score": 88 if confidence == "High" else 70 if confidence == "Medium" else 52,
+            "fullMark": 100,
+        },
+        {
+            "skill": "Độc lập",
+            "score": 82 if work_style == "Independent" else 68 if work_style == "Balanced" else 62,
+            "fullMark": 100,
+        },
+        {
+            "skill": "RIASEC Fit",
+            "score": 86 if row["riasec_top3"] else 60,
+            "fullMark": 100,
+        },
+    ]
+
+
+def _personal_statement_for_student(row: sqlite3.Row) -> str:
+    strengths = []
+    if row["favorite_subject"]:
+        strengths.append(f"môn {row['favorite_subject']}")
+    if row["riasec_top3"]:
+        strengths.append(f"nhóm Holland {row['riasec_top3']}")
+    if row["mbti"]:
+        strengths.append(f"MBTI {row['mbti']}")
+
+    strength_text = ", ".join(strengths) if strengths else "hồ sơ học tập hiện tại"
+    career_text = row["favorite_career"] or row["career_fit"] or "lộ trình nghề nghiệp phù hợp"
+    style_text = row["desired_career_style"] or "phong cách làm việc phù hợp"
+
+    return (
+        f"{row['student_name']} muốn phát triển theo hướng {career_text}, "
+        f"dựa trên thế mạnh ở {strength_text}. Mục tiêu hiện tại là rèn luyện "
+        f"{style_text.lower()} và hoàn thiện hồ sơ trải nghiệm trước khi chốt lựa chọn ngành học."
+    )
+
+
+def seed_student_career_profile_data(conn: sqlite3.Connection) -> None:
+    columns = _table_columns(conn, "students")
+    if "skill_map_json" not in columns or "personal_statement" not in columns:
+        return
+
+    rows = conn.execute(
+        """
+        SELECT student_id, student_name, average_score, riasec_top3, mbti,
+               favorite_subject, work_style, iq_score, eq_score, confidence_level,
+               favorite_career, career_fit, desired_career_style,
+               personal_statement, skill_map_json
+        FROM students
+        """
+    ).fetchall()
+
+    for row in rows:
+        updates: dict[str, object] = {}
+        if not (row["personal_statement"] or "").strip():
+            updates["personal_statement"] = _personal_statement_for_student(row)
+        if not (row["skill_map_json"] or "").strip() or row["skill_map_json"] == "[]":
+            updates["skill_map_json"] = json.dumps(
+                _skill_map_for_student(row),
+                ensure_ascii=False,
+            )
+
+        if not updates:
+            continue
+
+        assignments = ", ".join(f"{column} = ?" for column in updates)
+        conn.execute(
+            f"UPDATE students SET {assignments} WHERE student_id = ?",
+            [*updates.values(), row["student_id"]],
+        )
+
+    conn.commit()
 
 
 def _table_exists(conn: sqlite3.Connection, table: str) -> bool:
@@ -227,15 +328,19 @@ CREATE INDEX IF NOT EXISTS idx_meetings_time
 MESSAGES_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS messages (
     message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    conversation_type TEXT NOT NULL DEFAULT 'student' CHECK(conversation_type IN ('student', 'parent')),
     student_id TEXT NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
     student_name TEXT NOT NULL,
     class_name TEXT,
+    parent_id TEXT REFERENCES parents(parent_id) ON DELETE CASCADE,
+    parent_name TEXT,
     counselor_id TEXT NOT NULL DEFAULT 'COUNSELOR001' REFERENCES counselors(counselor_id) ON DELETE CASCADE,
     counselor_name TEXT NOT NULL DEFAULT 'Nguyễn Văn Minh',
-    sender_role TEXT NOT NULL CHECK(sender_role IN ('student', 'counselor')),
+    sender_role TEXT NOT NULL CHECK(sender_role IN ('student', 'parent', 'counselor')),
     message_text TEXT NOT NULL,
     sent_at TEXT NOT NULL,
     student_seen_at TEXT,
+    parent_seen_at TEXT,
     counselor_seen_at TEXT
 );
 """
@@ -246,6 +351,32 @@ CREATE INDEX IF NOT EXISTS idx_messages_student_time
     ON messages(student_id, sent_at);
 CREATE INDEX IF NOT EXISTS idx_messages_counselor_time
     ON messages(counselor_id, sent_at);
+CREATE INDEX IF NOT EXISTS idx_messages_parent_time
+    ON messages(parent_id, student_id, sent_at);
+CREATE INDEX IF NOT EXISTS idx_messages_conversation_time
+    ON messages(conversation_type, sent_at);
+"""
+
+
+FAMILY_NOTES_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS family_notes (
+    note_id INTEGER PRIMARY KEY AUTOINCREMENT,
+    parent_id TEXT NOT NULL REFERENCES parents(parent_id) ON DELETE CASCADE,
+    student_id TEXT NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
+    counselor_id TEXT NOT NULL DEFAULT 'COUNSELOR001' REFERENCES counselors(counselor_id) ON DELETE CASCADE,
+    counselor_name TEXT NOT NULL DEFAULT 'Nguyễn Văn Minh',
+    body TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+"""
+
+
+FAMILY_NOTES_INDEX_SQL = """
+CREATE INDEX IF NOT EXISTS idx_family_notes_parent_student_time
+    ON family_notes(parent_id, student_id, created_at);
+CREATE INDEX IF NOT EXISTS idx_family_notes_counselor_time
+    ON family_notes(counselor_id, created_at);
 """
 
 
@@ -283,6 +414,19 @@ def _communication_table_needs_rebuild(conn: sqlite3.Connection, table: str) -> 
         or not _has_foreign_key(conn, table, "student_id", "students", "student_id")
         or not _has_foreign_key(conn, table, "counselor_id", "counselors", "counselor_id")
     )
+
+
+def _messages_table_needs_rebuild(conn: sqlite3.Connection) -> bool:
+    if _communication_table_needs_rebuild(conn, "messages"):
+        return True
+    columns = _table_columns(conn, "messages")
+    required_columns = {"conversation_type", "parent_id", "parent_name", "parent_seen_at"}
+    if not required_columns.issubset(columns):
+        return True
+    sql_row = conn.execute(
+        "SELECT sql FROM sqlite_master WHERE type = 'table' AND name = 'messages'"
+    ).fetchone()
+    return sql_row is not None and "parent" not in str(sql_row["sql"] or "")
 
 
 def _rebuild_meetings_table(conn: sqlite3.Connection) -> None:
@@ -338,25 +482,37 @@ def _rebuild_messages_table(conn: sqlite3.Connection) -> None:
         if student is None:
             continue
         counselor_id = _normalize_counselor_id(row, counselors)
+        conversation_type = row.get("conversation_type") or "student"
+        parent_id = row.get("parent_id")
+        parent_name = row.get("parent_name")
+        sender_role = row.get("sender_role")
+        if conversation_type == "parent" and not parent_id:
+            continue
+        if sender_role not in {"student", "parent", "counselor"}:
+            sender_role = "student"
         conn.execute(
             """
             INSERT INTO messages (
-                message_id, student_id, student_name, class_name, counselor_id,
-                counselor_name, sender_role, message_text, sent_at,
-                student_seen_at, counselor_seen_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                message_id, conversation_type, student_id, student_name, class_name,
+                parent_id, parent_name, counselor_id, counselor_name, sender_role,
+                message_text, sent_at, student_seen_at, parent_seen_at, counselor_seen_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 row.get("message_id"),
+                conversation_type,
                 student["student_id"],
                 student["student_name"],
                 student["class_name"],
+                parent_id,
+                parent_name,
                 counselor_id,
                 counselors.get(counselor_id, row.get("counselor_name") or "Nguyễn Văn Minh"),
-                row.get("sender_role"),
+                sender_role,
                 row.get("message_text"),
                 row.get("sent_at"),
                 row.get("student_seen_at"),
+                row.get("parent_seen_at"),
                 row.get("counselor_seen_at"),
             ),
         )
@@ -502,7 +658,7 @@ def row_to_meeting(row: sqlite3.Row) -> dict:
 
 
 def ensure_messages_table(conn: sqlite3.Connection) -> None:
-    if _communication_table_needs_rebuild(conn, "messages"):
+    if _messages_table_needs_rebuild(conn):
         _rebuild_messages_table(conn)
         return
     conn.executescript(MESSAGES_INDEX_SQL)
@@ -511,15 +667,19 @@ def ensure_messages_table(conn: sqlite3.Connection) -> None:
 def row_to_message(row: sqlite3.Row) -> dict:
     return {
         "id": row["message_id"],
+        "conversationType": row["conversation_type"],
         "studentId": row["student_id"],
         "studentName": row["student_name"],
         "className": row["class_name"],
+        "parentId": row["parent_id"],
+        "parentName": row["parent_name"],
         "counselorId": row["counselor_id"],
         "counselorName": row["counselor_name"],
         "senderRole": row["sender_role"],
         "text": row["message_text"],
         "sentAt": row["sent_at"],
         "studentSeenAt": row["student_seen_at"],
+        "parentSeenAt": row["parent_seen_at"],
         "counselorSeenAt": row["counselor_seen_at"],
     }
 
@@ -529,6 +689,24 @@ def ensure_advice_notes_table(conn: sqlite3.Connection) -> None:
         _rebuild_advice_notes_table(conn)
         return
     conn.executescript(ADVICE_NOTES_INDEX_SQL)
+
+
+def ensure_family_notes_table(conn: sqlite3.Connection) -> None:
+    conn.executescript(FAMILY_NOTES_TABLE_SQL)
+    conn.executescript(FAMILY_NOTES_INDEX_SQL)
+
+
+def row_to_family_note(row: sqlite3.Row) -> dict:
+    return {
+        "id": row["note_id"],
+        "parentId": row["parent_id"],
+        "studentId": row["student_id"],
+        "counselorId": row["counselor_id"],
+        "counselorName": row["counselor_name"],
+        "body": row["body"],
+        "createdAt": row["created_at"],
+        "updatedAt": row["updated_at"],
+    }
 
 
 def row_to_advice_note(row: sqlite3.Row) -> dict:
@@ -2209,7 +2387,10 @@ def ensure_identity_tables(conn: sqlite3.Connection) -> None:
             parent_id TEXT PRIMARY KEY,
             user_id TEXT NOT NULL UNIQUE REFERENCES users(user_id) ON DELETE CASCADE,
             occupation TEXT,
+            job_position TEXT,
+            workplace TEXT,
             education TEXT,
+            last_contact_at TEXT,
             created_at TEXT NOT NULL
         );
 
@@ -2253,6 +2434,12 @@ def ensure_identity_tables(conn: sqlite3.Connection) -> None:
         CREATE INDEX IF NOT EXISTS idx_parent_students_student ON parent_students(student_id);
         """
     )
+    if "job_position" not in _table_columns(conn, "parents"):
+        conn.execute("ALTER TABLE parents ADD COLUMN job_position TEXT")
+    if "workplace" not in _table_columns(conn, "parents"):
+        conn.execute("ALTER TABLE parents ADD COLUMN workplace TEXT")
+    if "last_contact_at" not in _table_columns(conn, "parents"):
+        conn.execute("ALTER TABLE parents ADD COLUMN last_contact_at TEXT")
 
 
 def _upsert_user(
@@ -2300,6 +2487,131 @@ def _upsert_account(
             status = 'active'
         """,
         (account_id, user_id, email, password_hash, created_at),
+    )
+
+
+def _demo_parent_phone(student_id: str, suffix: str) -> str:
+    match = re.search(r"(\d+)$", student_id)
+    student_number = int(match.group(1)) if match else 0
+    suffix_offset = 0 if suffix == "F" else 1
+    return f"09{1000000 + student_number * 2 + suffix_offset:08d}"
+
+
+PARENT_JOB_PROFILES: dict[str, tuple[str, list[str], list[str]]] = {
+    "Accountant": (
+        "Kế toán",
+        ["Kế toán viên", "Kế toán tổng hợp", "Kế toán trưởng"],
+        ["Công ty TNHH Minh An", "Công ty CP Dịch vụ Tài chính Sao Việt", "Văn phòng kế toán An Phát"],
+    ),
+    "Bank staff": (
+        "Nhân viên ngân hàng",
+        ["Giao dịch viên", "Chuyên viên tín dụng", "Chuyên viên quan hệ khách hàng"],
+        ["Vietcombank chi nhánh quận 3", "BIDV chi nhánh Gia Định", "ACB phòng giao dịch Tân Bình"],
+    ),
+    "Civil servant": (
+        "Công chức",
+        ["Chuyên viên hành chính", "Cán bộ văn phòng", "Chuyên viên phụ trách hồ sơ"],
+        ["UBND phường", "Phòng Giáo dục và Đào tạo quận", "Sở Lao động - Thương binh và Xã hội"],
+    ),
+    "Construction worker": (
+        "Lao động xây dựng",
+        ["Tổ trưởng thi công", "Thợ xây dựng", "Kỹ thuật hiện trường"],
+        ["Công ty Xây dựng Hòa Bình", "Công trường Metro", "Công ty TNHH Xây lắp Nam Long"],
+    ),
+    "Designer": (
+        "Thiết kế",
+        ["Graphic designer", "Thiết kế nội thất", "Thiết kế truyền thông"],
+        ["Studio Sáng Tạo Mây", "Công ty Quảng cáo Alpha", "Xưởng thiết kế Nhà Xinh"],
+    ),
+    "Doctor": (
+        "Bác sĩ",
+        ["Bác sĩ nội khoa", "Bác sĩ đa khoa", "Bác sĩ khám ngoại trú"],
+        ["Bệnh viện Quận", "Phòng khám Đa khoa An Sinh", "Bệnh viện Đại học Y Dược"],
+    ),
+    "Driver": (
+        "Tài xế",
+        ["Tài xế vận tải", "Tài xế công nghệ", "Tài xế xe dịch vụ"],
+        ["Công ty Logistics Thành Công", "Hợp tác xã Vận tải Sài Gòn", "Dịch vụ vận chuyển gia đình"],
+    ),
+    "Engineer": (
+        "Kỹ sư",
+        ["Kỹ sư cơ điện", "Kỹ sư vận hành", "Kỹ sư bảo trì"],
+        ["Công ty CP Cơ điện REE", "Nhà máy Samsung Việt Nam", "Khu công nghiệp Tân Tạo"],
+    ),
+    "Factory worker": (
+        "Công nhân nhà máy",
+        ["Công nhân sản xuất", "Tổ trưởng chuyền", "Nhân viên kiểm tra chất lượng"],
+        ["Nhà máy May Việt Tiến", "Khu công nghiệp VSIP", "Công ty Sản xuất Bao bì Đông Á"],
+    ),
+    "Farmer": (
+        "Nông nghiệp",
+        ["Chủ hộ sản xuất", "Kỹ thuật trồng trọt", "Chăn nuôi hộ gia đình"],
+        ["Trang trại gia đình", "Hợp tác xã Nông nghiệp Xanh", "Vườn rau hữu cơ địa phương"],
+    ),
+    "Homemaker": (
+        "Nội trợ",
+        ["Quản lý gia đình", "Kinh doanh tại nhà", "Chăm sóc gia đình"],
+        ["Gia đình", "Cửa hàng online tại nhà", "Hộ kinh doanh gia đình"],
+    ),
+    "IT specialist": (
+        "Công nghệ thông tin",
+        ["Chuyên viên IT", "Quản trị hệ thống", "Kỹ thuật viên hỗ trợ người dùng"],
+        ["FPT Software", "Công ty Công nghệ CMC", "VNG Campus"],
+    ),
+    "Nurse": (
+        "Điều dưỡng",
+        ["Điều dưỡng viên", "Điều dưỡng khoa nhi", "Điều dưỡng phòng khám"],
+        ["Bệnh viện Nhi Đồng", "Phòng khám Gia đình", "Bệnh viện Quận"],
+    ),
+    "Office worker": (
+        "Nhân viên văn phòng",
+        ["Nhân viên hành chính", "Trợ lý văn phòng", "Điều phối vận hành"],
+        ["Công ty TNHH An Phú", "Công ty Dịch vụ Giáo dục Việt", "Văn phòng đại diện Mekong"],
+    ),
+    "Pharmacist": (
+        "Dược sĩ",
+        ["Dược sĩ bán lẻ", "Dược sĩ tư vấn", "Quản lý nhà thuốc"],
+        ["Nhà thuốc Long Châu", "Nhà thuốc Pharmacity", "Quầy thuốc gia đình"],
+    ),
+    "Police officer": (
+        "Công an",
+        ["Cán bộ công an phường", "Cán bộ trật tự", "Cán bộ hồ sơ"],
+        ["Công an phường", "Công an quận", "Đội Cảnh sát khu vực"],
+    ),
+    "Small business owner": (
+        "Chủ kinh doanh nhỏ",
+        ["Chủ cửa hàng", "Quản lý hộ kinh doanh", "Chủ cơ sở dịch vụ"],
+        ["Cửa hàng gia đình", "Quán ăn địa phương", "Cơ sở kinh doanh Minh Phát"],
+    ),
+    "Teacher": (
+        "Giáo viên",
+        ["Giáo viên bộ môn", "Giáo viên chủ nhiệm", "Tổ trưởng chuyên môn"],
+        ["Trường THCS Nguyễn Du", "Trường Tiểu học Lê Văn Tám", "Trung tâm Anh ngữ Sao Mai"],
+    ),
+}
+
+
+def _parent_job_details(
+    occupation: str | None,
+    student_id: str,
+    suffix: str,
+) -> tuple[str, str, str]:
+    normalized = str(occupation or "").strip()
+    occupation_label, positions, workplaces = PARENT_JOB_PROFILES.get(
+        normalized,
+        (
+            normalized or "Lao động tự do",
+            ["Nhân sự phụ trách", "Nhân viên", "Quản lý nhóm"],
+            ["Cơ sở làm việc địa phương", "Doanh nghiệp tư nhân", "Hộ kinh doanh gia đình"],
+        ),
+    )
+    match = re.search(r"(\d+)$", student_id)
+    number = int(match.group(1)) if match else 0
+    offset = number * 2 + (0 if suffix == "F" else 1)
+    return (
+        occupation_label,
+        positions[offset % len(positions)],
+        workplaces[(offset // len(positions)) % len(workplaces)],
     )
 
 
@@ -2421,12 +2733,18 @@ def seed_identity_data(conn: sqlite3.Connection) -> None:
             parent_user_id = f"USR_PARENT_{student_id}_{suffix}"
             parent_id = f"PARENT_{student_id}_{suffix}"
             parent_email = f"{student_id.lower()}.{relationship}@parent.demo.local"
+            occupation_label, job_position, workplace = _parent_job_details(
+                occupation,
+                student_id,
+                suffix,
+            )
             _upsert_user(
                 conn,
                 user_id=parent_user_id,
                 full_name=parent_name,
                 role="parent",
                 email=parent_email,
+                phone=_demo_parent_phone(student_id, suffix),
                 created_at=created_at,
             )
             _upsert_account(
@@ -2439,14 +2757,26 @@ def seed_identity_data(conn: sqlite3.Connection) -> None:
             )
             conn.execute(
                 """
-                INSERT INTO parents (parent_id, user_id, occupation, education, created_at)
-                VALUES (?, ?, ?, ?, ?)
+                INSERT INTO parents (
+                    parent_id, user_id, occupation, job_position, workplace, education, created_at
+                )
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(parent_id) DO UPDATE SET
                     user_id = excluded.user_id,
                     occupation = excluded.occupation,
+                    job_position = excluded.job_position,
+                    workplace = excluded.workplace,
                     education = excluded.education
                 """,
-                (parent_id, parent_user_id, occupation, education, created_at),
+                (
+                    parent_id,
+                    parent_user_id,
+                    occupation_label,
+                    job_position,
+                    workplace,
+                    education,
+                    created_at,
+                ),
             )
             conn.execute(
                 """
@@ -2488,6 +2818,7 @@ def row_to_student(row: sqlite3.Row, *, include_detail: bool = False) -> dict:
         "latestRecommendCareer": row["latest_recommend_career"],
         "recommendHistory": json.loads(row["recommend_history_json"] or "[]"),
         "personalStatement": row["personal_statement"],
+        "skillMap": json.loads(row["skill_map_json"] or "[]"),
         "targetUniversityId": row["target_university_id"],
         "targetUniversityName": row["target_university_name"],
         "targetUniversityProgram": row["target_university_program"],
@@ -2824,21 +3155,77 @@ def list_meetings(
         conn.close()
 
 
+def _get_parent_student_link(
+    conn: sqlite3.Connection,
+    parent_id: str,
+    student_id: str,
+) -> sqlite3.Row:
+    row = conn.execute(
+        """
+        SELECT
+            parents.parent_id,
+            users.full_name AS parent_name,
+            users.email AS parent_email,
+            users.phone AS parent_phone,
+            parent_students.relationship,
+            parent_students.is_primary,
+            students.student_id,
+            students.student_name,
+            students.class_name
+        FROM parent_students
+        JOIN parents ON parents.parent_id = parent_students.parent_id
+        JOIN users ON users.user_id = parents.user_id
+        JOIN students ON students.student_id = parent_students.student_id
+        WHERE parent_students.parent_id = ?
+          AND parent_students.student_id = ?
+        """,
+        (parent_id, student_id),
+    ).fetchone()
+    if row is None:
+        raise LookupError(f"Parent/student relationship not found: {parent_id}/{student_id}")
+    return row
+
+
+def _touch_parent_last_contact(conn: sqlite3.Connection, parent_id: str, value: str) -> None:
+    conn.execute(
+        """
+        UPDATE parents
+        SET last_contact_at = ?
+        WHERE parent_id = ?
+        """,
+        (value, parent_id),
+    )
+
+
 def create_message(payload: dict, db_path: Path = DEFAULT_DB) -> dict:
     student_id = str(payload.get("studentId") or payload.get("student_id") or "").strip()
+    parent_id = str(payload.get("parentId") or payload.get("parent_id") or "").strip()
     counselor_id = str(payload.get("counselorId") or payload.get("counselor_id") or "COUNSELOR001").strip()
+    conversation_type = str(
+        payload.get("conversationType")
+        or payload.get("conversation_type")
+        or ("parent" if parent_id else "student")
+    ).strip().lower()
     sender_role = str(payload.get("senderRole") or payload.get("sender_role") or "").strip().lower()
     text = str(payload.get("text") or payload.get("message_text") or "").strip()
 
     if not student_id:
         raise ValueError("studentId is required")
-    if sender_role not in {"student", "counselor"}:
-        raise ValueError("senderRole must be student or counselor")
+    if conversation_type not in {"student", "parent"}:
+        raise ValueError("conversationType must be student or parent")
+    allowed_sender_roles = {"student", "counselor"} if conversation_type == "student" else {"parent", "counselor"}
+    if sender_role not in allowed_sender_roles:
+        raise ValueError(
+            "senderRole must be student/counselor for student conversations or parent/counselor for parent conversations"
+        )
+    if conversation_type == "parent" and not parent_id:
+        raise ValueError("parentId is required for parent conversations")
     if not text:
         raise ValueError("text is required")
 
     sent_at = datetime.now(timezone.utc).isoformat()
-    student_seen_at = sent_at if sender_role == "student" else None
+    student_seen_at = sent_at if conversation_type == "student" and sender_role == "student" else None
+    parent_seen_at = sent_at if conversation_type == "parent" and sender_role == "parent" else None
     counselor_seen_at = sent_at if sender_role == "counselor" else None
 
     conn = connect(db_path)
@@ -2853,28 +3240,39 @@ def create_message(payload: dict, db_path: Path = DEFAULT_DB) -> dict:
         ).fetchone()
         if student is None:
             raise LookupError(f"Student not found: {student_id}")
+        parent_name = None
+        if conversation_type == "parent":
+            parent_link = _get_parent_student_link(conn, parent_id, student_id)
+            parent_name = parent_link["parent_name"]
         counselor = _get_counselor(conn, counselor_id or "COUNSELOR001")
 
         cursor = conn.execute(
             """
             INSERT INTO messages (
-                student_id, student_name, class_name, counselor_id, counselor_name,
-                sender_role, message_text, sent_at, student_seen_at, counselor_seen_at
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                conversation_type, student_id, student_name, class_name, parent_id,
+                parent_name, counselor_id, counselor_name, sender_role, message_text,
+                sent_at, student_seen_at, parent_seen_at, counselor_seen_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
+                conversation_type,
                 student["student_id"],
                 student["student_name"],
                 student["class_name"],
+                parent_id or None,
+                parent_name,
                 counselor["counselor_id"],
                 counselor["full_name"],
                 sender_role,
                 text,
                 sent_at,
                 student_seen_at,
+                parent_seen_at,
                 counselor_seen_at,
             ),
         )
+        if conversation_type == "parent":
+            _touch_parent_last_contact(conn, parent_id, sent_at)
         conn.commit()
 
         row = conn.execute(
@@ -2890,15 +3288,26 @@ def list_messages(
     db_path: Path = DEFAULT_DB,
     *,
     role: str | None = None,
+    conversation_type: str | None = None,
     student_id: str | None = None,
+    parent_id: str | None = None,
     counselor_id: str | None = None,
 ) -> list[dict]:
     clauses: list[str] = []
     params: list[object] = []
 
+    normalized_conversation_type = str(conversation_type or "").strip().lower()
+    if normalized_conversation_type:
+        if normalized_conversation_type not in {"student", "parent"}:
+            raise ValueError("conversationType must be student or parent")
+        clauses.append("conversation_type = ?")
+        params.append(normalized_conversation_type)
     if student_id:
         clauses.append("student_id = ?")
         params.append(student_id)
+    if parent_id:
+        clauses.append("parent_id = ?")
+        params.append(parent_id)
     if counselor_id:
         clauses.append("counselor_id = ?")
         params.append(counselor_id)
@@ -2924,38 +3333,234 @@ def list_messages(
 def mark_messages_seen(payload: dict, db_path: Path = DEFAULT_DB) -> list[dict]:
     role = str(payload.get("role") or "").strip().lower()
     student_id = str(payload.get("studentId") or payload.get("student_id") or "").strip()
+    parent_id = str(payload.get("parentId") or payload.get("parent_id") or "").strip()
     counselor_id = str(payload.get("counselorId") or payload.get("counselor_id") or "COUNSELOR001").strip()
+    conversation_type = str(
+        payload.get("conversationType")
+        or payload.get("conversation_type")
+        or ("parent" if parent_id else "student")
+    ).strip().lower()
 
-    if role not in {"student", "counselor"}:
-        raise ValueError("role must be student or counselor")
+    if role not in {"student", "parent", "counselor"}:
+        raise ValueError("role must be student, parent or counselor")
+    if conversation_type not in {"student", "parent"}:
+        raise ValueError("conversationType must be student or parent")
+    if conversation_type == "student" and role == "parent":
+        raise ValueError("parent cannot mark student conversation messages")
+    if conversation_type == "parent" and role == "student":
+        raise ValueError("student cannot mark parent conversation messages")
+    if conversation_type == "parent" and not parent_id:
+        raise ValueError("parentId is required for parent conversations")
     if not student_id:
         raise ValueError("studentId is required")
 
     seen_at = datetime.now(timezone.utc).isoformat()
-    seen_column = "student_seen_at" if role == "student" else "counselor_seen_at"
+    seen_column = {
+        "student": "student_seen_at",
+        "parent": "parent_seen_at",
+        "counselor": "counselor_seen_at",
+    }[role]
 
     conn = connect(db_path)
     try:
+        clauses = ["student_id = ?", "counselor_id = ?", "conversation_type = ?"]
+        params: list[object] = [student_id, counselor_id or "COUNSELOR001", conversation_type]
+        if conversation_type == "parent":
+            clauses.append("parent_id = ?")
+            params.append(parent_id)
         conn.execute(
             f"""
             UPDATE messages
             SET {seen_column} = COALESCE({seen_column}, ?)
-            WHERE student_id = ? AND counselor_id = ?
+            WHERE {' AND '.join(clauses)}
             """,
-            (seen_at, student_id, counselor_id or "COUNSELOR001"),
+            [seen_at, *params],
         )
         conn.commit()
 
         rows = conn.execute(
-            """
+            f"""
             SELECT *
             FROM messages
-            WHERE student_id = ? AND counselor_id = ?
+            WHERE {' AND '.join(clauses)}
             ORDER BY sent_at ASC, message_id ASC
             """,
-            (student_id, counselor_id or "COUNSELOR001"),
+            params,
         ).fetchall()
         return [row_to_message(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def list_families(
+    db_path: Path = DEFAULT_DB,
+    *,
+    counselor_id: str | None = None,
+) -> list[dict]:
+    normalized_counselor_id = str(counselor_id or "COUNSELOR001").strip()
+    conn = connect(db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT
+                parents.parent_id,
+                parent_users.full_name AS parent_name,
+                parent_users.email AS parent_email,
+                parent_users.phone AS parent_phone,
+                parents.occupation,
+                parents.job_position,
+                parents.workplace,
+                parents.last_contact_at,
+                parent_students.relationship,
+                parent_students.is_primary,
+                students.student_id,
+                students.student_name,
+                students.class_name,
+                students.parent_expectation,
+                students.parent_finance_level,
+                counselor_students.counselor_id,
+                (
+                    SELECT COUNT(*)
+                    FROM family_notes
+                    WHERE family_notes.parent_id = parents.parent_id
+                      AND family_notes.student_id = students.student_id
+                      AND family_notes.counselor_id = counselor_students.counselor_id
+                ) AS note_count,
+                (
+                    SELECT family_notes.body
+                    FROM family_notes
+                    WHERE family_notes.parent_id = parents.parent_id
+                      AND family_notes.student_id = students.student_id
+                      AND family_notes.counselor_id = counselor_students.counselor_id
+                    ORDER BY family_notes.created_at DESC, family_notes.note_id DESC
+                    LIMIT 1
+                ) AS latest_note_body,
+                (
+                    SELECT family_notes.created_at
+                    FROM family_notes
+                    WHERE family_notes.parent_id = parents.parent_id
+                      AND family_notes.student_id = students.student_id
+                      AND family_notes.counselor_id = counselor_students.counselor_id
+                    ORDER BY family_notes.created_at DESC, family_notes.note_id DESC
+                    LIMIT 1
+                ) AS latest_note_at
+            FROM parent_students
+            JOIN parents ON parents.parent_id = parent_students.parent_id
+            JOIN users AS parent_users ON parent_users.user_id = parents.user_id
+            JOIN students ON students.student_id = parent_students.student_id
+            JOIN counselor_students ON counselor_students.student_id = students.student_id
+            WHERE counselor_students.counselor_id = ?
+            ORDER BY students.class_name, students.student_name, parent_students.is_primary DESC, parent_students.relationship
+            """,
+            (normalized_counselor_id,),
+        ).fetchall()
+
+        families = []
+        for row in rows:
+            latest_note = row["latest_note_body"] or ""
+            summary = latest_note[:157] + "..." if len(latest_note) > 160 else latest_note
+            families.append(
+                {
+                    "parentId": row["parent_id"],
+                    "parentName": row["parent_name"],
+                    "relationship": row["relationship"],
+                    "isPrimary": bool(row["is_primary"]),
+                    "phone": row["parent_phone"],
+                    "email": row["parent_email"],
+                    "occupation": row["occupation"],
+                    "jobPosition": row["job_position"],
+                    "workplace": row["workplace"],
+                    "studentId": row["student_id"],
+                    "studentName": row["student_name"],
+                    "className": row["class_name"],
+                    "parentExpectation": row["parent_expectation"],
+                    "parentFinanceLevel": row["parent_finance_level"],
+                    "counselorId": row["counselor_id"],
+                    "lastContactAt": row["last_contact_at"],
+                    "latestNoteSummary": summary,
+                    "latestNoteAt": row["latest_note_at"],
+                    "noteCount": row["note_count"],
+                }
+            )
+        return families
+    finally:
+        conn.close()
+
+
+def list_family_notes(
+    db_path: Path = DEFAULT_DB,
+    *,
+    parent_id: str,
+    student_id: str,
+    counselor_id: str | None = None,
+) -> list[dict]:
+    normalized_parent_id = str(parent_id or "").strip()
+    normalized_student_id = str(student_id or "").strip()
+    normalized_counselor_id = str(counselor_id or "COUNSELOR001").strip()
+    if not normalized_parent_id:
+        raise ValueError("parentId is required")
+    if not normalized_student_id:
+        raise ValueError("studentId is required")
+
+    conn = connect(db_path)
+    try:
+        _get_parent_student_link(conn, normalized_parent_id, normalized_student_id)
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM family_notes
+            WHERE parent_id = ?
+              AND student_id = ?
+              AND counselor_id = ?
+            ORDER BY created_at DESC, note_id DESC
+            """,
+            (normalized_parent_id, normalized_student_id, normalized_counselor_id),
+        ).fetchall()
+        return [row_to_family_note(row) for row in rows]
+    finally:
+        conn.close()
+
+
+def create_family_note(payload: dict, db_path: Path = DEFAULT_DB) -> dict:
+    parent_id = str(payload.get("parentId") or payload.get("parent_id") or "").strip()
+    student_id = str(payload.get("studentId") or payload.get("student_id") or "").strip()
+    counselor_id = str(payload.get("counselorId") or payload.get("counselor_id") or "COUNSELOR001").strip()
+    body = str(payload.get("body") or payload.get("note") or "").strip()
+    if not parent_id:
+        raise ValueError("parentId is required")
+    if not student_id:
+        raise ValueError("studentId is required")
+    if not body:
+        raise ValueError("body is required")
+
+    now = datetime.now(timezone.utc).isoformat()
+    conn = connect(db_path)
+    try:
+        _get_parent_student_link(conn, parent_id, student_id)
+        counselor = _get_counselor(conn, counselor_id or "COUNSELOR001")
+        cursor = conn.execute(
+            """
+            INSERT INTO family_notes (
+                parent_id, student_id, counselor_id, counselor_name, body, created_at, updated_at
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                parent_id,
+                student_id,
+                counselor["counselor_id"],
+                counselor["full_name"],
+                body,
+                now,
+                now,
+            ),
+        )
+        _touch_parent_last_contact(conn, parent_id, now)
+        conn.commit()
+        row = conn.execute(
+            "SELECT * FROM family_notes WHERE note_id = ?",
+            (cursor.lastrowid,),
+        ).fetchone()
+        return row_to_family_note(row)
     finally:
         conn.close()
 

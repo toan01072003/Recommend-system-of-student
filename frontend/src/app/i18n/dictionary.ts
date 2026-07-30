@@ -881,6 +881,77 @@ const enText: Record<string, string> = {
   "Xu hướng trường mục tiêu": "Target school trends",
   "Xuất PDF": "Export PDF",
 
+  "Gia đình học sinh": "Student families",
+  "phụ huynh thuộc học sinh đang quản lý":
+    "parents linked to assigned students",
+  "Tải lại": "Reload",
+  "Tìm phụ huynh, học sinh, SĐT, email, nơi làm...":
+    "Search parent, student, phone, email, workplace...",
+  "kết quả": "results",
+  "PH của học sinh": "Parent of student",
+  SĐT: "Phone",
+  "Công việc": "Work",
+  "Kỳ vọng gia đình": "Family expectations",
+  "Mức tài chính": "Finance level",
+  "Tóm tắt note": "Note summary",
+  "Thao tác": "Actions",
+  "Đang tải danh sách phụ huynh...": "Loading parents...",
+  "Không tải được danh sách phụ huynh.": "Could not load parents.",
+  "Không tìm thấy phụ huynh phù hợp.": "No matching parents found.",
+  Bố: "Father",
+  Mẹ: "Mother",
+  "Người giám hộ": "Guardian",
+  "Liên hệ chính": "Primary contact",
+  "Chưa có lớp": "No class",
+  "Chưa có vị trí": "No position",
+  "Chưa có nơi làm": "No workplace",
+  "Chưa liên hệ": "No contact yet",
+  "Family note": "Family note",
+  "Thêm ghi chú mới": "Add new note",
+  "Nhập ghi chú sau lần trao đổi với phụ huynh...":
+    "Enter notes after speaking with the parent...",
+  "Note được lưu riêng cho cặp phụ huynh-học sinh này.":
+    "This note is saved for this parent-student pair.",
+  "Không tải được family note.": "Could not load family notes.",
+  "Không lưu được family note.": "Could not save family note.",
+  "Đang tải family note...": "Loading family notes...",
+  "Chưa có note nào cho phụ huynh này.": "No notes for this parent yet.",
+  Note: "Note",
+  note: "notes",
+  "Lịch sử note": "Note history",
+
+  "Gần hoàn thiện": "Nearly complete",
+  "Điểm trung bình": "Average score",
+  "Nhóm ngành quan tâm": "Interested career cluster",
+  "Theo hồ sơ hướng nghiệp": "From career profile",
+  "Buổi tư vấn": "Counseling sessions",
+  "Trao đổi với con về ngành nghề đang quan tâm trong tuần này.":
+    "Talk with your child about careers of interest this week.",
+  "Cùng con xem lại các hoạt động tham chiếu đã chọn cảm xúc.":
+    "Review the reference activities your child reacted to.",
+  "Nhắn tin cho cố vấn nếu gia đình có thay đổi về định hướng.":
+    "Message the counselor if the family direction changes.",
+  "Cập nhật kỳ vọng gia đình để cố vấn có thêm bối cảnh tư vấn.":
+    "Update family expectations so the counselor has more context.",
+  "Thông tin này được lưu vào hồ sơ học sinh.":
+    "This information is saved to the student profile.",
+  "Mức tài chính gia đình": "Family finance level",
+  "Gia đình chưa cập nhật kỳ vọng cho học sinh này.":
+    "The family has not updated expectations for this student.",
+  "Xác nhận lưu kỳ vọng gia đình cho học sinh này?":
+    "Save family expectations for this student?",
+  "Không tải được dữ liệu phụ huynh.": "Could not load parent data.",
+  "Không lưu được kỳ vọng gia đình.":
+    "Could not save family expectations.",
+  Save: "Save",
+  Edit: "Edit",
+
+  "Tư duy logic": "Logical thinking",
+  "Học thuật": "Academics",
+  "Tự tin": "Confidence",
+  "Độc lập": "Independence",
+  "RIASEC Fit": "RIASEC fit",
+
   "Hôm nay": "Today",
   "Ngày mai": "Tomorrow",
   "Hôm qua": "Yesterday",

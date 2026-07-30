@@ -2,6 +2,10 @@ import type { RecommendationResponse } from "../api/client";
 import type { studentsInClass } from "../data";
 
 type StudentProfile = (typeof studentsInClass)[number];
+type SkillMapItem = { skill: string; score: number; fullMark: number };
+type StudentProfileWithSkillMap = StudentProfile & {
+  skillMap?: SkillMapItem[];
+};
 
 export const RIASEC_META: Record<string, { label: string; color: string }> = {
   R: { label: "Realistic", color: "#F97316" },
@@ -74,40 +78,54 @@ export const recommendationAssessment = (
 export const scoreTone = (score: number) =>
   score >= 8.5 ? "strong" : score < 6.5 ? "weak" : "neutral";
 
-export const buildStudentSkillRadar = (student: StudentProfile) => [
-  {
-    skill: "Tư duy logic",
-    score: Math.min(100, Math.max(40, student.iq - 20)),
-    fullMark: 100,
-  },
-  {
-    skill: "Giao tiếp",
-    score: Math.min(100, Math.max(40, student.eq)),
-    fullMark: 100,
-  },
-  { skill: "Học thuật", score: Math.round(student.avg * 10), fullMark: 100 },
-  {
-    skill: "Tự tin",
-    score:
-      student.confidenceLevel === "High"
-        ? 88
-        : student.confidenceLevel === "Medium"
-          ? 70
-          : 52,
-    fullMark: 100,
-  },
-  {
-    skill: "Độc lập",
-    score:
-      student.workStyle === "Independent"
-        ? 82
-        : student.workStyle === "Balanced"
-          ? 68
-          : 62,
-    fullMark: 100,
-  },
-  { skill: "RIASEC Fit", score: student.riasecTop3 ? 86 : 60, fullMark: 100 },
-];
+export const buildStudentSkillRadar = (
+  student: StudentProfileWithSkillMap,
+  translate: (value: string) => string = (value) => value,
+) => {
+  const dbSkillMap =
+    Array.isArray(student.skillMap) && student.skillMap.length > 0
+      ? student.skillMap
+      : null;
+  const fallbackSkillMap: SkillMapItem[] = [
+    {
+      skill: "Tư duy logic",
+      score: Math.min(100, Math.max(40, student.iq - 20)),
+      fullMark: 100,
+    },
+    {
+      skill: "Giao tiếp",
+      score: Math.min(100, Math.max(40, student.eq)),
+      fullMark: 100,
+    },
+    { skill: "Học thuật", score: Math.round(student.avg * 10), fullMark: 100 },
+    {
+      skill: "Tự tin",
+      score:
+        student.confidenceLevel === "High"
+          ? 88
+          : student.confidenceLevel === "Medium"
+            ? 70
+            : 52,
+      fullMark: 100,
+    },
+    {
+      skill: "Độc lập",
+      score:
+        student.workStyle === "Independent"
+          ? 82
+          : student.workStyle === "Balanced"
+            ? 68
+            : 62,
+      fullMark: 100,
+    },
+    { skill: "RIASEC Fit", score: student.riasecTop3 ? 86 : 60, fullMark: 100 },
+  ];
+
+  return (dbSkillMap || fallbackSkillMap).map((item) => ({
+    ...item,
+    skill: translate(item.skill),
+  }));
+};
 
 export const buildStudentCareerMatches = (student: StudentProfile) => {
   const careers = [student.favoriteCareer, ...student.exploredCareers].filter(

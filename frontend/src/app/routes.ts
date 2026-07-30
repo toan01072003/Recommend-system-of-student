@@ -2,6 +2,7 @@ export type AppRoute = {
   view: string;
   className?: string;
   studentId?: string;
+  parentId?: string;
 };
 
 export type AppRole = "admin" | "teacher" | "counselor" | "student" | "parent";
@@ -12,6 +13,7 @@ const viewPathMap: Record<string, string> = {
   "teacher-entry": "/teacher/entry",
   counseling: "/teacher/counseling",
   "parent-portal": "/parent",
+  "parent-messenger": "/parent/messenger",
   "data-quality": "/admin/data-quality",
   "co-dashboard": "/counselor/dashboard",
   "co-students-list": "/counselor/students",
@@ -72,6 +74,17 @@ export const parseAppRoute = (pathname: string): AppRoute => {
     };
   }
 
+  const counselorParentMessengerMatch = normalized.match(
+    /^\/counselor\/messenger\/parent\/([^/]+)\/student\/([^/]+)$/,
+  );
+  if (counselorParentMessengerMatch) {
+    return {
+      view: "co-messenger",
+      parentId: decodeURIComponent(counselorParentMessengerMatch[1]),
+      studentId: decodeURIComponent(counselorParentMessengerMatch[2]),
+    };
+  }
+
   const teacherClassStudentMatch = normalized.match(
     /^\/teacher\/classes\/([^/]+)\/students\/([^/]+)$/,
   );
@@ -124,6 +137,10 @@ export const appRouteToPath = (route: AppRoute): string => {
   }
 
   if (route.view === "co-messenger") {
+    if (route.parentId && route.studentId) {
+      return `/counselor/messenger/parent/${encodeURIComponent(route.parentId)}/student/${encodeURIComponent(route.studentId)}`;
+    }
+
     return route.studentId
       ? `/counselor/messenger/${encodeURIComponent(route.studentId)}`
       : "/counselor/messenger";

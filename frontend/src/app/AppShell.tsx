@@ -144,7 +144,7 @@ export default function AppShell() {
       case "student-profile":
         return <StudentProfile studentId={route.studentId} />;
       case "parent-portal":
-        return <ParentPortal />;
+        return <ParentPortal navigate={navigate} />;
       case "data-quality":
         return <DataQuality />;
 
@@ -215,7 +215,7 @@ export default function AppShell() {
       case "co-student-groups":
         return <CounselorStudentGroups navigate={navigate} />;
       case "co-families":
-        return <CounselorFamilies />;
+        return <CounselorFamilies navigate={navigate} />;
       case "co-lessons":
         return <CounselorLessons />;
       case "co-assignments":
@@ -292,7 +292,15 @@ export default function AppShell() {
       case "co-report-college":
         return <CounselorReportCollegePlanning />;
       case "co-messenger":
-        return <MessengerView role="counselor" initialStudentId={route.studentId} />;
+        return (
+          <MessengerView
+            role="counselor"
+            initialStudentId={route.studentId}
+            initialParentId={route.parentId}
+          />
+        );
+      case "parent-messenger":
+        return <MessengerView role="parent" />;
       case "co-advice":
         return <AdvisementNotesCounselor />;
       case "co-meeting":

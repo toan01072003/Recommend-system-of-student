@@ -164,7 +164,10 @@ const navByRole: Record<string, NavItem[]> = {
     { id: "teacher-entry", label: "Nhập dữ liệu", icon: Edit2 },
   ],
   counselor: [],
-  parent: [{ id: "parent-portal", label: "Tiến độ của con", icon: Heart }],
+  parent: [
+    { id: "parent-portal", label: "Tiến độ của con", icon: Heart },
+    { id: "parent-messenger", label: "Messenger", icon: MessageSquare },
+  ],
 };
 
 const roleLabels: Record<string, string> = {

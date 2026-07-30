@@ -118,12 +118,15 @@ import {
   createMessage,
   deleteAdviceNote,
   fetchAdviceNotes,
+  fetchFamilies,
   fetchMeetings,
   fetchMessages,
   markMessagesSeen,
   updateMeeting,
   type AdviceNoteRecord,
   type AdvicePriority,
+  type ConversationType,
+  type FamilyRecord,
   type MeetingRecord,
   type MeetingType,
   type MessageRecord,
@@ -134,6 +137,8 @@ import { useLanguage } from "../../../i18n";
 type MeetingViewMode = "day" | "week" | "month";
 
 const STUDENT_PORTAL_FALLBACK_ID = "STU006";
+const PARENT_PORTAL_FALLBACK_ID = "PARENT_STU006_F";
+const PARENT_PORTAL_FALLBACK_STUDENT_ID = "STU006";
 const DEFAULT_COUNSELOR_ID = "COUNSELOR001";
 const DEFAULT_COUNSELOR_NAME = "Nguyễn Văn Minh";
 
@@ -239,33 +244,59 @@ const messageSeenByRecipient = (
   message: MessageRecord,
   currentRole: MessageRole,
 ) =>
-  currentRole === "student"
-    ? Boolean(message.counselorSeenAt)
-    : Boolean(message.studentSeenAt);
+  currentRole === "counselor"
+    ? message.conversationType === "parent"
+      ? Boolean(message.parentSeenAt)
+      : Boolean(message.studentSeenAt)
+    : Boolean(message.counselorSeenAt);
 
 type MessageContact = ChatContact & {
+  contactKey: string;
+  conversationType: ConversationType;
   studentId: string;
+  parentId?: string;
   className?: string;
+  kind: "student" | "parent" | "counselor";
 };
 
 export const MessengerView = ({
   role,
   initialStudentId,
+  initialParentId,
 }: {
   role: string;
   initialStudentId?: string;
+  initialParentId?: string;
 }) => {
   const { t } = useLanguage();
-  const currentRole: MessageRole = role === "student" ? "student" : "counselor";
+  const currentRole: MessageRole =
+    role === "student" ? "student" : role === "parent" ? "parent" : "counselor";
   const { studentsInClass: appStudents } = useAppData();
   const [studentPortalId] = useState(() =>
     window.localStorage.getItem("studentPortalMeetingStudentId") ||
     STUDENT_PORTAL_FALLBACK_ID,
   );
-  const [activeStudentId, setActiveStudentId] = useState(
-    currentRole === "student" ? studentPortalId : initialStudentId || "",
+  const [parentPortalId] = useState(() =>
+    window.localStorage.getItem("parentPortalParentId") ||
+    PARENT_PORTAL_FALLBACK_ID,
+  );
+  const [parentPortalStudentId] = useState(() =>
+    window.localStorage.getItem("parentPortalStudentId") ||
+    PARENT_PORTAL_FALLBACK_STUDENT_ID,
+  );
+  const [activeContactKey, setActiveContactKey] = useState(() =>
+    currentRole === "student"
+      ? `student:${studentPortalId}`
+      : currentRole === "parent"
+        ? `parent:${parentPortalId}:${parentPortalStudentId}`
+        : initialParentId && initialStudentId
+          ? `parent:${initialParentId}:${initialStudentId}`
+          : initialStudentId
+            ? `student:${initialStudentId}`
+            : "",
   );
   const [messages, setMessages] = useState<MessageRecord[]>([]);
+  const [families, setFamilies] = useState<FamilyRecord[]>([]);
   const [status, setStatus] = useState<"loading" | "ready" | "error">(
     "loading",
   );
@@ -273,11 +304,40 @@ export const MessengerView = ({
   const [input, setInput] = useState("");
   const [search, setSearch] = useState("");
 
+  const messageContactKey = (message: MessageRecord) =>
+    message.conversationType === "parent"
+      ? `parent:${message.parentId || ""}:${message.studentId}`
+      : `student:${message.studentId}`;
+
+  const contactMatchesMessage = (
+    contact: Pick<
+      MessageContact,
+      "conversationType" | "studentId" | "parentId"
+    >,
+    message: MessageRecord,
+  ) =>
+    message.conversationType === contact.conversationType &&
+    message.studentId === contact.studentId &&
+    (contact.conversationType === "student" ||
+      message.parentId === contact.parentId);
+
   const reloadMessages = (signal?: AbortSignal) =>
     fetchMessages(
       {
         role: currentRole,
-        studentId: currentRole === "student" ? studentPortalId : undefined,
+        conversationType:
+          currentRole === "student"
+            ? "student"
+            : currentRole === "parent"
+              ? "parent"
+              : undefined,
+        studentId:
+          currentRole === "student"
+            ? studentPortalId
+            : currentRole === "parent"
+              ? parentPortalStudentId
+              : undefined,
+        parentId: currentRole === "parent" ? parentPortalId : undefined,
         counselorId: DEFAULT_COUNSELOR_ID,
       },
       signal,
@@ -287,12 +347,25 @@ export const MessengerView = ({
       return payload.messages;
     });
 
+  const reloadFamilies = (signal?: AbortSignal) =>
+    fetchFamilies({ counselorId: DEFAULT_COUNSELOR_ID }, signal).then(
+      (payload) => {
+        setFamilies(payload.families);
+        return payload.families;
+      },
+    );
+
   React.useEffect(() => {
     const controller = new AbortController();
 
     setStatus("loading");
     setError("");
-    reloadMessages(controller.signal).catch((err) => {
+    Promise.all([
+      reloadMessages(controller.signal),
+      currentRole === "student"
+        ? Promise.resolve([])
+        : reloadFamilies(controller.signal),
+    ]).catch((err) => {
       if (err.name === "AbortError") return;
       setError(err.message || "Không tải được tin nhắn.");
       setStatus("error");
@@ -306,18 +379,38 @@ export const MessengerView = ({
       controller.abort();
       window.clearInterval(timer);
     };
-  }, [currentRole, studentPortalId]);
+  }, [currentRole, parentPortalId, parentPortalStudentId, studentPortalId]);
 
   const studentsById = new globalThis.Map(
     appStudents.map((student) => [student.id, student]),
   );
-  const messageStudentIds = Array.from(
-    new Set(messages.map((message) => message.studentId)),
+  const familyByParentStudent = new globalThis.Map(
+    families.map((family) => [
+      `${family.parentId}:${family.studentId}`,
+      family,
+    ]),
   );
+  const studentMessageIds = Array.from(
+    new Set(
+      messages
+        .filter((message) => message.conversationType === "student")
+        .map((message) => message.studentId),
+    ),
+  );
+  const parentMessageKeys = Array.from(
+    new Set(
+      messages
+        .filter((message) => message.conversationType === "parent")
+        .map((message) => `${message.parentId || ""}:${message.studentId}`),
+    ),
+  );
+
   const counselorContacts: MessageContact[] = [
     ...appStudents.map((student) => {
       const conversation = messages.filter(
-        (message) => message.studentId === student.id,
+        (message) =>
+          message.conversationType === "student" &&
+          message.studentId === student.id,
       );
       const last = conversation[conversation.length - 1];
       const unread = conversation.filter(
@@ -326,8 +419,11 @@ export const MessengerView = ({
       ).length;
 
       return {
-        id: student.id,
+        id: `student:${student.id}`,
+        contactKey: `student:${student.id}`,
+        conversationType: "student",
         studentId: student.id,
+        kind: "student",
         name: student.name,
         role: `${t("Học sinh lớp")} ${student.className}`,
         className: student.className,
@@ -337,17 +433,22 @@ export const MessengerView = ({
         unread,
       };
     }),
-    ...messageStudentIds
+    ...studentMessageIds
       .filter((studentId) => !studentsById.has(studentId))
       .map((studentId) => {
         const conversation = messages.filter(
-          (message) => message.studentId === studentId,
+          (message) =>
+            message.conversationType === "student" &&
+            message.studentId === studentId,
         );
         const last = conversation[conversation.length - 1];
 
         return {
-          id: studentId,
+          id: `student:${studentId}`,
+          contactKey: `student:${studentId}`,
+          conversationType: "student" as ConversationType,
           studentId,
+          kind: "student" as const,
           name: last?.studentName || studentId,
           role: `Học sinh ${last?.className || ""}`,
           className: last?.className,
@@ -360,10 +461,69 @@ export const MessengerView = ({
           ).length,
         };
       }),
+    ...families.map((family) => {
+      const contactKey = `parent:${family.parentId}:${family.studentId}`;
+      const conversation = messages.filter(
+        (message) => messageContactKey(message) === contactKey,
+      );
+      const last = conversation[conversation.length - 1];
+      const unread = conversation.filter(
+        (message) =>
+          message.senderRole === "parent" && !message.counselorSeenAt,
+      ).length;
+
+      return {
+        id: contactKey,
+        contactKey,
+        conversationType: "parent" as ConversationType,
+        studentId: family.studentId,
+        parentId: family.parentId,
+        kind: "parent" as const,
+        name: family.parentName,
+        role: `${t("Phụ huynh của")} ${family.studentName} · ${family.className || t("Chưa có lớp")}`,
+        className: family.className || undefined,
+        avatar: family.parentName.charAt(family.parentName.lastIndexOf(" ") + 1),
+        lastMsg: last?.text || t("Chưa có tin nhắn"),
+        time: last ? formatMessageTime(last.sentAt) : "",
+        unread,
+      };
+    }),
+    ...parentMessageKeys
+      .filter((key) => !familyByParentStudent.has(key))
+      .map((key) => {
+        const [parentId, studentId] = key.split(":");
+        const contactKey = `parent:${parentId}:${studentId}`;
+        const conversation = messages.filter(
+          (message) => messageContactKey(message) === contactKey,
+        );
+        const last = conversation[conversation.length - 1];
+        const name = last?.parentName || parentId || t("Phụ huynh");
+
+        return {
+          id: contactKey,
+          contactKey,
+          conversationType: "parent" as ConversationType,
+          studentId,
+          parentId,
+          kind: "parent" as const,
+          name,
+          role: `${t("Phụ huynh của")} ${last?.studentName || studentId}`,
+          className: last?.className,
+          avatar: name.charAt(name.lastIndexOf(" ") + 1),
+          lastMsg: last?.text || t("Chưa có tin nhắn"),
+          time: last ? formatMessageTime(last.sentAt) : "",
+          unread: conversation.filter(
+            (message) =>
+              message.senderRole === "parent" && !message.counselorSeenAt,
+          ).length,
+        };
+      }),
   ];
 
   const studentMessages = messages.filter(
-    (message) => message.studentId === studentPortalId,
+    (message) =>
+      message.conversationType === "student" &&
+      message.studentId === studentPortalId,
   );
   const studentLastMessage = studentMessages[studentMessages.length - 1];
   const studentUnread = studentMessages.filter(
@@ -371,7 +531,10 @@ export const MessengerView = ({
   ).length;
   const studentContact: MessageContact = {
     id: DEFAULT_COUNSELOR_ID,
+    contactKey: `student:${studentPortalId}`,
+    conversationType: "student",
     studentId: studentPortalId,
+    kind: "counselor",
     name: DEFAULT_COUNSELOR_NAME,
     role: "Cố vấn hướng nghiệp",
     avatar: "M",
@@ -379,44 +542,107 @@ export const MessengerView = ({
     time: studentLastMessage ? formatMessageTime(studentLastMessage.sentAt) : "",
     unread: studentUnread,
   };
+  const parentFamily =
+    families.find(
+      (family) =>
+        family.parentId === parentPortalId &&
+        family.studentId === parentPortalStudentId,
+    ) || null;
+  const parentMessages = messages.filter(
+    (message) =>
+      message.conversationType === "parent" &&
+      message.parentId === parentPortalId &&
+      message.studentId === parentPortalStudentId,
+  );
+  const parentLastMessage = parentMessages[parentMessages.length - 1];
+  const parentUnread = parentMessages.filter(
+    (message) => message.senderRole === "counselor" && !message.parentSeenAt,
+  ).length;
+  const parentContact: MessageContact = {
+    id: DEFAULT_COUNSELOR_ID,
+    contactKey: `parent:${parentPortalId}:${parentPortalStudentId}`,
+    conversationType: "parent",
+    studentId: parentPortalStudentId,
+    parentId: parentPortalId,
+    kind: "counselor",
+    name: DEFAULT_COUNSELOR_NAME,
+    role: parentFamily
+      ? `${t("Cố vấn của")} ${parentFamily.studentName}`
+      : "Cố vấn hướng nghiệp",
+    avatar: "M",
+    lastMsg: parentLastMessage?.text || "Bắt đầu nhắn tin với cố vấn",
+    time: parentLastMessage ? formatMessageTime(parentLastMessage.sentAt) : "",
+    unread: parentUnread,
+  };
 
   const contacts =
-    currentRole === "student" ? [studentContact] : counselorContacts;
+    currentRole === "student"
+      ? [studentContact]
+      : currentRole === "parent"
+        ? [parentContact]
+        : counselorContacts;
 
   React.useEffect(() => {
-    if (currentRole === "student") return;
-    if (initialStudentId && activeStudentId !== initialStudentId) {
-      setActiveStudentId(initialStudentId);
+    const requestedContactKey =
+      initialParentId && initialStudentId
+        ? `parent:${initialParentId}:${initialStudentId}`
+        : initialStudentId
+          ? `student:${initialStudentId}`
+          : "";
+
+    if (
+      currentRole === "counselor" &&
+      requestedContactKey &&
+      activeContactKey !== requestedContactKey
+    ) {
+      setActiveContactKey(requestedContactKey);
       return;
     }
-    if (!activeStudentId && contacts.length > 0) {
-      setActiveStudentId(contacts[0].studentId);
+
+    if (
+      contacts.length > 0 &&
+      (!activeContactKey ||
+        !contacts.some((contact) => contact.contactKey === activeContactKey))
+    ) {
+      setActiveContactKey(contacts[0].contactKey);
     }
-  }, [activeStudentId, contacts, currentRole, initialStudentId]);
+  }, [
+    activeContactKey,
+    contacts,
+    currentRole,
+    initialParentId,
+    initialStudentId,
+  ]);
 
   const activeContact =
-    contacts.find((contact) => contact.studentId === activeStudentId) ||
+    contacts.find((contact) => contact.contactKey === activeContactKey) ||
     contacts[0] ||
-    studentContact;
+    (currentRole === "parent" ? parentContact : studentContact);
 
   const filteredContacts = contacts.filter(
-    (c) => !search || c.name.toLowerCase().includes(search.toLowerCase()),
+    (c) =>
+      !search ||
+      [c.name, c.role, c.className]
+        .filter(Boolean)
+        .some((value) => String(value).toLowerCase().includes(search.toLowerCase())),
   );
 
   const activeMessages = messages.filter(
-    (message) => message.studentId === activeContact.studentId,
+    (message) => contactMatchesMessage(activeContact, message),
   );
   const totalUnread = contacts.reduce((sum, contact) => sum + contact.unread, 0);
 
-  const markActiveSeen = (studentId: string) => {
+  const markActiveSeen = (contact: MessageContact) => {
     markMessagesSeen({
       role: currentRole,
-      studentId,
+      conversationType: contact.conversationType,
+      studentId: contact.studentId,
+      parentId: contact.parentId,
       counselorId: DEFAULT_COUNSELOR_ID,
     })
       .then((payload) => {
         setMessages((items) => [
-          ...items.filter((message) => message.studentId !== studentId),
+          ...items.filter((message) => !contactMatchesMessage(contact, message)),
           ...payload.messages,
         ].sort(
           (a, b) =>
@@ -429,15 +655,17 @@ export const MessengerView = ({
 
   React.useEffect(() => {
     if (!activeContact?.studentId) return;
-    markActiveSeen(activeContact.studentId);
-  }, [activeContact?.studentId, activeMessages.length, currentRole]);
+    markActiveSeen(activeContact);
+  }, [activeContact?.contactKey, activeMessages.length, currentRole]);
 
   const send = () => {
     const text = input.trim();
     if (!text || !activeContact?.studentId) return;
     setInput("");
     createMessage({
+      conversationType: activeContact.conversationType,
       studentId: activeContact.studentId,
+      parentId: activeContact.parentId,
       counselorId: DEFAULT_COUNSELOR_ID,
       counselorName: DEFAULT_COUNSELOR_NAME,
       senderRole: currentRole,
@@ -453,10 +681,48 @@ export const MessengerView = ({
       });
   };
 
-  const avatarGrad =
-    role === "student"
-      ? "from-orange-400 to-pink-500"
-      : "from-blue-500 to-indigo-600";
+  const contactGrad = (contact: MessageContact) =>
+    contact.conversationType === "parent"
+      ? "from-rose-500 to-orange-500"
+      : currentRole === "student"
+        ? "from-orange-400 to-pink-500"
+        : "from-blue-500 to-indigo-600";
+  const activeContactCls =
+    activeContact.conversationType === "parent"
+      ? "bg-rose-50 border-l-4 border-l-rose-500"
+      : "bg-orange-50 border-l-4 border-l-orange-500";
+  const inputFocusCls =
+    activeContact.conversationType === "parent"
+      ? "focus:ring-rose-400"
+      : "focus:ring-orange-400";
+  const sendButtonCls =
+    currentRole === "parent"
+      ? "from-rose-500 to-orange-500"
+      : currentRole === "student"
+        ? "from-orange-500 to-pink-500"
+        : "from-blue-600 to-indigo-600";
+  const bubbleClass = (message: MessageRecord, mine: boolean) => {
+    if (mine) {
+      return currentRole === "parent"
+        ? "bg-gradient-to-br from-rose-500 to-orange-500 text-white rounded-br-sm"
+        : currentRole === "student"
+          ? "bg-gradient-to-br from-orange-500 to-pink-500 text-white rounded-br-sm"
+          : "bg-gradient-to-br from-blue-600 to-indigo-600 text-white rounded-br-sm";
+    }
+
+    if (message.senderRole === "parent") {
+      return "bg-rose-50 text-rose-950 border border-rose-100 rounded-bl-sm";
+    }
+    if (message.senderRole === "student") {
+      return "bg-white text-gray-800 border border-gray-200 rounded-bl-sm shadow-sm";
+    }
+    return "bg-blue-50 text-blue-950 border border-blue-100 rounded-bl-sm";
+  };
+  const senderLabel = (message: MessageRecord) => {
+    if (message.senderRole === "parent") return t("Phụ huynh");
+    if (message.senderRole === "student") return t("Học sinh");
+    return t("Cố vấn");
+  };
 
   return (
     <div className="h-[calc(100vh-7.5rem)] flex gap-0 bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
@@ -494,13 +760,13 @@ export const MessengerView = ({
             <button
               key={c.id}
               onClick={() => {
-                setActiveStudentId(c.studentId);
-                markActiveSeen(c.studentId);
+                setActiveContactKey(c.contactKey);
+                markActiveSeen(c);
               }}
-              className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors border-b border-gray-50 ${activeContact.studentId === c.studentId ? "bg-orange-50 border-l-4 border-l-orange-500" : "hover:bg-gray-50"}`}
+              className={`w-full flex items-center gap-3 px-4 py-3.5 text-left transition-colors border-b border-gray-50 ${activeContact.contactKey === c.contactKey ? activeContactCls : "hover:bg-gray-50"}`}
             >
               <div
-                className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}
+                className={`w-10 h-10 rounded-full bg-gradient-to-br ${contactGrad(c)} flex items-center justify-center text-white font-bold text-sm flex-shrink-0`}
               >
                 {c.avatar}
               </div>
@@ -516,11 +782,20 @@ export const MessengerView = ({
                 <div className="flex items-center justify-between">
                   <p className="text-xs text-gray-500 truncate">{c.lastMsg}</p>
                   {c.unread > 0 && (
-                    <span className="ml-1 w-5 h-5 rounded-full bg-orange-500 text-white text-xs font-bold flex items-center justify-center flex-shrink-0">
+                    <span className={`ml-1 w-5 h-5 rounded-full ${c.conversationType === "parent" ? "bg-rose-500" : "bg-orange-500"} text-white text-xs font-bold flex items-center justify-center flex-shrink-0`}>
                       {c.unread}
                     </span>
                   )}
                 </div>
+                {currentRole === "counselor" && (
+                  <span
+                    className={`mt-1 inline-flex text-[11px] font-bold px-2 py-0.5 rounded-full ${c.conversationType === "parent" ? "bg-rose-100 text-rose-700" : "bg-blue-100 text-blue-700"}`}
+                  >
+                    {c.conversationType === "parent"
+                      ? t("Phụ huynh")
+                      : t("Học sinh")}
+                  </span>
+                )}
               </div>
             </button>
           ))}
@@ -537,14 +812,25 @@ export const MessengerView = ({
         {/* Chat header */}
         <div className="px-5 py-4 border-b border-gray-100 flex items-center gap-3 bg-white">
           <div
-            className={`w-10 h-10 rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white font-bold flex-shrink-0`}
+            className={`w-10 h-10 rounded-full bg-gradient-to-br ${contactGrad(activeContact)} flex items-center justify-center text-white font-bold flex-shrink-0`}
           >
             {activeContact.avatar}
           </div>
           <div>
-            <p className="font-bold text-gray-900 text-sm">
-              {activeContact.name}
-            </p>
+            <div className="flex items-center gap-2 flex-wrap">
+              <p className="font-bold text-gray-900 text-sm">
+                {activeContact.name}
+              </p>
+              {currentRole === "counselor" && (
+                <span
+                  className={`text-[11px] font-bold px-2 py-0.5 rounded-full ${activeContact.conversationType === "parent" ? "bg-rose-100 text-rose-700" : "bg-blue-100 text-blue-700"}`}
+                >
+                  {activeContact.conversationType === "parent"
+                    ? t("Phụ huynh")
+                    : t("Học sinh")}
+                </span>
+              )}
+            </div>
             <p className="text-xs text-gray-500">{activeContact.role}</p>
           </div>
           <div className="ml-auto flex items-center gap-1.5">
@@ -570,7 +856,7 @@ export const MessengerView = ({
                 >
                   {!mine && (
                     <div
-                      className={`w-7 h-7 rounded-full bg-gradient-to-br ${avatarGrad} flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mb-1`}
+                      className={`w-7 h-7 rounded-full bg-gradient-to-br ${contactGrad(activeContact)} flex items-center justify-center text-white text-xs font-bold flex-shrink-0 mb-1`}
                     >
                       {activeContact.avatar}
                     </div>
@@ -579,11 +865,12 @@ export const MessengerView = ({
                     className={`max-w-xs lg:max-w-md ${mine ? "items-end" : "items-start"} flex flex-col gap-1`}
                   >
                     <div
-                      className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${mine ? "bg-gradient-to-br from-orange-500 to-pink-500 text-white rounded-br-sm" : "bg-white text-gray-800 border border-gray-200 rounded-bl-sm shadow-sm"}`}
+                      className={`px-4 py-2.5 rounded-2xl text-sm leading-relaxed ${bubbleClass(msg, mine)}`}
                     >
                       {msg.text}
                     </div>
                     <span className="text-xs text-gray-400 px-1">
+                      {senderLabel(msg)} ·{" "}
                       {formatMessageTime(msg.sentAt)}
                       {mine && (
                         <>
@@ -608,12 +895,12 @@ export const MessengerView = ({
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={(e) => e.key === "Enter" && send()}
             placeholder={t("Nhập tin nhắn...")}
-            className="flex-1 px-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 focus:ring-orange-400 focus:bg-white transition-colors"
+            className={`flex-1 px-4 py-2.5 bg-gray-100 rounded-xl text-sm focus:outline-none focus:ring-2 ${inputFocusCls} focus:bg-white transition-colors`}
           />
           <button
             onClick={send}
             disabled={!input.trim()}
-            className="w-10 h-10 rounded-xl bg-gradient-to-br from-orange-500 to-pink-500 text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition-opacity flex-shrink-0"
+            className={`w-10 h-10 rounded-xl bg-gradient-to-br ${sendButtonCls} text-white flex items-center justify-center hover:opacity-90 disabled:opacity-40 transition-opacity flex-shrink-0`}
           >
             <ArrowRight size={16} />
           </button>

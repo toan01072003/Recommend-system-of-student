@@ -78,9 +78,33 @@ class Handler(BaseHTTPRequestHandler):
         if path == "/api/messages":
             query = parse_qs(parsed.query)
             role = query["role"][0] if query.get("role") else None
+            conversation_type = query["conversation_type"][0] if query.get("conversation_type") else None
             student_id = query["student_id"][0] if query.get("student_id") else None
+            parent_id = query["parent_id"][0] if query.get("parent_id") else None
             counselor_id = query["counselor_id"][0] if query.get("counselor_id") else None
-            self.send_json_or_api_error(lambda: api.messages_payload(role, student_id, counselor_id))
+            self.send_json_or_api_error(
+                lambda: api.messages_payload(
+                    role,
+                    conversation_type,
+                    student_id,
+                    parent_id,
+                    counselor_id,
+                )
+            )
+            return
+        if path == "/api/families":
+            query = parse_qs(parsed.query)
+            counselor_id = query["counselor_id"][0] if query.get("counselor_id") else None
+            self.send_json_or_api_error(lambda: api.families_payload(counselor_id))
+            return
+        if path == "/api/family-notes":
+            query = parse_qs(parsed.query)
+            parent_id = query["parent_id"][0] if query.get("parent_id") else ""
+            student_id = query["student_id"][0] if query.get("student_id") else ""
+            counselor_id = query["counselor_id"][0] if query.get("counselor_id") else None
+            self.send_json_or_api_error(
+                lambda: api.family_notes_payload(parent_id, student_id, counselor_id)
+            )
             return
         if path == "/api/advice-notes":
             query = parse_qs(parsed.query)
@@ -160,6 +184,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/meetings",
             "/api/messages",
             "/api/messages/seen",
+            "/api/family-notes",
             "/api/advice-notes",
             "/api/surveys",
             "/api/students",
@@ -194,6 +219,9 @@ class Handler(BaseHTTPRequestHandler):
                 return
             if path == "/api/advice-notes":
                 self.send_json(api.create_advice_note_payload(payload), status=201)
+                return
+            if path == "/api/family-notes":
+                self.send_json(api.create_family_note_payload(payload), status=201)
                 return
             if path == "/api/messages/seen":
                 self.send_json(api.mark_messages_seen_payload(payload))

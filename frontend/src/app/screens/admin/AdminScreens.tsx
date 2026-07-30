@@ -1060,7 +1060,7 @@ export const StudentProfile = ({ studentId }: { studentId?: string }) => {
               {t("Bản đồ kỹ năng & Sở thích")}
             </h3>
             <ResponsiveContainer width="100%" height={250}>
-              <RadarChart data={buildStudentSkillRadar(profile)}>
+              <RadarChart data={buildStudentSkillRadar(profile, t)}>
                 <PolarGrid key="polar-grid" stroke="#e5e7eb" />
                 <PolarAngleAxis
                   key="polar-angle"

@@ -719,7 +719,7 @@ export const CounselorStudentDetail = ({
             </h3>
 
             <ResponsiveContainer width="100%" height={230}>
-              <RadarChart data={buildStudentSkillRadar(student)}>
+              <RadarChart data={buildStudentSkillRadar(student, t)}>
                 <PolarGrid key="pg" stroke="#e5e7eb" />
 
                 <PolarAngleAxis

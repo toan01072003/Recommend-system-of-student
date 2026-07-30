@@ -191,6 +191,7 @@ def create_schema(conn: sqlite3.Connection) -> None:
 
         DROP TABLE IF EXISTS survey_results;
         DROP TABLE IF EXISTS surveys;
+        DROP TABLE IF EXISTS family_notes;
         DROP TABLE IF EXISTS advice_notes;
         DROP TABLE IF EXISTS messages;
         DROP TABLE IF EXISTS meetings;
@@ -260,6 +261,7 @@ def create_schema(conn: sqlite3.Connection) -> None:
             latest_recommend_career TEXT,
             recommend_history_json TEXT NOT NULL DEFAULT '[]',
             personal_statement TEXT,
+            skill_map_json TEXT NOT NULL DEFAULT '[]',
             target_university_id TEXT,
             target_university_name TEXT,
             target_university_program TEXT,
@@ -305,15 +307,19 @@ def create_schema(conn: sqlite3.Connection) -> None:
 
         CREATE TABLE messages (
             message_id INTEGER PRIMARY KEY AUTOINCREMENT,
+            conversation_type TEXT NOT NULL DEFAULT 'student' CHECK(conversation_type IN ('student', 'parent')),
             student_id TEXT NOT NULL REFERENCES students(student_id) ON DELETE CASCADE,
             student_name TEXT NOT NULL,
             class_name TEXT,
+            parent_id TEXT REFERENCES parents(parent_id) ON DELETE CASCADE,
+            parent_name TEXT,
             counselor_id TEXT NOT NULL DEFAULT 'COUNSELOR001' REFERENCES counselors(counselor_id) ON DELETE CASCADE,
             counselor_name TEXT NOT NULL DEFAULT 'Nguyễn Văn Minh',
-            sender_role TEXT NOT NULL CHECK(sender_role IN ('student', 'counselor')),
+            sender_role TEXT NOT NULL CHECK(sender_role IN ('student', 'parent', 'counselor')),
             message_text TEXT NOT NULL,
             sent_at TEXT NOT NULL,
             student_seen_at TEXT,
+            parent_seen_at TEXT,
             counselor_seen_at TEXT
         );
 
@@ -339,6 +345,8 @@ def create_schema(conn: sqlite3.Connection) -> None:
         CREATE INDEX idx_meetings_time ON meetings(scheduled_at);
         CREATE INDEX idx_messages_student_time ON messages(student_id, sent_at);
         CREATE INDEX idx_messages_counselor_time ON messages(counselor_id, sent_at);
+        CREATE INDEX idx_messages_parent_time ON messages(parent_id, student_id, sent_at);
+        CREATE INDEX idx_messages_conversation_time ON messages(conversation_type, sent_at);
         CREATE INDEX idx_advice_notes_student_time ON advice_notes(student_id, created_at);
         CREATE INDEX idx_advice_notes_counselor_time ON advice_notes(counselor_id, created_at);
         CREATE INDEX idx_advice_notes_priority ON advice_notes(priority);
@@ -362,7 +370,7 @@ def insert_students(conn: sqlite3.Connection, rows: list[dict[str, str | None]])
                 intro_extro, work_style, iq_score, eq_score, mbti, disc,
                 expected_salary_million, desired_career_style, career_fit, favorite_career,
                 favorite_careers_json, disliked_career, explored_careers_json, current_explored_career,
-                latest_recommend_career, recommend_history_json, personal_statement,
+                latest_recommend_career, recommend_history_json, personal_statement, skill_map_json,
                 target_university_id, target_university_name, target_university_program,
                 target_universities_json, stress_level,
                 confidence_level, academic_pressure_level, medical_history_summary,
@@ -377,7 +385,7 @@ def insert_students(conn: sqlite3.Connection, rows: list[dict[str, str | None]])
                 :intro_extro, :work_style, :iq_score, :eq_score, :mbti, :disc,
                 :expected_salary_million, :desired_career_style, :career_fit, :favorite_career,
                 :favorite_careers_json, :disliked_career, :explored_careers_json, :current_explored_career,
-                :latest_recommend_career, :recommend_history_json, :personal_statement,
+                :latest_recommend_career, :recommend_history_json, :personal_statement, :skill_map_json,
                 :target_university_id, :target_university_name, :target_university_program,
                 :target_universities_json, :stress_level,
                 :confidence_level, :academic_pressure_level, :medical_history_summary,
@@ -435,6 +443,7 @@ def insert_students(conn: sqlite3.Connection, rows: list[dict[str, str | None]])
                 "latest_recommend_career": None,
                 "recommend_history_json": "[]",
                 "personal_statement": "",
+                "skill_map_json": "[]",
                 "target_university_id": "",
                 "target_university_name": "",
                 "target_university_program": "",
@@ -483,6 +492,7 @@ def import_workbook(excel_path: Path, db_path: Path) -> dict:
         conn.row_factory = sqlite3.Row
         create_schema(conn)
         insert_students(conn, profiles)
+        student_database.seed_student_career_profile_data(conn)
         insert_score_history(conn, score_history)
         student_database.ensure_identity_tables(conn)
         student_database.seed_identity_data(conn)

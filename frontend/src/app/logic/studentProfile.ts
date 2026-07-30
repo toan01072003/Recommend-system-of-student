@@ -5,6 +5,7 @@ export type StudentProfileRecord = (typeof studentsInClass)[number] & {
   currentExploredCareer?: string;
   latestRecommendCareer?: string;
   recommendHistory?: RecommendationHistoryEntry[];
+  skillMap?: Array<{ skill: string; score: number; fullMark: number }>;
 };
 
 export const resolveStudentProfile = (
