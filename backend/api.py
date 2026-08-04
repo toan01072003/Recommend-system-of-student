@@ -306,6 +306,54 @@ def meetings_payload(
     }
 
 
+def meeting_candidates_payload(
+    grade: int | None = None,
+    class_name: str | None = None,
+    teacher_id: str | None = None,
+    threshold: int = 25,
+    limit: int = 50,
+    include_scheduled: bool = False,
+) -> dict:
+    candidates = student_database.list_meeting_candidates(
+        STUDENT_DB,
+        grade=grade,
+        class_name=class_name,
+        teacher_id=teacher_id,
+        threshold=threshold,
+        limit=limit,
+        include_scheduled=include_scheduled,
+    )
+    return {
+        "candidates": candidates,
+        "count": len(candidates),
+        "threshold": threshold,
+    }
+
+
+def career_counseling_candidates_payload(
+    grade: int | None = None,
+    class_name: str | None = None,
+    teacher_id: str | None = None,
+    threshold: int = 25,
+    limit: int = 50,
+    include_scheduled: bool = False,
+) -> dict:
+    candidates = student_database.list_career_counseling_candidates(
+        STUDENT_DB,
+        grade=grade,
+        class_name=class_name,
+        teacher_id=teacher_id,
+        threshold=threshold,
+        limit=limit,
+        include_scheduled=include_scheduled,
+    )
+    return {
+        "candidates": candidates,
+        "count": len(candidates),
+        "threshold": threshold,
+    }
+
+
 def create_meeting_payload(payload: dict) -> dict:
     return {"meeting": student_database.create_meeting(payload, STUDENT_DB)}
 

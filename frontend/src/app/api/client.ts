@@ -55,6 +55,103 @@ export type MeetingsResponse = {
   meetings: MeetingRecord[];
 };
 
+export type MeetingCandidateReason = {
+  code: string;
+  label: string;
+  points: number;
+  evidence: string;
+};
+
+export type MeetingPriority = "high" | "medium" | "low";
+
+export type MeetingCandidateExplanation = {
+  algorithm: string;
+  summary: string;
+  breakdown: Record<string, number>;
+  scoreSources: MeetingCandidateScoreSources;
+  confidence: "high" | "medium" | "low" | string;
+  nextAction: string;
+  suggestedTopic: string;
+  reviewRequired: boolean;
+};
+
+export type MeetingCandidateScoreSources = {
+  rules: number;
+  ai: number;
+  total: number;
+  aiProvider?: string | null;
+  aiModel?: string | null;
+  aiError?: string | null;
+};
+
+export type MeetingCandidateAiSignal = {
+  code: string;
+  category: string;
+  severity: "low" | "medium" | "high" | string;
+  points: number;
+  evidence: string;
+  confidence: number;
+  source: string;
+};
+
+export type SupportMeetingCandidate = {
+  studentId: string;
+  studentName: string;
+  className?: string;
+  grade?: number;
+  avg: number;
+  scoreTrend: number;
+  risk?: string;
+  stressLevel?: string;
+  academicPressureLevel?: string;
+  confidenceLevel?: string;
+  priorityScore: number;
+  priority: MeetingPriority;
+  reasons: MeetingCandidateReason[];
+  aiSignals: MeetingCandidateAiSignal[];
+  scoreSources: MeetingCandidateScoreSources;
+  suggestedTopic: string;
+  explanation: MeetingCandidateExplanation;
+  hasUpcomingMeeting: boolean;
+  nextMeetingAt?: string | null;
+};
+
+export type CareerCounselingCandidate = {
+  studentId: string;
+  studentName: string;
+  className?: string;
+  grade?: number;
+  avg: number;
+  scoreTrend: number;
+  priorityScore: number;
+  priority: MeetingPriority;
+  reasons: MeetingCandidateReason[];
+  aiSignals: MeetingCandidateAiSignal[];
+  scoreSources: MeetingCandidateScoreSources;
+  suggestedTopic: string;
+  explanation: MeetingCandidateExplanation;
+  hasUpcomingMeeting: boolean;
+  nextMeetingAt?: string | null;
+  evidence: {
+    riasecTop3?: string;
+    favoriteCareer?: string;
+    currentExploredCareer?: string;
+    latestRecommendCareer?: string;
+    likedGroup?: string | null;
+    recommendGroup?: string | null;
+    targetUniversityName?: string;
+    targetUniversityProgram?: string;
+    progress?: number;
+    parentExpectation?: string;
+  };
+};
+
+export type MeetingCandidatesResponse<TCandidate> = {
+  candidates: TCandidate[];
+  count: number;
+  threshold: number;
+};
+
 export type CreateMeetingPayload = {
   studentId: string;
   counselorId?: string;
@@ -599,6 +696,60 @@ export function fetchMeetings(
 
   return requestJson<MeetingsResponse>(
     `/api/meetings${query ? `?${query}` : ""}`,
+    { signal },
+  );
+}
+
+export function fetchSupportMeetingCandidates(
+  params: {
+    grade?: number;
+    className?: string;
+    teacherId?: string;
+    threshold?: number;
+    limit?: number;
+    includeScheduled?: boolean;
+  } = {},
+  signal?: AbortSignal,
+): Promise<MeetingCandidatesResponse<SupportMeetingCandidate>> {
+  const search = new URLSearchParams();
+  if (params.grade != null) search.set("grade", String(params.grade));
+  if (params.className) search.set("class", params.className);
+  if (params.teacherId) search.set("teacher_id", params.teacherId);
+  if (params.threshold != null) search.set("threshold", String(params.threshold));
+  if (params.limit != null) search.set("limit", String(params.limit));
+  if (params.includeScheduled != null)
+    search.set("include_scheduled", String(params.includeScheduled));
+  const query = search.toString();
+
+  return requestJson<MeetingCandidatesResponse<SupportMeetingCandidate>>(
+    `/api/meeting-candidates${query ? `?${query}` : ""}`,
+    { signal },
+  );
+}
+
+export function fetchCareerCounselingCandidates(
+  params: {
+    grade?: number;
+    className?: string;
+    teacherId?: string;
+    threshold?: number;
+    limit?: number;
+    includeScheduled?: boolean;
+  } = {},
+  signal?: AbortSignal,
+): Promise<MeetingCandidatesResponse<CareerCounselingCandidate>> {
+  const search = new URLSearchParams();
+  if (params.grade != null) search.set("grade", String(params.grade));
+  if (params.className) search.set("class", params.className);
+  if (params.teacherId) search.set("teacher_id", params.teacherId);
+  if (params.threshold != null) search.set("threshold", String(params.threshold));
+  if (params.limit != null) search.set("limit", String(params.limit));
+  if (params.includeScheduled != null)
+    search.set("include_scheduled", String(params.includeScheduled));
+  const query = search.toString();
+
+  return requestJson<MeetingCandidatesResponse<CareerCounselingCandidate>>(
+    `/api/career-counseling-candidates${query ? `?${query}` : ""}`,
     { signal },
   );
 }

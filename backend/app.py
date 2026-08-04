@@ -75,6 +75,44 @@ class Handler(BaseHTTPRequestHandler):
             counselor_id = query["counselor_id"][0] if query.get("counselor_id") else None
             self.send_json_or_api_error(lambda: api.meetings_payload(role, student_id, counselor_id))
             return
+        if path == "/api/meeting-candidates":
+            query = parse_qs(parsed.query)
+            grade = int(query["grade"][0]) if query.get("grade") else None
+            class_name = query["class"][0] if query.get("class") else None
+            teacher_id = query["teacher_id"][0] if query.get("teacher_id") else None
+            threshold = int(query["threshold"][0]) if query.get("threshold") else 25
+            limit = int(query["limit"][0]) if query.get("limit") else 50
+            include_scheduled = (query["include_scheduled"][0].lower() == "true") if query.get("include_scheduled") else False
+            self.send_json_or_api_error(
+                lambda: api.meeting_candidates_payload(
+                    grade=grade,
+                    class_name=class_name,
+                    teacher_id=teacher_id,
+                    threshold=threshold,
+                    limit=limit,
+                    include_scheduled=include_scheduled,
+                )
+            )
+            return
+        if path == "/api/career-counseling-candidates":
+            query = parse_qs(parsed.query)
+            grade = int(query["grade"][0]) if query.get("grade") else None
+            class_name = query["class"][0] if query.get("class") else None
+            teacher_id = query["teacher_id"][0] if query.get("teacher_id") else None
+            threshold = int(query["threshold"][0]) if query.get("threshold") else 25
+            limit = int(query["limit"][0]) if query.get("limit") else 50
+            include_scheduled = (query["include_scheduled"][0].lower() == "true") if query.get("include_scheduled") else False
+            self.send_json_or_api_error(
+                lambda: api.career_counseling_candidates_payload(
+                    grade=grade,
+                    class_name=class_name,
+                    teacher_id=teacher_id,
+                    threshold=threshold,
+                    limit=limit,
+                    include_scheduled=include_scheduled,
+                )
+            )
+            return
         if path == "/api/messages":
             query = parse_qs(parsed.query)
             role = query["role"][0] if query.get("role") else None

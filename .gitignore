@@ -12,6 +12,13 @@ venv/
 .env
 .env.*
 !.env.example
+backend/.env
+backend/.env.*
+frontend/.env
+frontend/.env.*
+!.env.example
+!backend/.env.example
+!frontend/.env.example
 
 # Frontend dependencies and build output
 node_modules/
@@ -29,6 +36,8 @@ npm-debug.log*
 pnpm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+coverage/
+frontend/coverage/
 
 # O*NET raw download dump.
 # Keep generated demo-ready files under data/.
@@ -39,6 +48,11 @@ db_30_3_text/
 *.sqlite
 *.sqlite3
 data/recommend_system.db
+
+# Local tool/cache output
+.cache/
+.agents/
+.codex/
 
 # OS/editor noise
 .DS_Store

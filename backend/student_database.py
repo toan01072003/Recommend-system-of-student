@@ -10,6 +10,11 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from zipfile import ZipFile
 
+try:
+    from . import ai_signal_engine
+except ImportError:
+    import ai_signal_engine
+
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 DEFAULT_DB = PROJECT_ROOT / "data" / "recommend_system.db"
@@ -2881,6 +2886,795 @@ def list_students(db_path: Path = DEFAULT_DB, grade: int | None = None, class_na
             params,
         ).fetchall()
     return [row_to_student(row) for row in rows]
+
+
+def _meeting_candidate_reason(
+    code: str,
+    label: str,
+    points: int,
+    evidence: str,
+    *,
+    source: str = "rule",
+    confidence: float | None = None,
+) -> dict:
+    reason = {
+        "code": code,
+        "label": label,
+        "points": points,
+        "evidence": evidence,
+        "source": source,
+    }
+    if confidence is not None:
+        reason["confidence"] = confidence
+    return reason
+
+
+def _meeting_priority(score: int) -> str:
+    if score >= 70:
+        return "high"
+    if score >= 45:
+        return "medium"
+    return "low"
+
+
+def _reason_breakdown(reasons: list[dict]) -> dict[str, int]:
+    groups = {
+        "academic": {
+            "score_low",
+            "score_watch",
+            "trend_drop",
+            "trend_down",
+            "academic_fit_risk",
+        },
+        "wellbeing": {
+            "risk_high",
+            "risk_medium",
+            "risk_low",
+            "stress_high",
+            "stress_moderate",
+            "pressure_high",
+            "pressure_moderate",
+            "confidence_low",
+        },
+        "career": {
+            "missing_riasec",
+            "missing_orientation",
+            "missing_recommend",
+            "missing_bridge",
+            "missing_university_plan",
+            "career_mismatch",
+            "riasec_interest_mismatch",
+        },
+        "family": {"parent_conflict"},
+        "transition": {
+            "final_grade_urgency",
+            "near_final_grade",
+            "profile_incomplete",
+        },
+    }
+    out = dict.fromkeys(groups, 0)
+    for reason in reasons:
+        code = str(reason.get("code") or "")
+        normalized_code = code.removeprefix("ai_")
+        points = int(reason.get("points") or 0)
+        for group, codes in groups.items():
+            if code in codes or normalized_code in codes:
+                out[group] += points
+                break
+    return out
+
+
+def _explanation_confidence(reasons: list[dict]) -> str:
+    if len(reasons) >= 4:
+        return "high"
+    if len(reasons) >= 2:
+        return "medium"
+    return "low"
+
+
+def _top_reason_labels(reasons: list[dict], limit: int = 3) -> list[str]:
+    return [
+        str(reason["label"])
+        for reason in sorted(reasons, key=lambda item: int(item.get("points") or 0), reverse=True)[:limit]
+    ]
+
+
+def _student_ai_context(row: sqlite3.Row) -> dict:
+    return {
+        "studentId": row["student_id"],
+        "studentName": row["student_name"],
+        "grade": row["grade"],
+        "className": row["class_name"],
+        "averageScore": row["average_score"],
+        "scoreTrend": row["score_trend"],
+        "riskLevel": row["risk_level"],
+        "stressLevel": row["stress_level"],
+        "academicPressureLevel": row["academic_pressure_level"],
+        "confidenceLevel": row["confidence_level"],
+        "riasecTop3": row["riasec_top3"],
+        "favoriteCareer": row["favorite_career"],
+        "currentExploredCareer": row["current_explored_career"],
+        "latestRecommendCareer": row["latest_recommend_career"],
+        "careerFit": row["career_fit"],
+        "desiredCareerStyle": row["desired_career_style"],
+        "preferredActivities": row["preferred_activities"],
+        "curiosityTopics": row["curiosity_topics"],
+        "favoriteSubject": row["favorite_subject"],
+        "leastFavoriteSubject": row["least_favorite_subject"],
+        "targetUniversityName": row["target_university_name"],
+        "targetUniversityProgram": row["target_university_program"],
+        "parentExpectation": row["parent_expectation"],
+        "parentFinanceLevel": row["parent_finance_level"],
+        "medicalHistory": row["medical_history_summary"],
+        "personalStatement": row["personal_statement"],
+        "progress": row["progress"],
+    }
+
+
+def _ai_reason_label(signal: dict) -> str:
+    labels = {
+        "motivation_drop": "Tín hiệu AI: động lực học tập có dấu hiệu giảm",
+        "avoidance": "Tín hiệu AI: có dấu hiệu né tránh việc học",
+        "stress_language": "Tín hiệu AI: nội dung có nhắc đến stress hoặc áp lực",
+        "low_confidence": "Tín hiệu AI: mức tự tin có thể đang thấp",
+        "family_pressure": "Tín hiệu AI: có dấu hiệu áp lực từ gia đình",
+        "social_isolation": "Tín hiệu AI: có dấu hiệu thu mình hoặc ít kết nối",
+        "academic_overload": "Tín hiệu AI: có dấu hiệu quá tải học tập",
+        "career_confusion": "Tín hiệu AI: định hướng nghề nghiệp còn phân tán",
+        "unrealistic_goal": "Tín hiệu AI: mục tiêu hiện tại cần được trao đổi thêm",
+        "parent_student_conflict": "Tín hiệu AI: kỳ vọng gia đình và mong muốn học sinh có thể khác nhau",
+        "missing_major_bridge": "Tín hiệu AI: cần làm rõ cầu nối từ nghề sang ngành học",
+        "weak_self_knowledge": "Tín hiệu AI: học sinh cần thêm hoạt động hiểu bản thân",
+        "interest_inconsistency": "Tín hiệu AI: sở thích hiện tại chưa thật nhất quán",
+    }
+    return labels.get(str(signal.get("code") or ""), "Tín hiệu AI cần xem thêm")
+
+
+def _ai_signals_for_row(row: sqlite3.Row) -> dict:
+    return ai_signal_engine.extract_student_signals(_student_ai_context(row))
+
+
+def _ai_reasons(ai_payload: dict, allowed_categories: set[str], cap: int = 30) -> tuple[list[dict], int]:
+    reasons: list[dict] = []
+    total = 0
+    for signal in ai_payload.get("signals", []):
+        if signal.get("category") not in allowed_categories:
+            continue
+        points = int(signal.get("points") or 0)
+        if points <= 0:
+            continue
+        remaining = cap - total
+        if remaining <= 0:
+            break
+        used_points = min(points, remaining)
+        total += used_points
+        reasons.append(
+            _meeting_candidate_reason(
+                f"ai_{signal.get('code')}",
+                _ai_reason_label(signal),
+                used_points,
+                str(signal.get("evidence") or ""),
+                source=str(signal.get("source") or ai_payload.get("provider") or "ai"),
+                confidence=float(signal.get("confidence") or 0.0),
+            )
+        )
+    return reasons, total
+
+
+def _support_explanation(score: int, reasons: list[dict], topic: str, score_sources: dict) -> dict:
+    priority = _meeting_priority(score)
+    labels = _top_reason_labels(reasons)
+    summary = "Nên ưu tiên gặp vì " + "; ".join(labels) if labels else "Chưa có dấu hiệu cần gặp rõ ràng"
+    if priority == "high":
+        next_action = "Nên đặt lịch gặp trong vài ngày tới và báo cố vấn phụ trách chuẩn bị trước nội dung."
+    elif priority == "medium":
+        next_action = "Nên xếp một buổi check-in trong 1-2 tuần tới hoặc khi có slot phù hợp."
+    else:
+        next_action = "Tiếp tục theo dõi; chỉ đặt lịch nếu giáo viên/cố vấn thấy cần trao đổi thêm."
+    return {
+        "algorithm": "support_risk_rule_v1",
+        "summary": summary,
+        "breakdown": _reason_breakdown(reasons),
+        "scoreSources": score_sources,
+        "confidence": _explanation_confidence(reasons),
+        "nextAction": next_action,
+        "suggestedTopic": topic,
+        "reviewRequired": True,
+    }
+
+
+def _career_explanation(score: int, reasons: list[dict], topic: str, score_sources: dict) -> dict:
+    priority = _meeting_priority(score)
+    labels = _top_reason_labels(reasons)
+    summary = "Nên tư vấn hướng nghiệp vì " + "; ".join(labels) if labels else "Chưa có dấu hiệu cần tư vấn gấp rõ ràng"
+    if priority == "high":
+        next_action = "Nên đặt lịch tư vấn hướng nghiệp và chuẩn bị trước hồ sơ RIASEC, nghề quan tâm, ngành học và lựa chọn trường."
+    elif priority == "medium":
+        next_action = "Mời học sinh bổ sung hồ sơ định hướng, sau đó xếp lịch tư vấn nếu còn điểm chưa rõ."
+    else:
+        next_action = "Nhắc học sinh cập nhật thêm mục tiêu nghề, ngành học hoặc trường quan tâm."
+    return {
+        "algorithm": "career_counseling_rule_v1",
+        "summary": summary,
+        "breakdown": _reason_breakdown(reasons),
+        "scoreSources": score_sources,
+        "confidence": _explanation_confidence(reasons),
+        "nextAction": next_action,
+        "suggestedTopic": topic,
+        "reviewRequired": True,
+    }
+
+
+def _suggest_meeting_topic(reasons: list[dict]) -> str:
+    codes = {reason["code"] for reason in reasons}
+    if "risk_high" in codes or "stress_high" in codes:
+        return "Trao đổi hỗ trợ học tập và tâm lý"
+    if "score_low" in codes or "trend_drop" in codes:
+        return "Rà soát kết quả học tập và kế hoạch cải thiện"
+    if "confidence_low" in codes or "pressure_high" in codes:
+        return "Tư vấn áp lực học tập và sự tự tin"
+    return "Gặp định kỳ để theo dõi tiến độ học sinh"
+
+
+def _suggest_career_meeting_topic(reasons: list[dict]) -> str:
+    codes = {reason["code"] for reason in reasons}
+    if "missing_orientation" in codes or "missing_riasec" in codes:
+        return "Khai phá định hướng nghề nghiệp ban đầu"
+    if "missing_recommend" in codes or "missing_bridge" in codes:
+        return "Nối sở thích RIASEC với nghề và ngành học"
+    if "career_mismatch" in codes:
+        return "Kiểm tra độ phù hợp giữa nghề học sinh thích và gợi ý hệ thống"
+    if "missing_university_plan" in codes or "final_grade_urgency" in codes:
+        return "Tư vấn nghề-ngành-trường và kế hoạch nộp hồ sơ"
+    if "academic_fit_risk" in codes:
+        return "Rà soát mục tiêu nghề nghiệp với năng lực học tập"
+    return "Gặp tư vấn định hướng nghề nghiệp"
+
+
+def _score_meeting_candidate(row: sqlite3.Row) -> tuple[int, list[dict]]:
+    score = 0
+    reasons: list[dict] = []
+
+    risk = str(row["risk_level"] or "").lower()
+    if risk == "high":
+        score += 40
+        reasons.append(_meeting_candidate_reason("risk_high", "Hồ sơ đang ở nhóm rủi ro cao", 40, "risk=high"))
+    elif risk == "medium":
+        score += 25
+        reasons.append(_meeting_candidate_reason("risk_medium", "Hồ sơ đang ở nhóm cần theo dõi", 25, "risk=medium"))
+    elif risk == "low":
+        score += 10
+        reasons.append(_meeting_candidate_reason("risk_low", "Có dấu hiệu cần theo dõi", 10, "risk=low"))
+
+    average_score = float(row["average_score"] or 0)
+    if average_score < 6.5:
+        score += 25
+        reasons.append(
+            _meeting_candidate_reason(
+                "score_low",
+                "Điểm trung bình thấp",
+                25,
+                f"avg={average_score:.2f}",
+            )
+        )
+    elif average_score < 7.0:
+        score += 15
+        reasons.append(
+            _meeting_candidate_reason(
+                "score_watch",
+                "Điểm trung bình cần theo dõi",
+                15,
+                f"avg={average_score:.2f}",
+            )
+        )
+
+    score_trend = float(row["score_trend"] or 0)
+    if score_trend <= -0.5:
+        score += 20
+        reasons.append(
+            _meeting_candidate_reason(
+                "trend_drop",
+                "Điểm giảm mạnh",
+                20,
+                f"trend={score_trend:.2f}",
+            )
+        )
+    elif score_trend <= -0.2:
+        score += 10
+        reasons.append(
+            _meeting_candidate_reason(
+                "trend_down",
+                "Điểm đang giảm",
+                10,
+                f"trend={score_trend:.2f}",
+            )
+        )
+
+    stress = str(row["stress_level"] or "").lower()
+    if stress == "high":
+        score += 20
+        reasons.append(_meeting_candidate_reason("stress_high", "Stress cao", 20, "stress=High"))
+    elif stress == "moderate":
+        score += 10
+        reasons.append(_meeting_candidate_reason("stress_moderate", "Stress vừa", 10, "stress=Moderate"))
+
+    pressure = str(row["academic_pressure_level"] or "").lower()
+    if pressure == "high":
+        score += 15
+        reasons.append(
+            _meeting_candidate_reason(
+                "pressure_high",
+                "Áp lực học tập cao",
+                15,
+                "academicPressure=High",
+            )
+        )
+    elif pressure == "moderate":
+        score += 8
+        reasons.append(
+            _meeting_candidate_reason(
+                "pressure_moderate",
+                "Áp lực học tập vừa",
+                8,
+                "academicPressure=Moderate",
+            )
+        )
+
+    confidence = str(row["confidence_level"] or "").lower()
+    if confidence == "low":
+        score += 12
+        reasons.append(
+            _meeting_candidate_reason(
+                "confidence_low",
+                "Tự tin thấp",
+                12,
+                "confidence=Low",
+            )
+        )
+
+    return score, reasons
+
+
+CAREER_KEYWORD_GROUPS: list[tuple[tuple[str, ...], str]] = [
+    (("engineer", "mechanic", "technician", "architecture", "robot", "construction", "logistics", "outdoor"), "R"),
+    (("data", "analyst", "scientist", "research", "medical", "doctor", "psychologist", "biology", "laboratory"), "I"),
+    (("design", "artist", "writer", "media", "music", "creative", "content", "architecture"), "A"),
+    (("teacher", "education", "counselor", "nurse", "social", "therapy", "healthcare", "service"), "S"),
+    (("business", "manager", "marketing", "sales", "lawyer", "finance", "entrepreneur", "operations"), "E"),
+    (("accountant", "auditor", "administrator", "paralegal", "legal assistant", "bank", "office", "records"), "C"),
+]
+
+
+def _career_group_from_text(*values: object) -> str | None:
+    text = " ".join(str(value or "").lower() for value in values)
+    if not text.strip():
+        return None
+    scores = dict.fromkeys("RIASEC", 0)
+    for keywords, group in CAREER_KEYWORD_GROUPS:
+        scores[group] += sum(1 for keyword in keywords if keyword in text)
+    best_group, best_score = max(scores.items(), key=lambda item: item[1])
+    return best_group if best_score > 0 else None
+
+
+def _safe_json_list(value: object) -> list:
+    if not value:
+        return []
+    try:
+        parsed = json.loads(str(value))
+    except (TypeError, json.JSONDecodeError):
+        return []
+    return parsed if isinstance(parsed, list) else []
+
+
+def _latest_recommend_group(row: sqlite3.Row) -> str | None:
+    history = _safe_json_list(row["recommend_history_json"])
+    if history:
+        latest = history[0] if isinstance(history[0], dict) else {}
+        vector = latest.get("studentVector") or latest.get("student_vector") or {}
+        if isinstance(vector, dict) and vector:
+            ordered = [(key, float(value or 0)) for key, value in vector.items() if key in "RIASEC"]
+            if ordered:
+                return max(ordered, key=lambda item: item[1])[0]
+        results = latest.get("results") or []
+        if results and isinstance(results[0], dict):
+            group = _career_group_from_text(results[0].get("title"))
+            if group:
+                return group
+    return _career_group_from_text(row["latest_recommend_career"])
+
+
+def _score_career_counseling_candidate(row: sqlite3.Row) -> tuple[int, list[dict], dict]:
+    score = 0
+    reasons: list[dict] = []
+
+    riasec = str(row["riasec_top3"] or "").strip().upper()
+    favorite_career = str(row["favorite_career"] or "").strip()
+    explored_career = str(row["current_explored_career"] or "").strip()
+    latest_recommend = str(row["latest_recommend_career"] or "").strip()
+    career_fit = str(row["career_fit"] or "").strip()
+    target_university = str(row["target_university_name"] or "").strip()
+    target_program = str(row["target_university_program"] or "").strip()
+    parent_expectation = str(row["parent_expectation"] or "").strip()
+    grade = int(row["grade"] or 0)
+    progress = int(row["progress"] or 0)
+    average_score = float(row["average_score"] or 0)
+
+    has_orientation = bool(favorite_career or explored_career or career_fit)
+    has_target_plan = bool(target_university or target_program)
+
+    if not riasec:
+        score += 20
+        reasons.append(
+            _meeting_candidate_reason("missing_riasec", "Chưa có kết quả RIASEC", 20, "riasecTop3=empty")
+        )
+    if not has_orientation:
+        score += 20
+        reasons.append(
+            _meeting_candidate_reason(
+                "missing_orientation",
+                "Chưa có định hướng nghề rõ ràng",
+                20,
+                "career fields are empty",
+            )
+        )
+    if riasec and has_orientation and not latest_recommend:
+        score += 15
+        reasons.append(
+            _meeting_candidate_reason(
+                "missing_recommend",
+                "Chưa có gợi ý nghề từ hệ thống",
+                15,
+                "latestRecommendCareer=empty",
+            )
+        )
+    if riasec and not has_orientation:
+        score += 15
+        reasons.append(
+            _meeting_candidate_reason(
+                "missing_bridge",
+                "Có RIASEC nhưng chưa nối sang nghề/ngành",
+                15,
+                f"riasec={riasec}",
+            )
+        )
+    if has_orientation and not has_target_plan:
+        score += 20
+        reasons.append(
+            _meeting_candidate_reason(
+                "missing_university_plan",
+                "Có nghề quan tâm nhưng chưa có ngành/trường mục tiêu",
+                20,
+                "targetUniversity/Program=empty",
+            )
+        )
+    if grade >= 9 and (not has_target_plan or progress < 70):
+        score += 20
+        reasons.append(
+            _meeting_candidate_reason(
+                "final_grade_urgency",
+                "Lớp cuối cấp cần chốt kế hoạch sớm",
+                20,
+                f"grade={grade}, progress={progress}",
+            )
+        )
+    elif grade >= 8 and not has_target_plan:
+        score += 10
+        reasons.append(
+            _meeting_candidate_reason(
+                "near_final_grade",
+                "Gần giai đoạn chọn hướng học tiếp",
+                10,
+                f"grade={grade}",
+            )
+        )
+    if progress < 70:
+        score += 10
+        reasons.append(
+            _meeting_candidate_reason(
+                "profile_incomplete",
+                "Hồ sơ định hướng chưa hoàn thiện",
+                10,
+                f"progress={progress}",
+            )
+        )
+
+    liked_group = _career_group_from_text(favorite_career, explored_career, career_fit)
+    recommend_group = _latest_recommend_group(row)
+    riasec_primary = riasec[0] if riasec else None
+    if liked_group and recommend_group and liked_group != recommend_group:
+        score += 25
+        reasons.append(
+            _meeting_candidate_reason(
+                "career_mismatch",
+                "Nghề đang quan tâm lệch với nhóm gợi ý",
+                25,
+                f"liked={liked_group}, recommend={recommend_group}",
+            )
+        )
+    elif liked_group and riasec_primary and liked_group not in riasec[:3]:
+        score += 15
+        reasons.append(
+            _meeting_candidate_reason(
+                "riasec_interest_mismatch",
+                "Nghề quan tâm chưa khớp với RIASEC top",
+                15,
+                f"liked={liked_group}, riasec={riasec}",
+            )
+        )
+
+    parent_group = _career_group_from_text(parent_expectation)
+    if parent_group and liked_group and parent_group != liked_group:
+        score += 15
+        reasons.append(
+            _meeting_candidate_reason(
+                "parent_conflict",
+                "Kỳ vọng phụ huynh khác định hướng học sinh",
+                15,
+                f"parent={parent_group}, student={liked_group}",
+            )
+        )
+
+    if has_orientation and average_score < 7.0:
+        score += 15
+        reasons.append(
+            _meeting_candidate_reason(
+                "academic_fit_risk",
+                "Cần rà soát mục tiêu với năng lực học tập",
+                15,
+                f"avg={average_score:.2f}",
+            )
+        )
+
+    evidence = {
+        "riasecTop3": riasec,
+        "favoriteCareer": favorite_career,
+        "currentExploredCareer": explored_career,
+        "latestRecommendCareer": latest_recommend,
+        "likedGroup": liked_group,
+        "recommendGroup": recommend_group,
+        "targetUniversityName": target_university,
+        "targetUniversityProgram": target_program,
+        "progress": progress,
+        "parentExpectation": parent_expectation,
+    }
+    return score, reasons, evidence
+
+
+def list_meeting_candidates(
+    db_path: Path = DEFAULT_DB,
+    *,
+    grade: int | None = None,
+    class_name: str | None = None,
+    teacher_id: str | None = None,
+    threshold: int = 25,
+    limit: int = 50,
+    include_scheduled: bool = False,
+) -> list[dict]:
+    clauses: list[str] = []
+    params: list[object] = []
+    if grade is not None:
+        clauses.append("students.grade = ?")
+        params.append(grade)
+    if class_name:
+        clauses.append("students.class_name = ?")
+        params.append(class_name)
+    if teacher_id:
+        clauses.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM teacher_classes
+                WHERE teacher_classes.teacher_id = ?
+                  AND teacher_classes.class_name = students.class_name
+            )
+            """
+        )
+        params.append(teacher_id)
+
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    now = datetime.now(timezone.utc).isoformat()
+
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                students.*,
+                (
+                    SELECT COUNT(*)
+                    FROM meetings
+                    WHERE meetings.student_id = students.student_id
+                      AND meetings.status = 'scheduled'
+                      AND meetings.scheduled_at >= ?
+                ) AS upcoming_meeting_count,
+                (
+                    SELECT MIN(meetings.scheduled_at)
+                    FROM meetings
+                    WHERE meetings.student_id = students.student_id
+                      AND meetings.status = 'scheduled'
+                      AND meetings.scheduled_at >= ?
+                ) AS next_meeting_at
+            FROM students
+            {where}
+            """,
+            [now, now, *params],
+        ).fetchall()
+
+    candidates: list[dict] = []
+    for row in rows:
+        rule_score, reasons = _score_meeting_candidate(row)
+        ai_payload = _ai_signals_for_row(row)
+        ai_reasons, ai_score = _ai_reasons(ai_payload, {"academic", "wellbeing", "family"}, cap=30)
+        reasons = [*reasons, *ai_reasons]
+        priority_score = rule_score + ai_score
+        score_sources = {
+            "rules": rule_score,
+            "ai": ai_score,
+            "total": priority_score,
+            "aiProvider": ai_payload.get("provider"),
+            "aiModel": ai_payload.get("model"),
+            "aiError": ai_payload.get("error"),
+        }
+        has_upcoming = int(row["upcoming_meeting_count"] or 0) > 0
+        if priority_score < threshold:
+            continue
+        if has_upcoming and not include_scheduled:
+            continue
+        suggested_topic = _suggest_meeting_topic(reasons)
+        candidates.append(
+            {
+                "studentId": row["student_id"],
+                "studentName": row["student_name"],
+                "className": row["class_name"],
+                "grade": row["grade"],
+                "avg": round(float(row["average_score"] or 0), 2),
+                "scoreTrend": round(float(row["score_trend"] or 0), 2),
+                "risk": row["risk_level"],
+                "stressLevel": row["stress_level"],
+                "academicPressureLevel": row["academic_pressure_level"],
+                "confidenceLevel": row["confidence_level"],
+                "priorityScore": priority_score,
+                "priority": _meeting_priority(priority_score),
+                "reasons": reasons,
+                "aiSignals": ai_payload.get("signals", []),
+                "scoreSources": score_sources,
+                "suggestedTopic": suggested_topic,
+                "explanation": _support_explanation(priority_score, reasons, suggested_topic, score_sources),
+                "hasUpcomingMeeting": has_upcoming,
+                "nextMeetingAt": row["next_meeting_at"],
+            }
+        )
+
+    candidates.sort(
+        key=lambda item: (
+            -item["priorityScore"],
+            item["avg"],
+            item["studentId"],
+        )
+    )
+    return candidates[:limit]
+
+
+def list_career_counseling_candidates(
+    db_path: Path = DEFAULT_DB,
+    *,
+    grade: int | None = None,
+    class_name: str | None = None,
+    teacher_id: str | None = None,
+    threshold: int = 25,
+    limit: int = 50,
+    include_scheduled: bool = False,
+) -> list[dict]:
+    clauses: list[str] = []
+    params: list[object] = []
+    if grade is not None:
+        clauses.append("students.grade = ?")
+        params.append(grade)
+    if class_name:
+        clauses.append("students.class_name = ?")
+        params.append(class_name)
+    if teacher_id:
+        clauses.append(
+            """
+            EXISTS (
+                SELECT 1
+                FROM teacher_classes
+                WHERE teacher_classes.teacher_id = ?
+                  AND teacher_classes.class_name = students.class_name
+            )
+            """
+        )
+        params.append(teacher_id)
+
+    where = f"WHERE {' AND '.join(clauses)}" if clauses else ""
+    now = datetime.now(timezone.utc).isoformat()
+
+    with connect(db_path) as conn:
+        rows = conn.execute(
+            f"""
+            SELECT
+                students.*,
+                (
+                    SELECT COUNT(*)
+                    FROM meetings
+                    WHERE meetings.student_id = students.student_id
+                      AND meetings.status = 'scheduled'
+                      AND meetings.scheduled_at >= ?
+                      AND (
+                          lower(meetings.topic) LIKE '%nghe%'
+                          OR lower(meetings.topic) LIKE '%career%'
+                          OR lower(meetings.topic) LIKE '%nganh%'
+                          OR lower(meetings.topic) LIKE '%truong%'
+                      )
+                ) AS upcoming_meeting_count,
+                (
+                    SELECT MIN(meetings.scheduled_at)
+                    FROM meetings
+                    WHERE meetings.student_id = students.student_id
+                      AND meetings.status = 'scheduled'
+                      AND meetings.scheduled_at >= ?
+                      AND (
+                          lower(meetings.topic) LIKE '%nghe%'
+                          OR lower(meetings.topic) LIKE '%career%'
+                          OR lower(meetings.topic) LIKE '%nganh%'
+                          OR lower(meetings.topic) LIKE '%truong%'
+                      )
+                ) AS next_meeting_at
+            FROM students
+            {where}
+            """,
+            [now, now, *params],
+        ).fetchall()
+
+    candidates: list[dict] = []
+    for row in rows:
+        rule_score, reasons, evidence = _score_career_counseling_candidate(row)
+        ai_payload = _ai_signals_for_row(row)
+        ai_reasons, ai_score = _ai_reasons(ai_payload, {"career", "family", "transition", "academic"}, cap=30)
+        reasons = [*reasons, *ai_reasons]
+        priority_score = rule_score + ai_score
+        score_sources = {
+            "rules": rule_score,
+            "ai": ai_score,
+            "total": priority_score,
+            "aiProvider": ai_payload.get("provider"),
+            "aiModel": ai_payload.get("model"),
+            "aiError": ai_payload.get("error"),
+        }
+        has_upcoming = int(row["upcoming_meeting_count"] or 0) > 0
+        if priority_score < threshold:
+            continue
+        if has_upcoming and not include_scheduled:
+            continue
+        suggested_topic = _suggest_career_meeting_topic(reasons)
+        candidates.append(
+            {
+                "studentId": row["student_id"],
+                "studentName": row["student_name"],
+                "className": row["class_name"],
+                "grade": row["grade"],
+                "avg": round(float(row["average_score"] or 0), 2),
+                "scoreTrend": round(float(row["score_trend"] or 0), 2),
+                "priorityScore": priority_score,
+                "priority": _meeting_priority(priority_score),
+                "reasons": reasons,
+                "aiSignals": ai_payload.get("signals", []),
+                "scoreSources": score_sources,
+                "suggestedTopic": suggested_topic,
+                "explanation": _career_explanation(priority_score, reasons, suggested_topic, score_sources),
+                "hasUpcomingMeeting": has_upcoming,
+                "nextMeetingAt": row["next_meeting_at"],
+                "evidence": evidence,
+            }
+        )
+
+    candidates.sort(
+        key=lambda item: (
+            -item["priorityScore"],
+            -item["grade"],
+            item["studentId"],
+        )
+    )
+    return candidates[:limit]
 
 
 def academic_trend(conn: sqlite3.Connection, student_id: str) -> list[dict]:

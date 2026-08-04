@@ -118,19 +118,23 @@ import {
   createMessage,
   deleteAdviceNote,
   fetchAdviceNotes,
+  fetchCareerCounselingCandidates,
   fetchFamilies,
   fetchMeetings,
   fetchMessages,
+  fetchSupportMeetingCandidates,
   markMessagesSeen,
   updateMeeting,
   type AdviceNoteRecord,
   type AdvicePriority,
+  type CareerCounselingCandidate,
   type ConversationType,
   type FamilyRecord,
   type MeetingRecord,
   type MeetingType,
   type MessageRecord,
   type MessageRole,
+  type SupportMeetingCandidate,
 } from "../../../api/client";
 import { useLanguage } from "../../../i18n";
 
@@ -947,6 +951,11 @@ export const MeetingCenter = ({
   const [detailDateTime, setDetailDateTime] = useState("");
   const [detailNote, setDetailNote] = useState("");
   const [detailStatus, setDetailStatus] = useState<"idle" | "saving">("idle");
+  const [candidateTab, setCandidateTab] = useState<"support" | "career">("support");
+  const [supportCandidates, setSupportCandidates] = useState<SupportMeetingCandidate[]>([]);
+  const [careerCandidates, setCareerCandidates] = useState<CareerCounselingCandidate[]>([]);
+  const [candidateStatus, setCandidateStatus] = useState<"idle" | "loading" | "error">("idle");
+  const [candidateError, setCandidateError] = useState("");
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -966,7 +975,7 @@ export const MeetingCenter = ({
       })
       .catch((err) => {
         if (err.name === "AbortError") return;
-        setError(err.message || "Không tải được lịch meeting.");
+        setError(err.message || "Không tải được lịch hẹn.");
         setStatus("error");
       });
 
@@ -978,6 +987,28 @@ export const MeetingCenter = ({
       setFormStudentId(initialCounselorStudentId);
     }
   }, [role, students, formStudentId, initialCounselorStudentId]);
+
+  React.useEffect(() => {
+    if (role !== "counselor") return;
+    const controller = new AbortController();
+    setCandidateStatus("loading");
+    setCandidateError("");
+    Promise.all([
+      fetchSupportMeetingCandidates({ limit: 8 }, controller.signal),
+      fetchCareerCounselingCandidates({ limit: 8 }, controller.signal),
+    ])
+      .then(([supportPayload, careerPayload]) => {
+        setSupportCandidates(supportPayload.candidates);
+        setCareerCandidates(careerPayload.candidates);
+        setCandidateStatus("idle");
+      })
+      .catch((err) => {
+        if (err.name === "AbortError") return;
+        setCandidateStatus("error");
+        setCandidateError(err.message || "Không tải được danh sách học sinh cần gặp.");
+      });
+    return () => controller.abort();
+  }, [role]);
 
   const selectedFormStudent =
     students.find((student) => student.id === formStudentId) ?? students[0];
@@ -1041,7 +1072,7 @@ export const MeetingCenter = ({
       return;
     }
     if (!topic) {
-      setError("Vui lòng nhập chủ đề meeting.");
+      setError("Vui lòng nhập chủ đề cuộc gặp.");
       return;
     }
     if (!meetingDateTime) {
@@ -1049,7 +1080,7 @@ export const MeetingCenter = ({
       return;
     }
     if (meetingType === "online" && !url) {
-      setError("Vui lòng nhập link meeting online.");
+      setError("Vui lòng nhập link họp online.");
       return;
     }
 
@@ -1072,7 +1103,7 @@ export const MeetingCenter = ({
         setMeetingType("offline");
         setMeetingDateTime(defaultMeetingDateTime());
       })
-      .catch((err) => setError(err.message || "Không tạo được lịch meeting."))
+      .catch((err) => setError(err.message || "Không tạo được lịch hẹn."))
       .finally(() => setFormStatus("idle"));
   };
   const saveMeetingEdit = () => {
@@ -1080,7 +1111,7 @@ export const MeetingCenter = ({
     const topic = detailTopic.trim();
     const url = detailUrl.trim();
     if (!topic) {
-      setError("Vui lòng nhập chủ đề meeting.");
+      setError("Vui lòng nhập chủ đề cuộc gặp.");
       return;
     }
     if (!detailDateTime) {
@@ -1088,7 +1119,7 @@ export const MeetingCenter = ({
       return;
     }
     if (detailType === "online" && !url) {
-      setError("Vui lòng nhập link meeting online.");
+      setError("Vui lòng nhập link họp online.");
       return;
     }
 
@@ -1105,7 +1136,7 @@ export const MeetingCenter = ({
         setSelectedMeeting(payload.meeting);
         setEditMode(false);
       })
-      .catch((err) => setError(err.message || "Không cập nhật được meeting."))
+      .catch((err) => setError(err.message || "Không cập nhật được lịch hẹn."))
       .finally(() => setDetailStatus("idle"));
   };
   const saveMeetingNote = () => {
@@ -1118,9 +1149,100 @@ export const MeetingCenter = ({
         setSelectedMeeting(payload.meeting);
         setDetailNote(payload.meeting.meetingNote || "");
       })
-      .catch((err) => setError(err.message || "Không lưu được note meeting."))
+      .catch((err) => setError(err.message || "Không lưu được ghi chú cuộc gặp."))
       .finally(() => setDetailStatus("idle"));
   };
+
+  const useCandidateForMeeting = (
+    candidate: SupportMeetingCandidate | CareerCounselingCandidate,
+  ) => {
+    setFormStudentId(candidate.studentId);
+    setStudentSearch("");
+    setMeetingTopic(candidate.suggestedTopic);
+    setMeetingType("offline");
+    setMeetingUrl("");
+    setMeetingDateTime(defaultMeetingDateTime());
+    setError("");
+  };
+
+  const providerLabel = (value?: string | null) => {
+    if (value === "gemini") return "Gemini";
+    if (value === "fallback") return "Bộ đọc nội bộ";
+    if (value === "fallback_after_gemini_error") return "Bộ đọc nội bộ";
+    return value || "Không rõ";
+  };
+
+  const priorityLabel = (value: string) => {
+    if (value === "high") return "Ưu tiên cao";
+    if (value === "medium") return "Cần theo dõi";
+    return "Theo dõi nhẹ";
+  };
+
+  const renderCandidate = (
+    candidate: SupportMeetingCandidate | CareerCounselingCandidate,
+  ) => (
+    <div
+      key={`${candidateTab}-${candidate.studentId}`}
+      className="rounded-xl border border-gray-100 bg-white p-3 space-y-3"
+    >
+      <div className="flex items-start gap-3">
+        <Avatar name={candidate.studentName} size="sm" />
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between gap-2">
+            <div>
+              <p className="text-sm font-bold text-gray-900">
+                {candidate.studentName}
+              </p>
+              <p className="text-xs text-gray-500 font-mono">
+                {candidate.studentId} · {candidate.className} · mức ưu tiên {candidate.priorityScore}
+              </p>
+            </div>
+            <span
+              className={`px-2 py-1 rounded-full text-[11px] font-black ${
+                candidate.priority === "high"
+                  ? "bg-red-100 text-red-700"
+                  : candidate.priority === "medium"
+                    ? "bg-amber-100 text-amber-700"
+                    : "bg-slate-100 text-slate-600"
+              }`}
+            >
+              {priorityLabel(candidate.priority)}
+            </span>
+          </div>
+          <p className="text-xs text-gray-600 mt-2 leading-relaxed">
+            {candidate.explanation.summary}
+          </p>
+        </div>
+      </div>
+      <div className="grid grid-cols-3 gap-2 text-[11px]">
+        <div className="rounded-lg bg-blue-50 px-2 py-1.5 text-blue-700 font-bold">
+          Hệ thống {candidate.scoreSources.rules}
+        </div>
+        <div className="rounded-lg bg-violet-50 px-2 py-1.5 text-violet-700 font-bold">
+          Tín hiệu AI {candidate.scoreSources.ai}
+        </div>
+        <div className="rounded-lg bg-gray-50 px-2 py-1.5 text-gray-600 font-bold truncate">
+          {providerLabel(candidate.scoreSources.aiProvider)}
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
+        {candidate.reasons.slice(0, 3).map((reason) => (
+          <span
+            key={`${candidate.studentId}-${reason.code}`}
+            className="px-2 py-1 rounded-full bg-gray-50 text-gray-600 text-[11px] font-semibold"
+          >
+            {reason.label}
+          </span>
+        ))}
+      </div>
+      <button
+        onClick={() => useCandidateForMeeting(candidate)}
+        className="w-full px-3 py-2 rounded-lg bg-blue-600 text-white text-xs font-bold hover:bg-blue-700"
+      >
+        {t("Tạo lịch từ gợi ý này")}
+      </button>
+    </div>
+  );
 
   return (
     <div className="space-y-5">
@@ -1174,7 +1296,7 @@ export const MeetingCenter = ({
                 {t("Bạn có")} {newMeetings.length} {t("lịch hẹn mới từ cố vấn.")}
               </p>
               <p className="text-xs mt-0.5 opacity-80">
-                {t("Xem chi tiết trong calendar và danh sách lịch sắp tới bên dưới.")}
+                {t("Xem chi tiết trong lịch và danh sách lịch sắp tới bên dưới.")}
               </p>
             </div>
           </div>
@@ -1192,10 +1314,62 @@ export const MeetingCenter = ({
         </div>
       )}
 
+      {role === "counselor" && (
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
+          <div className="flex items-start justify-between gap-3 flex-wrap">
+            <div>
+              <h2 className="font-bold text-gray-900">
+                {t("Học sinh cần gặp")}
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Danh sách được gợi ý từ dữ liệu học sinh và tín hiệu AI. Giáo viên/cố vấn là người quyết định cuối.
+              </p>
+            </div>
+            <div className="inline-flex rounded-xl bg-gray-50 border border-gray-100 p-1">
+              <button
+                onClick={() => setCandidateTab("support")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                  candidateTab === "support"
+                    ? "bg-white text-blue-700 shadow-sm"
+                    : "text-gray-500"
+                }`}
+              >
+                Hỗ trợ ({supportCandidates.length})
+              </button>
+              <button
+                onClick={() => setCandidateTab("career")}
+                className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
+                  candidateTab === "career"
+                    ? "bg-white text-blue-700 shadow-sm"
+                    : "text-gray-500"
+                }`}
+              >
+                Hướng nghiệp ({careerCandidates.length})
+              </button>
+            </div>
+          </div>
+          {candidateStatus === "loading" ? (
+            <div className="text-sm font-semibold text-gray-500">
+              {t("Đang tải...")}
+            </div>
+          ) : candidateStatus === "error" ? (
+            <div className="rounded-xl border border-red-100 bg-red-50 p-3 text-sm font-semibold text-red-700">
+              {candidateError}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-3">
+              {(candidateTab === "support" ? supportCandidates : careerCandidates)
+                .slice(0, 4)
+                .map(renderCandidate)}
+            </div>
+          )}
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-5 space-y-4">
         <div className="flex items-center justify-between gap-3 flex-wrap">
           <div>
-            <h2 className="font-bold text-gray-900">{t("Tạo lịch meeting")}</h2>
+            <h2 className="font-bold text-gray-900">{t("Tạo lịch hẹn")}</h2>
             <p className="text-xs text-gray-500 mt-0.5">
               {role === "student"
                 ? `${t("Tạo lịch cho học sinh")} ${studentId}`
@@ -1255,7 +1429,7 @@ export const MeetingCenter = ({
           </div>
           <div>
             <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-              {t("Chủ đề meeting")}
+              {t("Chủ đề cuộc gặp")}
             </label>
             <input
               value={meetingTopic}
@@ -1280,7 +1454,7 @@ export const MeetingCenter = ({
           {meetingType === "online" && (
             <div>
               <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                {t("Link meeting online")}
+                {t("Link họp online")}
               </label>
               <input
                 value={meetingUrl}
@@ -1305,7 +1479,7 @@ export const MeetingCenter = ({
         <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
           <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
             <div>
-              <h2 className="font-bold text-gray-900">{t("Calendar")}</h2>
+              <h2 className="font-bold text-gray-900">{t("Lịch")}</h2>
               <p className="text-xs text-gray-500 mt-0.5">
                 {meetings.length} {t("lịch hẹn")}
               </p>
@@ -1370,7 +1544,7 @@ export const MeetingCenter = ({
                             </p>
                             {meetingHasPassed(meeting) && !meeting.meetingNote && (
                               <span className="text-[10px] font-bold px-1.5 py-0.5 rounded-full bg-red-100 text-red-700 flex-shrink-0">
-                                {t("Chưa note")}
+                                {t("Chưa ghi chú")}
                               </span>
                             )}
                           </div>
@@ -1466,14 +1640,14 @@ export const MeetingCenter = ({
       </div>
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100">
-          <h2 className="font-bold text-gray-900">{t("Lịch sử meeting")}</h2>
+          <h2 className="font-bold text-gray-900">{t("Lịch sử lịch hẹn")}</h2>
           <p className="text-xs text-gray-500 mt-0.5">
             {history.length} {t("lịch hẹn đã ghi nhận")}
           </p>
         </div>
         <div className="divide-y divide-gray-50">
           {history.length === 0 ? (
-            <div className="p-5 text-sm text-gray-500">{t("Chưa có meeting nào.")}</div>
+            <div className="p-5 text-sm text-gray-500">{t("Chưa có lịch hẹn nào.")}</div>
           ) : (
             history.map((meeting) => {
               const passed = meetingHasPassed(meeting);
@@ -1500,7 +1674,7 @@ export const MeetingCenter = ({
                         </span>
                         {passed && !meeting.meetingNote && (
                           <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-red-100 text-red-700">
-                            {t("Chưa có note")}
+                            {t("Chưa có ghi chú")}
                           </span>
                         )}
                       </div>
@@ -1535,7 +1709,7 @@ export const MeetingCenter = ({
             <div className="p-5 border-b border-gray-100 flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-gray-900">
-                  {t("Chi tiết meeting")}
+                  {t("Chi tiết cuộc gặp")}
                 </h2>
                 <p className="text-xs text-gray-500 mt-1">
                   {t("ID lịch hẹn")} #{selectedMeeting.id}
@@ -1551,7 +1725,7 @@ export const MeetingCenter = ({
             <div className="p-5 space-y-4">
               {meetingHasPassed(selectedMeeting) && !selectedMeeting.meetingNote && (
                 <div className="rounded-xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
-                  {t("Meeting này đã diễn ra nhưng chưa có note cuộc họp.")}
+                  {t("Cuộc gặp này đã diễn ra nhưng chưa có ghi chú.")}
                 </div>
               )}
 
@@ -1578,7 +1752,7 @@ export const MeetingCenter = ({
                 <div className="space-y-3">
                   <div>
                     <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                      {t("Chủ đề meeting")}
+                      {t("Chủ đề cuộc gặp")}
                     </label>
                     <input
                       value={detailTopic}
@@ -1617,7 +1791,7 @@ export const MeetingCenter = ({
                   {detailType === "online" && (
                     <div>
                       <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                        {t("Link meeting online")}
+                        {t("Link họp online")}
                       </label>
                       <input
                         value={detailUrl}
@@ -1652,7 +1826,7 @@ export const MeetingCenter = ({
 
               <div>
                 <label className="block text-xs font-bold text-gray-500 mb-1.5 uppercase tracking-wide">
-                  {t("Note cuộc họp")}
+                  {t("Ghi chú cuộc gặp")}
                 </label>
                 {role === "counselor" && meetingHasPassed(selectedMeeting) ? (
                   <textarea
@@ -1664,7 +1838,7 @@ export const MeetingCenter = ({
                   />
                 ) : (
                   <div className="rounded-xl border border-gray-200 bg-gray-50 px-3 py-2.5 text-sm text-gray-700 whitespace-pre-wrap">
-                    {selectedMeeting.meetingNote || t("Chưa có note cuộc họp.")}
+                    {selectedMeeting.meetingNote || t("Chưa có ghi chú cuộc gặp.")}
                   </div>
                 )}
               </div>
@@ -1703,7 +1877,7 @@ export const MeetingCenter = ({
                     disabled={detailStatus === "saving"}
                     className="px-4 py-2.5 rounded-xl bg-blue-600 text-white text-sm font-bold hover:bg-blue-700 disabled:opacity-60"
                   >
-                    {detailStatus === "saving" ? t("Đang lưu...") : t("Lưu note")}
+                    {detailStatus === "saving" ? t("Đang lưu...") : t("Lưu ghi chú")}
                   </button>
                 )}
               </div>
@@ -1911,7 +2085,7 @@ export const AdvisementNotesCounselor = () => {
       })
       .catch((err) => {
         if (err.name === "AbortError") return;
-        setError(err.message || "Không tải được advice notes.");
+        setError(err.message || "Không tải được ghi chú tư vấn.");
         setStatus("error");
       });
   };
@@ -1959,7 +2133,7 @@ export const AdvisementNotesCounselor = () => {
         loadNotes();
       })
       .catch((err) => {
-        setError(err.message || "Không gửi được advice note.");
+        setError(err.message || "Không gửi được ghi chú tư vấn.");
         setStatus("error");
       });
   };
@@ -1973,7 +2147,7 @@ export const AdvisementNotesCounselor = () => {
         setStatus("ready");
       })
       .catch((err) => {
-        setError(err.message || "Không xóa được advice note.");
+        setError(err.message || "Không xóa được ghi chú tư vấn.");
         setStatus("error");
       });
   };
@@ -2005,7 +2179,7 @@ export const AdvisementNotesCounselor = () => {
             {t("Lời khuyên cho Học sinh")}
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            {total} {t("advice note đã tạo bởi")} {DEFAULT_COUNSELOR_NAME}
+            {total} {t("ghi chú tư vấn đã tạo bởi")} {DEFAULT_COUNSELOR_NAME}
           </p>
         </div>
 
@@ -2042,7 +2216,7 @@ export const AdvisementNotesCounselor = () => {
             onClick={() => setShowForm((v) => !v)}
             className="px-4 py-2.5 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-xl text-sm font-bold flex items-center gap-2 hover:opacity-90"
           >
-            <Plus size={15} /> {t("Tạo note mới")}
+            <Plus size={15} /> {t("Tạo ghi chú mới")}
           </button>
         </div>
       </div>
@@ -2086,9 +2260,9 @@ export const AdvisementNotesCounselor = () => {
                 }
                 className="w-full px-3 py-2.5 border border-gray-200 rounded-xl text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-blue-500"
               >
-                <option value="high">🔴 {t("Quan trọng")}</option>
-                <option value="medium">🟡 {t("Lưu ý")}</option>
-                <option value="low">⚪ {t("Thông tin")}</option>
+                <option value="high">{t("Quan trọng")}</option>
+                <option value="medium">{t("Lưu ý")}</option>
+                <option value="low">{t("Thông tin")}</option>
               </select>
             </div>
           </div>
@@ -2142,7 +2316,7 @@ export const AdvisementNotesCounselor = () => {
       <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
         <div className="px-5 py-4 border-b border-gray-100 flex items-center justify-between gap-3">
           <div>
-            <h2 className="font-bold text-gray-900">{t("Lịch sử advice note")}</h2>
+            <h2 className="font-bold text-gray-900">{t("Lịch sử ghi chú tư vấn")}</h2>
             <p className="text-xs text-gray-500 mt-0.5">
               {firstItem}-{lastItem} / {total} · {t(sortLabels[sort])}
             </p>
@@ -2157,11 +2331,11 @@ export const AdvisementNotesCounselor = () => {
         <div className="divide-y divide-gray-50">
           {status === "loading" && notes.length === 0 ? (
             <div className="p-6 text-sm text-gray-500">
-              {t("Đang tải advice notes...")}
+              {t("Đang tải ghi chú tư vấn...")}
             </div>
           ) : notes.length === 0 ? (
             <div className="p-6 text-sm text-gray-500">
-              {t("Chưa có advice note nào.")}
+              {t("Chưa có ghi chú tư vấn nào.")}
             </div>
           ) : (
             notes.map((note) => (
@@ -2209,7 +2383,7 @@ export const AdvisementNotesCounselor = () => {
                     onClick={() => removeNote(note.id)}
                     disabled={status === "deleting"}
                     className="w-9 h-9 rounded-xl border border-red-100 bg-red-50 text-red-600 flex items-center justify-center hover:bg-red-100 disabled:opacity-50 flex-shrink-0"
-                    title={t("Xóa advice note")}
+                    title={t("Xóa ghi chú tư vấn")}
                   >
                     <Trash2 size={15} />
                   </button>
@@ -2222,7 +2396,7 @@ export const AdvisementNotesCounselor = () => {
 
       <div className="flex items-center justify-between gap-3 flex-wrap">
         <p className="text-xs text-gray-500">
-          {t("Trang")} {page} · {t("Hiển thị")} {pageSize} {t("note mỗi trang")}
+          {t("Trang")} {page} · {t("Hiển thị")} {pageSize} {t("ghi chú mỗi trang")}
         </p>
         <div className="flex items-center gap-2">
           <button
