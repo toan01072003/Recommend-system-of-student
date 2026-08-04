@@ -956,6 +956,7 @@ export const MeetingCenter = ({
   const [careerCandidates, setCareerCandidates] = useState<CareerCounselingCandidate[]>([]);
   const [candidateStatus, setCandidateStatus] = useState<"idle" | "loading" | "error">("idle");
   const [candidateError, setCandidateError] = useState("");
+  const [candidateExpanded, setCandidateExpanded] = useState(false);
 
   React.useEffect(() => {
     const controller = new AbortController();
@@ -1076,7 +1077,7 @@ export const MeetingCenter = ({
       return;
     }
     if (!meetingDateTime) {
-      setError("Vui lòng chọn thời gian meeting.");
+      setError("Vui lòng chọn thời gian cuộc gặp.");
       return;
     }
     if (meetingType === "online" && !url) {
@@ -1115,7 +1116,7 @@ export const MeetingCenter = ({
       return;
     }
     if (!detailDateTime) {
-      setError("Vui lòng chọn thời gian meeting.");
+      setError("Vui lòng chọn thời gian cuộc gặp.");
       return;
     }
     if (detailType === "online" && !url) {
@@ -1177,6 +1178,11 @@ export const MeetingCenter = ({
     if (value === "medium") return "Cần theo dõi";
     return "Theo dõi nhẹ";
   };
+  const activeCandidates =
+    candidateTab === "support" ? supportCandidates : careerCandidates;
+  const visibleCandidates = candidateExpanded
+    ? activeCandidates
+    : activeCandidates.slice(0, 4);
 
   const renderCandidate = (
     candidate: SupportMeetingCandidate | CareerCounselingCandidate,
@@ -1327,7 +1333,10 @@ export const MeetingCenter = ({
             </div>
             <div className="inline-flex rounded-xl bg-gray-50 border border-gray-100 p-1">
               <button
-                onClick={() => setCandidateTab("support")}
+                onClick={() => {
+                  setCandidateTab("support");
+                  setCandidateExpanded(false);
+                }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
                   candidateTab === "support"
                     ? "bg-white text-blue-700 shadow-sm"
@@ -1337,7 +1346,10 @@ export const MeetingCenter = ({
                 Hỗ trợ ({supportCandidates.length})
               </button>
               <button
-                onClick={() => setCandidateTab("career")}
+                onClick={() => {
+                  setCandidateTab("career");
+                  setCandidateExpanded(false);
+                }}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold ${
                   candidateTab === "career"
                     ? "bg-white text-blue-700 shadow-sm"
@@ -1357,10 +1369,24 @@ export const MeetingCenter = ({
               {candidateError}
             </div>
           ) : (
-            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-3">
-              {(candidateTab === "support" ? supportCandidates : careerCandidates)
-                .slice(0, 4)
-                .map(renderCandidate)}
+            <div className="space-y-3">
+              <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-4 gap-3">
+                {visibleCandidates.map(renderCandidate)}
+              </div>
+              {activeCandidates.length > 4 && (
+                <button
+                  onClick={() => setCandidateExpanded((value) => !value)}
+                  className="w-full rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs font-bold text-gray-600 hover:bg-gray-100 flex items-center justify-center gap-1.5"
+                >
+                  {candidateExpanded
+                    ? t("Thu gọn danh sách")
+                    : `${t("Xem toàn bộ")} ${activeCandidates.length} ${t("học sinh")}`}
+                  <ChevronDown
+                    size={14}
+                    className={`transition-transform ${candidateExpanded ? "rotate-180" : ""}`}
+                  />
+                </button>
+              )}
             </div>
           )}
         </div>
