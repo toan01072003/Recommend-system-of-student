@@ -228,6 +228,7 @@ class Handler(BaseHTTPRequestHandler):
             "/api/students",
             "/api/reference-actions/sync",
             "/api/student-references",
+            "/api/career-action-ai",
         }:
             if not (path.startswith("/api/surveys/") and path.endswith("/results")):
                 if path.startswith("/api/"):
@@ -239,6 +240,18 @@ class Handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            if path == "/api/career-action-ai":
+                try:
+                    self.send_json(api.career_action_ai_payload(payload))
+                except LookupError as exc:
+                    self.send_json({"error": str(exc)}, status=404)
+                except ValueError as exc:
+                    self.send_json({"error": str(exc)}, status=400)
+                except RuntimeError as exc:
+                    self.send_json({"error": str(exc)}, status=502)
+                except Exception as exc:
+                    self.send_json({"error": str(exc)}, status=500)
+                return
             if path == "/api/students":
                 self.send_json(api.create_student_payload(payload), status=201)
                 return

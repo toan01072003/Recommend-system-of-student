@@ -5,6 +5,7 @@ from pathlib import Path
 
 try:
     from .core import config
+    from .career_action_agent import generate_career_action
     from . import student_database
     from .services import students as student_service
     from .recommend_engine import (
@@ -16,6 +17,7 @@ try:
     )
 except ImportError:
     from core import config
+    from career_action_agent import generate_career_action
     import student_database
     from services import students as student_service
     from recommend_engine import (
@@ -261,6 +263,37 @@ def student_common_references_payload(student_id: str) -> dict:
 
 def save_student_reference_payload(payload: dict) -> dict:
     return student_database.save_student_reference(payload, STUDENT_DB)
+
+
+def _career_action_item(payload: dict, key: str, required_fields: tuple[str, ...]) -> dict[str, str]:
+    item = payload.get(key)
+    if not isinstance(item, dict):
+        raise ValueError(f"{key} must be an object")
+    result: dict[str, str] = {}
+    for field in required_fields:
+        value = str(item.get(field) or "").strip()
+        if not value:
+            raise ValueError(f"{key}.{field} is required")
+        result[field] = value[:180]
+    return result
+
+
+def career_action_ai_payload(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("payload must be an object")
+    student_id = str(payload.get("studentId") or payload.get("student_id") or "").strip()
+    if not student_id:
+        raise ValueError("studentId is required")
+
+    student = student_database.get_student(student_id, STUDENT_DB)
+    if student is None:
+        raise LookupError(f"Student not found: {student_id}")
+
+    career = _career_action_item(payload, "career", ("id", "name"))
+    career["field"] = str((payload.get("career") or {}).get("field") or "").strip()[:120]
+    action = _career_action_item(payload, "action", ("id", "label"))
+    locale = str(payload.get("locale") or "vi").strip().lower()
+    return generate_career_action(student, career, action, locale)
 
 
 def students_payload(grade: str | None = None, class_name: str | None = None) -> dict:

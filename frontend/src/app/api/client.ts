@@ -450,6 +450,47 @@ export type SubmitSurveyPayload = {
   answers: Array<{ questionId: string; value: SurveyAnswerValue }>;
 };
 
+export type CareerActionAiRequest = {
+  studentId: string;
+  career: {
+    id: string;
+    name: string;
+    field?: string;
+  };
+  action: {
+    id: string;
+    label: string;
+  };
+  locale?: "vi" | "en";
+};
+
+export type CareerActionAiInteractive = {
+  kind: "multiple_choice" | "true_false";
+  prompt: string;
+  options: Array<{ id: string; label: string }>;
+  correctOptionId: string;
+  hint: string;
+  successMessage: string;
+};
+
+export type CareerActionAiVideo = {
+  url: string;
+  embedUrl: string;
+  title: string;
+  channel: string;
+  description: string;
+  source: "YouTube";
+};
+
+export type CareerActionAiResponse = {
+  mode: "interactive" | "video";
+  title: string;
+  summary: string;
+  explanation: string;
+  interactive: CareerActionAiInteractive | null;
+  video: CareerActionAiVideo | null;
+};
+
 const DEV_API_ORIGIN = "http://127.0.0.1:8001";
 
 const shouldRetryDirectBackend = (url: string) =>
@@ -501,6 +542,18 @@ async function requestJson<T>(
 
 export function fetchAppData<T>(signal?: AbortSignal): Promise<T> {
   return requestJson<T>("/api/app-data", { signal });
+}
+
+export function fetchCareerActionAi(
+  payload: CareerActionAiRequest,
+  signal?: AbortSignal,
+): Promise<CareerActionAiResponse> {
+  return requestJson<CareerActionAiResponse>("/api/career-action-ai", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal,
+  });
 }
 
 export function fetchReferenceActions(

@@ -187,6 +187,19 @@ GEMINI_MODEL=gemini-2.0-flash
 
 Nếu chưa có key hoặc Gemini lỗi, backend tự dùng `fallback` nội bộ dựa trên keyword để demo vẫn chạy được.
 
+### AI giải thích hành động nghề nghiệp
+
+Trong danh sách hoạt động của mỗi ngành nghề, bấm biểu tượng AI cạnh một hành động để mở nội dung cá nhân hóa cho học sinh. Backend gọi OpenRouter bằng `google/gemini-3.1-flash-lite`; agent có thể trả về mini-game dạng trắc nghiệm/đúng-sai hoặc một video YouTube giáo dục.
+
+Đặt key OpenRouter mới trong `.env` ở thư mục gốc. Không đặt key trong frontend và không dùng lại key đã bị lộ:
+
+```text
+OPENROUTER_API_KEY=your_rotated_openrouter_key
+OPENROUTER_MODEL=google/gemini-3.1-flash-lite
+```
+
+Frontend gọi proxy nội bộ `POST /api/career-action-ai`, nên API key không đi ra trình duyệt. Nếu chưa cấu hình key, modal sẽ hiển thị lỗi cấu hình thay vì tạo nội dung giả.
+
 Mỗi học sinh trong danh sách trả về có dạng:
 
 ```text

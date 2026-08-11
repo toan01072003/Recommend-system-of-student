@@ -43,6 +43,11 @@ import {
   PieChart,
   Lightbulb,
   School,
+  Sparkles,
+  ExternalLink,
+  LoaderCircle,
+  RotateCcw,
+  X,
 } from "lucide-react";
 import {
   BarChart,
@@ -84,6 +89,7 @@ import {
   avg,
   scoreCareer,
   type CareerUniversity,
+  type CareerActivity,
   type ExploreCareer,
   type University,
   type ChatContact,
@@ -111,9 +117,11 @@ import {
 } from "../../../logic/recommendation";
 import {
   fetchStudentReferences,
+  fetchCareerActionAi,
   saveStudentReference,
   syncReferenceActions,
   updateStudent,
+  type CareerActionAiResponse,
   type ReferenceEmotion,
 } from "../../../api/client";
 import {
@@ -615,14 +623,249 @@ export const ExploreCareerDetail = ({
   );
 };
 
+const CareerActionAiModal = ({
+  studentId,
+  career,
+  action,
+  onClose,
+}: {
+  studentId: string;
+  career: ExploreCareer;
+  action: CareerActivity;
+  onClose: () => void;
+}) => {
+  const [result, setResult] = useState<CareerActionAiResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
+  const [selectedOption, setSelectedOption] = useState<string | null>(null);
+  const [checked, setChecked] = useState(false);
+  const controllerRef = React.useRef<AbortController | null>(null);
+
+  const load = React.useCallback(() => {
+    controllerRef.current?.abort();
+    const controller = new AbortController();
+    controllerRef.current = controller;
+    setLoading(true);
+    setError("");
+    setResult(null);
+    setSelectedOption(null);
+    setChecked(false);
+
+    fetchCareerActionAi(
+      {
+        studentId,
+        career: { id: career.id, name: career.name, field: career.field },
+        action: { id: action.id, label: action.label },
+        locale: "vi",
+      },
+      controller.signal,
+    )
+      .then(setResult)
+      .catch((requestError) => {
+        if (requestError?.name !== "AbortError") {
+          setError(requestError?.message || "Không tải được nội dung AI.");
+        }
+      })
+      .finally(() => {
+        if (!controller.signal.aborted) setLoading(false);
+      });
+  }, [action.id, action.label, career.field, career.id, career.name, studentId]);
+
+  React.useEffect(() => {
+    load();
+    return () => controllerRef.current?.abort();
+  }, [load]);
+
+  const game = result?.mode === "interactive" ? result.interactive : null;
+  const video = result?.mode === "video" ? result.video : null;
+  const isCorrect = checked && !!game && selectedOption === game.correctOptionId;
+
+  return (
+    <div
+      className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 p-4"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="career-action-ai-title"
+    >
+      <div className="flex max-h-[90vh] w-full max-w-xl flex-col overflow-hidden rounded-3xl bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-violet-100 bg-violet-50 px-5 py-4">
+          <div className="flex min-w-0 items-start gap-3">
+            <div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-xl bg-violet-600 text-white shadow-sm">
+              <Sparkles size={19} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-bold uppercase tracking-wide text-violet-600">
+                Học cùng AI
+              </p>
+              <h2
+                id="career-action-ai-title"
+                className="mt-0.5 text-base font-black leading-snug text-gray-900"
+              >
+                {action.label}
+              </h2>
+              <p className="mt-1 text-xs text-gray-500">{career.name}</p>
+            </div>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            title="Đóng"
+            aria-label="Đóng cửa sổ AI"
+            className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-xl bg-white text-gray-500 transition-colors hover:bg-violet-100 hover:text-violet-700"
+          >
+            <X size={17} />
+          </button>
+        </div>
+
+        <div className="overflow-y-auto px-5 py-5">
+          {loading && (
+            <div className="flex min-h-48 flex-col items-center justify-center gap-3 text-center">
+              <LoaderCircle size={30} className="animate-spin text-violet-600" />
+              <div>
+                <p className="text-sm font-bold text-gray-800">AI đang chuẩn bị bài học...</p>
+                <p className="mt-1 text-xs text-gray-500">Nội dung sẽ phù hợp với hồ sơ của bạn.</p>
+              </div>
+            </div>
+          )}
+
+          {!loading && error && (
+            <div className="rounded-2xl border border-red-100 bg-red-50 p-4">
+              <p className="text-sm font-bold text-red-700">Chưa tải được bài học</p>
+              <p className="mt-1 text-xs leading-relaxed text-red-600">{error}</p>
+              <button
+                type="button"
+                onClick={load}
+                className="mt-3 flex items-center gap-1.5 rounded-xl bg-red-600 px-3 py-2 text-xs font-bold text-white transition-colors hover:bg-red-700"
+              >
+                <RotateCcw size={13} /> Thử lại
+              </button>
+            </div>
+          )}
+
+          {!loading && !error && result && (
+            <div className="space-y-4">
+              <div>
+                <h3 className="text-lg font-black text-gray-900">{result.title}</h3>
+                <p className="mt-1 text-sm leading-relaxed text-gray-600">{result.summary}</p>
+              </div>
+
+              <div className="rounded-2xl border border-violet-100 bg-violet-50/60 p-4">
+                <p className="text-xs font-bold uppercase tracking-wide text-violet-700">
+                  Giải thích dễ hiểu
+                </p>
+                <p className="mt-2 whitespace-pre-line text-sm leading-7 text-gray-700">
+                  {result.explanation}
+                </p>
+              </div>
+
+              {game && (
+                <div className="rounded-2xl border-2 border-emerald-100 bg-emerald-50/60 p-4">
+                  <div className="mb-3 flex items-center gap-2">
+                    <Gamepad2 size={17} className="text-emerald-700" />
+                    <p className="text-sm font-black text-emerald-800">Thử thách nhỏ</p>
+                  </div>
+                  <p className="text-sm font-bold leading-relaxed text-gray-800">{game.prompt}</p>
+                  <div className="mt-3 grid gap-2">
+                    {game.options.map((option) => {
+                      const isSelected = selectedOption === option.id;
+                      return (
+                        <button
+                          key={option.id}
+                          type="button"
+                          onClick={() => {
+                            setSelectedOption(option.id);
+                            setChecked(false);
+                          }}
+                          className={`w-full rounded-xl border px-3 py-2.5 text-left text-sm font-semibold transition-colors ${
+                            isSelected
+                              ? "border-violet-400 bg-violet-100 text-violet-800"
+                              : "border-gray-200 bg-white text-gray-700 hover:border-violet-300 hover:bg-violet-50"
+                          }`}
+                        >
+                          {option.label}
+                        </button>
+                      );
+                    })}
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={!selectedOption}
+                      onClick={() => setChecked(true)}
+                      className="rounded-xl bg-emerald-600 px-4 py-2.5 text-xs font-bold text-white transition-colors hover:bg-emerald-700 disabled:cursor-not-allowed disabled:opacity-50"
+                    >
+                      Kiểm tra đáp án
+                    </button>
+                    {checked && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setSelectedOption(null);
+                          setChecked(false);
+                        }}
+                        className="flex items-center gap-1.5 rounded-xl border border-gray-200 bg-white px-3 py-2.5 text-xs font-bold text-gray-600 transition-colors hover:bg-gray-50"
+                      >
+                        <RotateCcw size={13} /> Làm lại
+                      </button>
+                    )}
+                  </div>
+                  {checked && (
+                    <div
+                      className={`mt-3 rounded-xl px-3 py-2.5 text-xs font-semibold leading-relaxed ${
+                        isCorrect ? "bg-emerald-100 text-emerald-800" : "bg-amber-100 text-amber-800"
+                      }`}
+                    >
+                      {isCorrect ? game.successMessage : game.hint || "Gần đúng rồi, thử đọc lại phần giải thích nhé."}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {video && (
+                <div className="overflow-hidden rounded-2xl border border-gray-200 bg-gray-50">
+                  <div className="aspect-video w-full bg-black">
+                    <iframe
+                      title={video.title}
+                      src={video.embedUrl}
+                      className="h-full w-full"
+                      loading="lazy"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                      allowFullScreen
+                    />
+                  </div>
+                  <div className="p-4">
+                    <p className="text-sm font-bold leading-relaxed text-gray-900">{video.title}</p>
+                    <p className="mt-1 text-xs text-gray-500">{video.channel} · {video.source}</p>
+                    <p className="mt-2 text-xs leading-relaxed text-gray-600">{video.description}</p>
+                    <a
+                      href={video.url}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-3 inline-flex items-center gap-1.5 text-xs font-bold text-violet-700 hover:text-violet-900"
+                    >
+                      Mở trên YouTube <ExternalLink size={13} />
+                    </a>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};
+
 export const CareerActivityEmotionModal = ({
   career,
+  studentId,
   reactions,
   saving,
   onClose,
   onSave,
 }: {
   career: ExploreCareer;
+  studentId: string;
   reactions: Record<string, ReferenceEmotion>;
   saving: boolean;
   onClose: () => void;
@@ -636,6 +879,7 @@ export const CareerActivityEmotionModal = ({
     });
     return next;
   });
+  const [aiAction, setAiAction] = useState<CareerActivity | null>(null);
   const selectedCount = Object.keys(draft).length;
 
   return (
@@ -712,9 +956,20 @@ export const CareerActivityEmotionModal = ({
                       {index + 1}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <p className="text-sm font-semibold text-gray-800 leading-relaxed">
-                        {activity.label}
-                      </p>
+                      <div className="flex items-start gap-2">
+                        <p className="min-w-0 flex-1 text-sm font-semibold leading-relaxed text-gray-800">
+                          {activity.label}
+                        </p>
+                        <button
+                          type="button"
+                          onClick={() => setAiAction(activity)}
+                          title="Giải thích hành động bằng AI"
+                          aria-label={`Giải thích ${activity.label} bằng AI`}
+                          className="flex h-7 w-7 flex-shrink-0 items-center justify-center rounded-lg border border-violet-200 bg-violet-50 text-violet-600 transition-colors hover:border-violet-400 hover:bg-violet-100 hover:text-violet-800"
+                        >
+                          <Sparkles size={14} />
+                        </button>
+                      </div>
                       <div className="flex gap-2 mt-3 flex-wrap">
                         {REFERENCE_EMOTIONS.map((emotion) => (
                           <button
@@ -768,6 +1023,14 @@ export const CareerActivityEmotionModal = ({
           </div>
         </div>
       </div>
+      {aiAction && (
+        <CareerActionAiModal
+          studentId={studentId}
+          career={career}
+          action={aiAction}
+          onClose={() => setAiAction(null)}
+        />
+      )}
     </div>
   );
 };
@@ -1477,6 +1740,7 @@ export const StudentExplore = ({
         {activityCareer && (
           <CareerActivityEmotionModal
             career={activityCareer}
+            studentId={studentId}
             reactions={reactions}
             saving={savingActivities}
             onClose={() => {
