@@ -260,9 +260,9 @@ type HomeworkChatMessage = {
 
 const HOMEWORK_CHAT_SUGGESTIONS = [
   "Bài này thuộc môn nào, lớp mấy và phần nào trong SGK?",
-  "Hãy hướng dẫn em cách làm từng bước, đừng chỉ đưa đáp án.",
+  "Hãy gợi ý cách làm từng bước, đừng cho em đáp án cuối.",
   "Em cần xem lại công thức hoặc bài học nào trước khi giải?",
-  "Kiểm tra giúp em lời giải này sai ở bước nào.",
+  "Cho em một ví dụ tương tự để em tự làm bài này.",
 ];
 
 const cleanHomeworkChatText = (text: string) =>
@@ -303,7 +303,7 @@ export const StudentAssignment = () => {
     {
       role: "assistant",
       text:
-        "Gửi đề bài bằng chữ hoặc ảnh. Mình sẽ đọc đề, đoán môn/lớp/phần SGK liên quan, rồi hướng dẫn em xem lại bài nào và giải theo từng bước.",
+        "Gửi đề bài bằng chữ hoặc ảnh. Mình sẽ đọc đề, đoán môn/lớp/phần SGK liên quan, gợi ý cách làm và cho ví dụ tương tự để em tự tin giải bài.",
     },
   ]);
   const [status, setStatus] = useState<"idle" | "loading">("idle");
@@ -358,6 +358,7 @@ export const StudentAssignment = () => {
             textbookArea: cleanHomeworkChatText(payload.textbookArea),
             recommendedLessons: payload.recommendedLessons.map(cleanHomeworkChatText).filter(Boolean),
             solutionGuide: payload.solutionGuide.map(cleanHomeworkChatText).filter(Boolean),
+            similarExamples: payload.similarExamples.map(cleanHomeworkChatText).filter(Boolean),
             commonMistakes: payload.commonMistakes.map(cleanHomeworkChatText).filter(Boolean),
             nextQuestion: cleanHomeworkChatText(payload.nextQuestion),
           },
@@ -403,7 +404,7 @@ export const StudentAssignment = () => {
             {t("Bài tập")} cùng trợ lý AI
           </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            Nhập đề bài hoặc gửi ảnh. Trợ lý sẽ chỉ ra bài thuộc phần nào và hướng dẫn cách tự làm.
+            Nhập đề bài hoặc gửi ảnh. Trợ lý sẽ chỉ ra bài thuộc phần nào, gợi ý cách làm và cho ví dụ tương tự.
           </p>
         </div>
         <div className="hidden sm:flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
@@ -420,7 +421,7 @@ export const StudentAssignment = () => {
             </div>
             <div>
               <h2 className="font-bold text-gray-900 text-sm">Chat hướng dẫn giải bài tập</h2>
-              <p className="text-xs text-gray-500">Có thể gửi văn bản, ảnh chụp đề hoặc cả hai.</p>
+              <p className="text-xs text-gray-500">Có thể gửi văn bản, ảnh chụp đề hoặc cả hai. Trợ lý sẽ hướng dẫn cách nghĩ và cách giải từng bước.</p>
             </div>
           </div>
 
@@ -476,7 +477,7 @@ export const StudentAssignment = () => {
                       </ul>
                     </div>
                     <div>
-                      <p className="font-bold text-gray-900">Cách làm</p>
+                      <p className="font-bold text-gray-900">Gợi ý cách làm</p>
                       <ol className="mt-1.5 space-y-2">
                         {message.result.solutionGuide.map((item, itemIndex) => (
                           <li key={`${index}-step-${itemIndex}`} className="flex gap-2 text-sm">
@@ -487,6 +488,17 @@ export const StudentAssignment = () => {
                           </li>
                         ))}
                       </ol>
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900">Ví dụ tương tự</p>
+                      <ul className="mt-1.5 space-y-1.5">
+                        {message.result.similarExamples.map((item, itemIndex) => (
+                          <li key={`${index}-example-${itemIndex}`} className="flex gap-2 text-sm">
+                            <Lightbulb size={15} className="mt-0.5 text-amber-500 flex-shrink-0" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
                     </div>
                     <div className="rounded-xl bg-amber-50 px-3 py-2 text-amber-800">
                       <p className="font-bold">Lỗi dễ gặp</p>
@@ -528,7 +540,7 @@ export const StudentAssignment = () => {
                 onChange={(event) => setHomeworkInput(event.target.value)}
                 disabled={status === "loading"}
                 rows={7}
-                placeholder="Ví dụ: Giải phương trình 2x + 3 = 11. Bài này thuộc phần nào và em nên làm từng bước ra sao?"
+                placeholder="Ví dụ: Giải phương trình 2x + 3 = 11. Bài này thuộc phần nào, em nên bắt đầu ra sao và có ví dụ tương tự không?"
                 className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-100"
               />
 

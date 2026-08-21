@@ -98,6 +98,12 @@ def _json_schema() -> dict[str, Any]:
                 "minItems": 2,
                 "maxItems": 6,
             },
+            "similarExamples": {
+                "type": "array",
+                "items": {"type": "string"},
+                "minItems": 1,
+                "maxItems": 3,
+            },
             "commonMistakes": {
                 "type": "array",
                 "items": {"type": "string"},
@@ -113,6 +119,7 @@ def _json_schema() -> dict[str, Any]:
             "textbookArea",
             "recommendedLessons",
             "solutionGuide",
+            "similarExamples",
             "commonMistakes",
             "nextQuestion",
         ],
@@ -136,10 +143,11 @@ def _extract_json_answer(response: dict[str, Any]) -> dict[str, Any]:
         "textbookArea": _bounded_text(parsed.get("textbookArea"), max_length=180, required=True),
         "recommendedLessons": _bounded_list(parsed.get("recommendedLessons"), max_items=5, max_length=180),
         "solutionGuide": _bounded_list(parsed.get("solutionGuide"), max_items=6, max_length=280),
+        "similarExamples": _bounded_list(parsed.get("similarExamples"), max_items=3, max_length=260),
         "commonMistakes": _bounded_list(parsed.get("commonMistakes"), max_items=4, max_length=220),
         "nextQuestion": _bounded_text(parsed.get("nextQuestion"), max_length=240, required=True),
     }
-    if not result["recommendedLessons"] or len(result["solutionGuide"]) < 2:
+    if not result["recommendedLessons"] or len(result["solutionGuide"]) < 2 or not result["similarExamples"]:
         raise HomeworkChatAgentError("Gemini trả về hướng dẫn chưa đủ chi tiết")
     return result
 
@@ -182,7 +190,7 @@ def generate_homework_chat_answer(
         raise ValueError("question or image is required")
 
     prompt = {
-        "task": "Guide a Vietnamese middle-school or high-school student through a homework problem.",
+        "task": "Guide a Vietnamese middle-school or high-school student through a homework problem without solving the exact submitted problem for them.",
         "locale": locale,
         "student": minimal_student_context(student),
         "studentSubmissionText": question_text or "Học sinh gửi ảnh bài tập, hãy đọc nội dung trong ảnh.",
@@ -192,7 +200,10 @@ def generate_homework_chat_answer(
             "First identify what problem the student sent. If the image/text is unclear, say exactly what is unclear.",
             "Infer subject, grade, textbook unit/chapter/lesson only when there is enough evidence. If not sure, say 'Chưa xác định chắc chắn'.",
             "Recommend the lesson, formula, grammar point, reading skill, or topic the student should review before solving.",
-            "Guide step by step with hints and method. Avoid dumping only the final answer.",
+            "Do not provide the final answer, final numeric value, completed essay, or finished translation for the exact submitted problem.",
+            "Do not write a line like 'Kết quả là...', 'Đáp án là...', or an equivalent final conclusion for the exact submitted problem.",
+            "Guide step by step with hints, method, setup, formulas, checkpoints, and what the student should calculate next.",
+            "Give 1-3 similar examples that use the same method but different numbers/topics, and solve or outline those examples enough for the student to learn the pattern.",
             "For math/science, include the key formula or idea when useful. For literature/language, include reading/writing strategy.",
             "Return JSON only. No Markdown, no bold syntax, no asterisks.",
         ],
@@ -209,7 +220,8 @@ def generate_homework_chat_answer(
                     "text": (
                         "Bạn là chatbot gia sư cho học sinh cấp 2-3 ở Việt Nam. "
                         "Nhiệm vụ là nhận đề bài bằng chữ hoặc ảnh, nhận diện môn/lớp/phần SGK có thể liên quan, "
-                        "rồi hướng dẫn cách giải từng bước bằng tiếng Việt tự nhiên. "
+                        "rồi hướng dẫn phương pháp giải bằng tiếng Việt tự nhiên. Không giải hộ đề gốc, không đưa đáp án cuối "
+                        "của chính bài học sinh gửi. Hãy dùng ví dụ tương tự để minh họa cách làm. "
                         "Chỉ trả JSON hợp lệ theo schema, không trả Markdown."
                     )
                 }

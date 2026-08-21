@@ -540,6 +540,7 @@ export type HomeworkChatAiResponse = {
   textbookArea: string;
   recommendedLessons: string[];
   solutionGuide: string[];
+  similarExamples: string[];
   commonMistakes: string[];
   nextQuestion: string;
   provider: "gemini" | string;

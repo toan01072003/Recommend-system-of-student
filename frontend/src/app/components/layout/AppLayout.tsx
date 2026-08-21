@@ -15,7 +15,6 @@ import {
   FileText,
   Flag,
   FolderOpen,
-  Gamepad2,
   GraduationCap,
   Heart,
   Home,
@@ -110,7 +109,6 @@ const studentNavGroups: NavGroup[] = [
       { id: "st-lessons", label: "Bài học", icon: BookMarked },
       { id: "st-surveys", label: "Khảo sát", icon: ClipboardList },
       { id: "st-assignment", label: "Bài tập", icon: FileText },
-      { id: "st-games", label: "Trò chơi thực tế", icon: Gamepad2 },
     ],
   },
   {
