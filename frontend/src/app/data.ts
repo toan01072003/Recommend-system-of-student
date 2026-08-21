@@ -5245,9 +5245,9 @@ export const EXPLORE_CAREERS: ExploreCareer[] = [
     salaryMax: "45 tr",
     salaryNote: "/tháng",
     education: "Đại học 4 năm",
-    desc: "Thiết kế, xây dựng và bảo trì phần mềm, ứng dụng web và di động.",
+    desc: "Tạo app, website và phần mềm mà mọi người dùng hằng ngày.",
     fullDesc:
-      "Kỹ sư phần mềm thiết kế, phát triển và bảo trì các hệ thống phần mềm. Họ làm việc trong môi trường đội nhóm, sử dụng Python, JavaScript, Java và nhiều công nghệ hiện đại. Đây là nghề có nhu cầu tuyển dụng lớn nhất tại Việt Nam trong thập kỷ tới.",
+      "Kỹ sư phần mềm là người biến ý tưởng thành sản phẩm số, ví dụ app học tập, website bán hàng, game nhỏ hoặc hệ thống quản lý cho doanh nghiệp. Công việc thường gồm viết code, sửa lỗi, trao đổi với đồng đội và thử nghiệm để sản phẩm chạy mượt hơn. Nếu em thích giải câu đố, thích máy tính và muốn tự tạo ra thứ người khác dùng được, đây là một nghề rất đáng tìm hiểu.",
     coverPhoto:
       "https://images.unsplash.com/photo-1515879218367-8466d910aaa4?w=600&h=360&fit=crop&auto=format",
     gallery: [
@@ -5346,9 +5346,9 @@ export const EXPLORE_CAREERS: ExploreCareer[] = [
     salaryMax: "50 tr",
     salaryNote: "/tháng",
     education: "Đại học 4 năm",
-    desc: "Phân tích dữ liệu lớn và xây dựng mô hình dự đoán để hỗ trợ quyết định.",
+    desc: "Tìm câu trả lời từ dữ liệu và biến số liệu thành gợi ý dễ hiểu.",
     fullDesc:
-      "Nhà khoa học dữ liệu kết hợp toán học, thống kê và lập trình để khai thác insight từ dữ liệu lớn. Họ xây dựng mô hình Machine Learning, tạo dashboard và giúp doanh nghiệp đưa ra quyết định dựa trên dữ liệu.",
+      "Người làm khoa học dữ liệu giống như thám tử của thế giới số. Họ nhìn vào bảng điểm, lượt mua hàng, dữ liệu sức khỏe hoặc dữ liệu mạng xã hội để tìm ra điều gì đang xảy ra và dự đoán điều gì có thể xảy ra tiếp theo. Nghề này hợp với bạn thích Toán, Tin học, suy luận logic và muốn dùng dữ liệu để giúp người khác ra quyết định tốt hơn.",
     coverPhoto:
       "https://images.unsplash.com/photo-1666875753105-c63a6f3bdc86?w=600&h=360&fit=crop&auto=format",
     gallery: [
@@ -5445,9 +5445,9 @@ export const EXPLORE_CAREERS: ExploreCareer[] = [
     salaryMax: "70 tr",
     salaryNote: "/tháng",
     education: "Đại học Y 6 năm + Nội trú",
-    desc: "Chẩn đoán và điều trị bệnh nội khoa, chăm sóc toàn diện cho bệnh nhân.",
+    desc: "Khám bệnh, lắng nghe bệnh nhân và tìm cách giúp cơ thể khỏe hơn.",
     fullDesc:
-      "Bác sĩ nội khoa khám, chẩn đoán và điều trị các bệnh lý nội tạng. Họ cần nắm vững kiến thức y học sâu rộng, kỹ năng giao tiếp tốt với bệnh nhân và gia đình. Đây là nghề đòi hỏi cam kết cao nhưng mang lại giá trị xã hội to lớn.",
+      "Bác sĩ nội khoa gặp bệnh nhân, hỏi triệu chứng, đọc kết quả xét nghiệm và chọn cách điều trị phù hợp. Đây là nghề cần học lâu, cần kiên nhẫn và có trách nhiệm cao, nhưng cũng rất ý nghĩa vì mỗi ngày đều được giúp người khác khỏe hơn. Nếu em thích Sinh học, Hóa học, thích chăm sóc con người và không ngại học bền bỉ, em có thể tìm hiểu sâu hơn về ngành y.",
     coverPhoto:
       "https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?w=600&h=360&fit=crop&auto=format",
     gallery: [
@@ -5541,9 +5541,9 @@ export const EXPLORE_CAREERS: ExploreCareer[] = [
     salaryMax: "35 tr",
     salaryNote: "/tháng",
     education: "Đại học hoặc tự học",
-    desc: "Thiết kế giao diện và trải nghiệm người dùng cho sản phẩm kỹ thuật số.",
+    desc: "Làm cho app và website dễ dùng, đẹp mắt và thân thiện hơn.",
     fullDesc:
-      "UX/UI Designer nghiên cứu hành vi người dùng và tạo ra những giao diện trực quan, đẹp mắt cho app và website. Họ dùng Figma, Sketch để prototype và làm việc sát với đội developer và marketing.",
+      "UX/UI Designer thiết kế cách một app hoặc website trông như thế nào và người dùng bấm vào đâu để thấy dễ hiểu nhất. Họ quan sát người dùng, vẽ bản nháp, chọn màu chữ, sắp xếp nút bấm và thử nhiều phiên bản trước khi sản phẩm ra mắt. Nghề này hợp với bạn vừa thích sáng tạo, vừa thích lắng nghe người khác và muốn làm công nghệ theo hướng gần gũi với con người.",
     coverPhoto:
       "https://images.unsplash.com/photo-1621111848501-8d3634f82336?w=600&h=360&fit=crop&auto=format",
     gallery: [
@@ -5639,9 +5639,9 @@ export const EXPLORE_CAREERS: ExploreCareer[] = [
     salaryMax: "40 tr",
     salaryNote: "/tháng",
     education: "Đại học 4 năm",
-    desc: "Phân tích tài chính, lập kế hoạch đầu tư và tư vấn chiến lược tài chính.",
+    desc: "Đọc số liệu tiền bạc để giúp cá nhân hoặc doanh nghiệp ra quyết định.",
     fullDesc:
-      "Chuyên viên tài chính phân tích báo cáo, dự báo dòng tiền và tư vấn đầu tư. Họ làm việc tại ngân hàng, công ty chứng khoán hoặc phòng tài chính doanh nghiệp, cần am hiểu thị trường và tư duy phân tích số liệu tốt.",
+      "Chuyên viên tài chính giúp trả lời các câu hỏi như: tiền đang đi đâu, nên tiết kiệm hay đầu tư thế nào, một công ty có đang hoạt động tốt không. Công việc thường liên quan đến bảng tính, biểu đồ, báo cáo và nhiều quyết định cần sự cẩn thận. Nếu em thích Toán, thích lập kế hoạch, quan tâm đến kinh doanh và muốn hiểu cách tiền vận hành trong cuộc sống, đây là nghề nên khám phá.",
     coverPhoto:
       "https://images.unsplash.com/photo-1711097383282-28097ae16b1d?w=600&h=360&fit=crop&auto=format",
     gallery: [
@@ -5737,9 +5737,9 @@ export const EXPLORE_CAREERS: ExploreCareer[] = [
     salaryMax: "40 tr",
     salaryNote: "/tháng",
     education: "Thạc sĩ / Tiến sĩ",
-    desc: "Giảng dạy và nghiên cứu khoa học, đào tạo nhân tài cho đất nước.",
+    desc: "Dạy học, hướng dẫn sinh viên và nghiên cứu điều mới trong một lĩnh vực.",
     fullDesc:
-      "Giảng viên đại học vừa truyền đạt kiến thức cho sinh viên vừa nghiên cứu khoa học. Cần có bằng thạc sĩ hoặc tiến sĩ, đam mê chia sẻ kiến thức và liên tục cập nhật kiến thức mới trong lĩnh vực chuyên môn.",
+      "Giảng viên đại học không chỉ đứng lớp giảng bài. Họ còn đọc tài liệu mới, làm nghiên cứu, viết bài khoa học và hướng dẫn sinh viên thực hiện đề tài. Nghề này hợp với bạn thích chia sẻ kiến thức, thích đào sâu một môn học và muốn truyền cảm hứng cho người khác. Con đường thường dài hơn vì cần học lên thạc sĩ hoặc tiến sĩ, nhưng rất phù hợp với người thích học suốt đời.",
     coverPhoto:
       "https://images.unsplash.com/photo-1509062522246-3755977927d7?w=600&h=360&fit=crop&auto=format",
     gallery: [
@@ -5823,9 +5823,9 @@ export const EXPLORE_CAREERS: ExploreCareer[] = [
     salaryMax: "35 tr",
     salaryNote: "/tháng",
     education: "Đại học 4–5 năm",
-    desc: "Thiết kế và phát triển máy móc, thiết bị cơ khí cho ngành công nghiệp.",
+    desc: "Thiết kế, kiểm tra và cải tiến máy móc, thiết bị trong đời sống.",
     fullDesc:
-      "Kỹ sư cơ khí áp dụng kiến thức vật lý và toán học để thiết kế hệ thống cơ khí, từ động cơ ô tô đến dây chuyền sản xuất. Làm việc trong nhà máy, đòi hỏi kỹ năng CAD/CAM và tư duy kỹ thuật chính xác.",
+      "Kỹ sư cơ khí làm việc với máy móc, bản vẽ kỹ thuật và các hệ thống chuyển động, từ động cơ xe, robot, máy sản xuất đến thiết bị trong nhà máy. Họ dùng Toán, Vật lý và phần mềm thiết kế để tạo ra sản phẩm hoạt động an toàn, chính xác hơn. Nếu em thích tháo lắp đồ vật, tò mò máy móc chạy ra sao và thích giải quyết vấn đề thực tế, cơ khí là một hướng rất hợp.",
     coverPhoto:
       "https://images.unsplash.com/photo-1717386255773-1e3037c81788?w=600&h=360&fit=crop&auto=format",
     gallery: [
@@ -5920,9 +5920,9 @@ export const EXPLORE_CAREERS: ExploreCareer[] = [
     salaryMax: "28 tr",
     salaryNote: "/tháng",
     education: "Đại học 4 năm",
-    desc: "Nghiên cứu và xây dựng giải pháp bảo vệ môi trường, phát triển bền vững.",
+    desc: "Tìm cách giảm ô nhiễm và giúp con người sống thân thiện hơn với thiên nhiên.",
     fullDesc:
-      "Kỹ sư môi trường phát triển giải pháp xử lý ô nhiễm, nước thải và quản lý chất thải. Trong bối cảnh biến đổi khí hậu, đây là ngành ngày càng quan trọng với tiềm năng tác động xã hội lớn.",
+      "Kỹ sư môi trường tìm cách xử lý nước thải, rác thải, không khí ô nhiễm và đề xuất giải pháp để thành phố hoặc doanh nghiệp xanh hơn. Công việc có thể ở phòng thí nghiệm, ngoài hiện trường hoặc trong các dự án năng lượng sạch. Nếu em quan tâm đến khí hậu, cây xanh, nước sạch và muốn công việc của mình tạo tác động tốt cho cộng đồng, đây là nghề rất đáng để tìm hiểu.",
     coverPhoto:
       "https://images.unsplash.com/photo-1532509854226-a2d9d8e66f8e?w=600&h=360&fit=crop&auto=format",
     gallery: [

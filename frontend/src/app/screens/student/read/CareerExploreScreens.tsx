@@ -118,6 +118,7 @@ import {
 import {
   fetchStudentReferences,
   fetchCareerActionAi,
+  fetchCareerChatAi,
   saveStudentReference,
   syncReferenceActions,
   updateStudent,
@@ -156,8 +157,30 @@ const hasCareerActivityReactions = (
     Boolean(reactions[actionKey(career.id, activity.id)]),
   );
 
+type CareerChatMessage = {
+  role: "student" | "assistant";
+  text: string;
+  bullets?: string[];
+  nextStep?: string;
+};
+
+const CAREER_CHAT_SUGGESTIONS = [
+  "Một ngày làm việc của nghề này thường gồm những việc gì?",
+  "Mức lương tham khảo thay đổi theo những yếu tố nào?",
+  "Nếu đang học cấp 2-3, em nên chuẩn bị môn học và kỹ năng nào?",
+  "Làm sao để biết nghề này có phù hợp với tính cách của em?",
+];
+
+const cleanCareerChatText = (text: string) =>
+  text
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/^\s*[*-]\s+/gm, "")
+    .replace(/\\\*/g, "")
+    .trim();
+
 export const ExploreCareerDetail = ({
   career,
+  studentId,
   onBack,
   favorites,
   onToggleFav,
@@ -171,6 +194,7 @@ export const ExploreCareerDetail = ({
   onNavigateToUni,
 }: {
   career: ExploreCareer;
+  studentId: string;
   onBack: () => void;
   favorites: string[];
   onToggleFav: () => void;
@@ -185,6 +209,9 @@ export const ExploreCareerDetail = ({
 }) => {
   const t = useT();
   const [videoPlaying, setVideoPlaying] = useState(false);
+  const [careerChatInput, setCareerChatInput] = useState("");
+  const [careerChatMessages, setCareerChatMessages] = useState<CareerChatMessage[]>([]);
+  const [careerChatStatus, setCareerChatStatus] = useState<"idle" | "loading">("idle");
   const isCurrentCareer = currentExploredCareer === career.name;
   const hasActivityReactions = hasCareerActivityReactions(career, reactions);
   const relatedData = EXPLORE_CAREERS.filter(
@@ -195,6 +222,72 @@ export const ExploreCareerDetail = ({
           c.name.includes(r.split(" ")[0]) || r.includes(c.name.split(" ")[0]),
       ),
   ).slice(0, 3);
+  React.useEffect(() => {
+    setCareerChatInput("");
+    setCareerChatMessages([
+      {
+        role: "assistant",
+        text: `Bạn có thể hỏi mình về ${career.name}: công việc hằng ngày, mức lương tham khảo, môn nên học, kỹ năng cần chuẩn bị hoặc mức độ phù hợp với bản thân.`,
+      },
+    ]);
+    setCareerChatStatus("idle");
+  }, [career.id, career.name]);
+  const askCareerQuestion = (rawQuestion: string) => {
+    const question = rawQuestion.trim();
+    if (!question || careerChatStatus === "loading") return;
+    setCareerChatMessages((messages) => [
+      ...messages,
+      { role: "student", text: question },
+    ]);
+    setCareerChatInput("");
+    setCareerChatStatus("loading");
+    fetchCareerChatAi({
+      studentId,
+      career: {
+        id: career.id,
+        name: career.name,
+        field: career.field,
+        desc: career.desc,
+        fullDesc: career.fullDesc,
+        salaryRange: `${career.salaryMin} - ${career.salaryMax}${career.salaryNote}`,
+        education: career.education,
+        skills: career.skills,
+        activities: career.activities.map((activity) => activity.label),
+        universities: career.universities.map((uni) => ({
+          name: uni.name,
+          shortName: uni.shortName,
+          program: uni.program,
+          score: uni.score,
+        })),
+      },
+      question,
+      locale: "vi",
+    })
+      .then((payload) => {
+        setCareerChatMessages((messages) => [
+          ...messages,
+          {
+            role: "assistant",
+            text: cleanCareerChatText(payload.intro),
+            bullets: payload.bullets.map(cleanCareerChatText).filter(Boolean),
+            nextStep: cleanCareerChatText(payload.nextStep),
+          },
+        ]);
+      })
+      .catch((error) => {
+        setCareerChatMessages((messages) => [
+          ...messages,
+          {
+            role: "assistant",
+            text:
+              error instanceof Error
+                ? error.message
+                : "Chưa gọi được Gemini. Hãy kiểm tra GEMINI_API_KEY ở backend.",
+          },
+        ]);
+      })
+      .finally(() => setCareerChatStatus("idle"));
+  };
   return (
     <div className="space-y-6">
       {" "}
@@ -283,32 +376,26 @@ export const ExploreCareerDetail = ({
         </button>
       </div>
       {/* Quick info */}{" "}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
         {" "}
         {[
           {
             icon: TrendingUp,
-            label: "Lương tối thiểu",
-            value: career.salaryMin + career.salaryNote,
-            cls: "text-emerald-600",
-          },
-          {
-            icon: TrendingUp,
-            label: "Lương tối đa",
-            value: career.salaryMax + career.salaryNote,
+            label: "Mức lương tham khảo",
+            value: `${career.salaryMin} - ${career.salaryMax}${career.salaryNote}`,
             cls: "text-emerald-700",
           },
           {
             icon: GraduationCap,
-            label: "Trình độ",
+            label: "Lộ trình học",
             value: career.education,
             cls: "text-blue-600",
           },
           {
-            icon: Star,
-            label: "Triển vọng",
-            value: "Rất cao 🔥",
-            cls: "text-orange-600",
+            icon: Briefcase,
+            label: "Nhóm ngành",
+            value: career.field,
+            cls: "text-violet-600",
           },
         ].map((info) => (
           <div
@@ -558,6 +645,97 @@ export const ExploreCareerDetail = ({
                   {activitySaving ? "Đang lưu..." : hasActivityReactions ? "Làm lại mục này" : "Mở danh sách hoạt động"} <ChevronRight size={13} />
                 </button>
               </div>
+            </div>
+          </div>
+          <div className="bg-white rounded-2xl border border-violet-100 shadow-sm overflow-hidden">
+            <div className="px-4 py-3 border-b border-violet-100 bg-violet-50/70 flex items-center gap-2">
+              <div className="w-8 h-8 rounded-xl bg-violet-600 text-white flex items-center justify-center flex-shrink-0">
+                <MessageSquare size={15} />
+              </div>
+              <div className="min-w-0">
+                <h3 className="font-bold text-gray-900 text-sm">
+                  Hỏi nhanh về nghề này
+                </h3>
+                <p className="text-xs text-gray-500">
+                  Chọn câu hỏi mẫu hoặc tự hỏi thêm.
+                </p>
+              </div>
+            </div>
+            <div className="p-4 space-y-3">
+              <div className="max-h-56 overflow-y-auto space-y-2 pr-1">
+                {careerChatMessages.map((message, index) => (
+                  <div
+                    key={`${message.role}-${index}`}
+                    className={`rounded-2xl px-3 py-2 text-xs leading-relaxed ${
+                      message.role === "student"
+                        ? "ml-6 bg-violet-600 text-white"
+                        : "mr-4 bg-gray-50 text-gray-700 border border-gray-100"
+                    }`}
+                  >
+                    <p className="whitespace-pre-line">{cleanCareerChatText(message.text)}</p>
+                    {message.bullets && message.bullets.length > 0 && (
+                      <ul className="mt-2 space-y-1.5">
+                        {message.bullets.map((bullet, bulletIndex) => (
+                          <li
+                            key={`${index}-${bulletIndex}`}
+                            className="flex gap-2 leading-relaxed"
+                          >
+                            <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-violet-400 flex-shrink-0" />
+                            <span>{bullet}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {message.nextStep && (
+                      <div className="mt-2 rounded-xl bg-white px-2.5 py-2 text-violet-700 border border-violet-100">
+                        <span className="font-bold">Gợi ý tiếp theo: </span>
+                        {message.nextStep}
+                      </div>
+                    )}
+                  </div>
+                ))}
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {CAREER_CHAT_SUGGESTIONS.map((question) => (
+                  <button
+                    key={question}
+                    type="button"
+                    onClick={() => askCareerQuestion(question)}
+                    disabled={careerChatStatus === "loading"}
+                    className="rounded-full border border-violet-100 bg-violet-50 px-2.5 py-1.5 text-[11px] font-semibold text-violet-700 hover:border-violet-200 hover:bg-violet-100"
+                  >
+                    {question}
+                  </button>
+                ))}
+              </div>
+              {careerChatStatus === "loading" && (
+                <div className="mr-4 rounded-2xl border border-gray-100 bg-gray-50 px-3 py-2 text-xs font-semibold text-gray-500">
+                  Gemini đang trả lời...
+                </div>
+              )}
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  askCareerQuestion(careerChatInput);
+                }}
+                className="flex items-center gap-2"
+              >
+                <input
+                  value={careerChatInput}
+                  onChange={(event) => setCareerChatInput(event.target.value)}
+                  placeholder="Ví dụ: nghề này cần chuẩn bị kỹ năng nào?"
+                  className="min-w-0 flex-1 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2 text-xs focus:outline-none focus:ring-2 focus:ring-violet-100"
+                  disabled={careerChatStatus === "loading"}
+                />
+                <button
+                  type="submit"
+                  className="h-9 w-9 rounded-xl bg-violet-600 text-white flex items-center justify-center hover:bg-violet-700 disabled:opacity-50"
+                  disabled={!careerChatInput.trim() || careerChatStatus === "loading"}
+                  title="Gửi câu hỏi"
+                >
+                  <ArrowRight size={14} />
+                </button>
+              </form>
             </div>
           </div>
           {/* Related careers — small cards with image + name + salary */}{" "}
@@ -1711,6 +1889,7 @@ export const StudentExplore = ({
       <>
         <ExploreCareerDetail
           career={selected}
+          studentId={studentId}
           onBack={() => setSelected(null)}
           favorites={favorites}
           onToggleFav={() => toggleFav(selected.id)}

@@ -6,6 +6,8 @@ from pathlib import Path
 try:
     from .core import config
     from .career_action_agent import generate_career_action
+    from .career_chat_agent import generate_career_chat_answer
+    from .homework_chat_agent import generate_homework_chat_answer
     from . import student_database
     from .services import students as student_service
     from .recommend_engine import (
@@ -18,6 +20,8 @@ try:
 except ImportError:
     from core import config
     from career_action_agent import generate_career_action
+    from career_chat_agent import generate_career_chat_answer
+    from homework_chat_agent import generate_homework_chat_answer
     import student_database
     from services import students as student_service
     from recommend_engine import (
@@ -294,6 +298,46 @@ def career_action_ai_payload(payload: dict) -> dict:
     action = _career_action_item(payload, "action", ("id", "label"))
     locale = str(payload.get("locale") or "vi").strip().lower()
     return generate_career_action(student, career, action, locale)
+
+
+def career_chat_ai_payload(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("payload must be an object")
+    student_id = str(payload.get("studentId") or payload.get("student_id") or "").strip()
+    if not student_id:
+        raise ValueError("studentId is required")
+
+    student = student_database.get_student(student_id, STUDENT_DB)
+    if student is None:
+        raise LookupError(f"Student not found: {student_id}")
+
+    career = payload.get("career")
+    if not isinstance(career, dict):
+        raise ValueError("career must be an object")
+    question = str(payload.get("question") or "").strip()
+    if not question:
+        raise ValueError("question is required")
+    locale = str(payload.get("locale") or "vi").strip().lower()
+    return generate_career_chat_answer(student, career, question, locale)
+
+
+def homework_chat_ai_payload(payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError("payload must be an object")
+    student_id = str(payload.get("studentId") or payload.get("student_id") or "").strip()
+    if not student_id:
+        raise ValueError("studentId is required")
+
+    student = student_database.get_student(student_id, STUDENT_DB)
+    if student is None:
+        raise LookupError(f"Student not found: {student_id}")
+
+    question = str(payload.get("question") or "").strip()
+    image = payload.get("image")
+    if not question and not isinstance(image, dict):
+        raise ValueError("question or image is required")
+    locale = str(payload.get("locale") or "vi").strip().lower()
+    return generate_homework_chat_answer(student, question, image, locale)
 
 
 def students_payload(grade: str | None = None, class_name: str | None = None) -> dict:

@@ -491,6 +491,61 @@ export type CareerActionAiResponse = {
   video: CareerActionAiVideo | null;
 };
 
+export type CareerChatAiRequest = {
+  studentId: string;
+  career: {
+    id: string;
+    name: string;
+    field?: string;
+    desc?: string;
+    fullDesc?: string;
+    salaryRange?: string;
+    education?: string;
+    skills?: string[];
+    activities?: string[];
+    universities?: Array<{
+      name?: string;
+      shortName?: string;
+      program?: string;
+      score?: string;
+    }>;
+  };
+  question: string;
+  locale?: "vi" | "en";
+};
+
+export type CareerChatAiResponse = {
+  intro: string;
+  bullets: string[];
+  nextStep: string;
+  provider: "gemini" | string;
+  model?: string;
+};
+
+export type HomeworkChatAiRequest = {
+  studentId: string;
+  question?: string;
+  image?: {
+    mimeType: string;
+    data: string;
+    name?: string;
+  };
+  locale?: "vi" | "en";
+};
+
+export type HomeworkChatAiResponse = {
+  detectedProblem: string;
+  subject: string;
+  grade: string;
+  textbookArea: string;
+  recommendedLessons: string[];
+  solutionGuide: string[];
+  commonMistakes: string[];
+  nextQuestion: string;
+  provider: "gemini" | string;
+  model?: string;
+};
+
 const DEV_API_ORIGIN = "http://127.0.0.1:8001";
 
 const shouldRetryDirectBackend = (url: string) =>
@@ -549,6 +604,30 @@ export function fetchCareerActionAi(
   signal?: AbortSignal,
 ): Promise<CareerActionAiResponse> {
   return requestJson<CareerActionAiResponse>("/api/career-action-ai", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
+export function fetchCareerChatAi(
+  payload: CareerChatAiRequest,
+  signal?: AbortSignal,
+): Promise<CareerChatAiResponse> {
+  return requestJson<CareerChatAiResponse>("/api/career-chat-ai", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+    signal,
+  });
+}
+
+export function fetchHomeworkChatAi(
+  payload: HomeworkChatAiRequest,
+  signal?: AbortSignal,
+): Promise<HomeworkChatAiResponse> {
+  return requestJson<HomeworkChatAiResponse>("/api/homework-chat-ai", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(payload),

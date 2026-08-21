@@ -229,6 +229,8 @@ class Handler(BaseHTTPRequestHandler):
             "/api/reference-actions/sync",
             "/api/student-references",
             "/api/career-action-ai",
+            "/api/career-chat-ai",
+            "/api/homework-chat-ai",
         }:
             if not (path.startswith("/api/surveys/") and path.endswith("/results")):
                 if path.startswith("/api/"):
@@ -240,6 +242,30 @@ class Handler(BaseHTTPRequestHandler):
         try:
             length = int(self.headers.get("Content-Length", "0"))
             payload = json.loads(self.rfile.read(length).decode("utf-8"))
+            if path == "/api/homework-chat-ai":
+                try:
+                    self.send_json(api.homework_chat_ai_payload(payload))
+                except LookupError as exc:
+                    self.send_json({"error": str(exc)}, status=404)
+                except ValueError as exc:
+                    self.send_json({"error": str(exc)}, status=400)
+                except RuntimeError as exc:
+                    self.send_json({"error": str(exc)}, status=502)
+                except Exception as exc:
+                    self.send_json({"error": str(exc)}, status=500)
+                return
+            if path == "/api/career-chat-ai":
+                try:
+                    self.send_json(api.career_chat_ai_payload(payload))
+                except LookupError as exc:
+                    self.send_json({"error": str(exc)}, status=404)
+                except ValueError as exc:
+                    self.send_json({"error": str(exc)}, status=400)
+                except RuntimeError as exc:
+                    self.send_json({"error": str(exc)}, status=502)
+                except Exception as exc:
+                    self.send_json({"error": str(exc)}, status=500)
+                return
             if path == "/api/career-action-ai":
                 try:
                     self.send_json(api.career_action_ai_payload(payload))

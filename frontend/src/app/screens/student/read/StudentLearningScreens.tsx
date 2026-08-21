@@ -43,6 +43,11 @@ import {
   PieChart,
   Lightbulb,
   School,
+  ImagePlus,
+  LoaderCircle,
+  Send,
+  Sparkles,
+  X,
 } from "lucide-react";
 import {
   BarChart,
@@ -111,6 +116,11 @@ import {
   buildStudentSkillRadar,
   scoreTone,
 } from "../../../logic/recommendation";
+import {
+  fetchHomeworkChatAi,
+  type HomeworkChatAiResponse,
+} from "../../../api/client";
+import { currentStudentReferenceId } from "../../../logic/referenceActions";
 import { useT } from "../../../i18n";
 
 export const StudentLessons = () => {
@@ -240,96 +250,364 @@ export const StudentLessons = () => {
   );
 };
 
+type HomeworkChatMessage = {
+  role: "student" | "assistant";
+  text: string;
+  imageName?: string;
+  imagePreview?: string;
+  result?: HomeworkChatAiResponse;
+};
+
+const HOMEWORK_CHAT_SUGGESTIONS = [
+  "Bài này thuộc môn nào, lớp mấy và phần nào trong SGK?",
+  "Hãy hướng dẫn em cách làm từng bước, đừng chỉ đưa đáp án.",
+  "Em cần xem lại công thức hoặc bài học nào trước khi giải?",
+  "Kiểm tra giúp em lời giải này sai ở bước nào.",
+];
+
+const cleanHomeworkChatText = (text: string) =>
+  text
+    .replace(/\*\*(.*?)\*\*/g, "$1")
+    .replace(/^\s*[*-]\s+/gm, "")
+    .replace(/\\\*/g, "")
+    .trim();
+
+const readHomeworkImage = (
+  file: File,
+): Promise<{ mimeType: string; data: string; name: string; preview: string }> =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const preview = String(reader.result || "");
+      const data = preview.includes(",") ? preview.split(",", 2)[1] : preview;
+      resolve({
+        mimeType: file.type || "image/jpeg",
+        data,
+        name: file.name,
+        preview,
+      });
+    };
+    reader.onerror = () => reject(new Error("Không đọc được ảnh bài tập."));
+    reader.readAsDataURL(file);
+  });
+
 export const StudentAssignment = () => {
   const t = useT();
-  const assignments = [
+  const studentId = currentStudentReferenceId();
+  const [homeworkInput, setHomeworkInput] = useState("");
+  const [selectedImage, setSelectedImage] = useState<{
+    file: File;
+    preview: string;
+  } | null>(null);
+  const [messages, setMessages] = useState<HomeworkChatMessage[]>([
     {
-      title: "Viết về ước mơ nghề nghiệp của bạn",
-      due: "28/06/2025",
-      subject: "Hướng nghiệp",
-      done: true,
-      emoji: "✍️",
+      role: "assistant",
+      text:
+        "Gửi đề bài bằng chữ hoặc ảnh. Mình sẽ đọc đề, đoán môn/lớp/phần SGK liên quan, rồi hướng dẫn em xem lại bài nào và giải theo từng bước.",
     },
-    {
-      title: "Nghiên cứu 3 ngành nghề phù hợp",
-      due: "05/07/2025",
-      subject: "Khám phá",
-      done: false,
-      urgent: true,
-      emoji: "🔍",
-    },
-    {
-      title: "Lập kế hoạch học tập học kỳ 2",
-      due: "10/07/2025",
-      subject: "Kế hoạch",
-      done: false,
-      urgent: false,
-      emoji: "📋",
-    },
-    {
-      title: "Phỏng vấn thử với cố vấn",
-      due: "15/07/2025",
-      subject: "Kỹ năng",
-      done: false,
-      urgent: false,
-      emoji: "🎤",
-    },
-  ];
+  ]);
+  const [status, setStatus] = useState<"idle" | "loading">("idle");
+  const [error, setError] = useState("");
+
+  const askHomeworkQuestion = async (rawQuestion: string) => {
+    const question = rawQuestion.trim();
+    if ((!question && !selectedImage) || status === "loading") return;
+
+    setError("");
+    setStatus("loading");
+    setHomeworkInput("");
+
+    const imageForMessage = selectedImage;
+    setSelectedImage(null);
+    setMessages((current) => [
+      ...current,
+      {
+        role: "student",
+        text: question || "Em gửi ảnh bài tập, nhờ thầy/cô hướng dẫn giúp em.",
+        imageName: imageForMessage?.file.name,
+        imagePreview: imageForMessage?.preview,
+      },
+    ]);
+
+    try {
+      const imagePayload = imageForMessage
+        ? await readHomeworkImage(imageForMessage.file)
+        : null;
+      const payload = await fetchHomeworkChatAi({
+        studentId,
+        question,
+        image: imagePayload
+          ? {
+              mimeType: imagePayload.mimeType,
+              data: imagePayload.data,
+              name: imagePayload.name,
+            }
+          : undefined,
+        locale: "vi",
+      });
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          text: cleanHomeworkChatText(payload.detectedProblem),
+          result: {
+            ...payload,
+            detectedProblem: cleanHomeworkChatText(payload.detectedProblem),
+            subject: cleanHomeworkChatText(payload.subject),
+            grade: cleanHomeworkChatText(payload.grade),
+            textbookArea: cleanHomeworkChatText(payload.textbookArea),
+            recommendedLessons: payload.recommendedLessons.map(cleanHomeworkChatText).filter(Boolean),
+            solutionGuide: payload.solutionGuide.map(cleanHomeworkChatText).filter(Boolean),
+            commonMistakes: payload.commonMistakes.map(cleanHomeworkChatText).filter(Boolean),
+            nextQuestion: cleanHomeworkChatText(payload.nextQuestion),
+          },
+        },
+      ]);
+    } catch (caught) {
+      const message =
+        caught instanceof Error
+          ? caught.message
+          : "Chưa gọi được Gemini. Hãy kiểm tra backend và GEMINI_API_KEY.";
+      setError(message);
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          text: message,
+        },
+      ]);
+    } finally {
+      setStatus("idle");
+    }
+  };
+
+  const handleImageChange = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("File này không phải ảnh. Hãy chọn ảnh JPG, PNG hoặc ảnh chụp màn hình.");
+      return;
+    }
+    if (file.size > 4 * 1024 * 1024) {
+      setError("Ảnh hơi lớn. Hãy chọn ảnh dưới 4MB để gửi nhanh hơn.");
+      return;
+    }
+    setError("");
+    setSelectedImage({ file, preview: URL.createObjectURL(file) });
+  };
+
   return (
     <div className="space-y-5">
-      {" "}
-      <div className="flex items-center justify-between">
-        {" "}
+      <div className="flex items-start justify-between gap-4">
         <div>
-          {" "}
           <h1 className="text-xl font-bold text-gray-900">
-            {t("Bài tập")} ✅
-          </h1>{" "}
+            {t("Bài tập")} cùng trợ lý AI
+          </h1>
           <p className="text-sm text-gray-500 mt-0.5">
-            1 {t("hoàn thành")} · 3 {t("còn lại")}
-          </p>{" "}
-        </div>{" "}
-        <div className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-black text-emerald-600 bg-emerald-100">
-          25%
-        </div>{" "}
-      </div>{" "}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        {" "}
-        {assignments.map((a, i) => (
-          <div
-            key={i}
-            className={`bg-white rounded-2xl p-4 border-2 flex gap-4 shadow-sm ${a.done ? "border-emerald-200 opacity-75" : a.urgent ? "border-red-200" : "border-gray-100"}`}
-          >
-            {" "}
-            <div
-              className={`w-12 h-12 rounded-2xl flex items-center justify-center text-xl flex-shrink-0 ${a.done ? "bg-emerald-100" : a.urgent ? "bg-red-50" : "bg-amber-50"}`}
-            >
-              {" "}
-              {a.done ? "✅" : a.emoji}{" "}
-            </div>{" "}
-            <div className="flex-1">
-              {" "}
-              <div className="flex items-start justify-between gap-2">
-                {" "}
-                <h3
-                  className={`font-bold text-sm ${a.done ? "line-through text-gray-400" : "text-gray-800"}`}
-                >
-                  {a.title}
-                </h3>{" "}
-                <span
-                  className={`text-xs px-2 py-0.5 rounded-full font-bold flex-shrink-0 ${a.done ? "bg-emerald-100 text-emerald-700" : a.urgent ? "bg-red-100 text-red-600" : "bg-amber-100 text-amber-700"}`}
-                >
-                  {" "}
-                  {a.done ? t("Xong") : a.urgent ? t("Gấp!") : t("Chờ nộp")}{" "}
-                </span>{" "}
-              </div>{" "}
-              <p className="text-xs text-gray-500 mt-1">
-                📅 {t("Hạn nộp")}: {a.due} · 📌 {a.subject}
-              </p>{" "}
-            </div>{" "}
+            Nhập đề bài hoặc gửi ảnh. Trợ lý sẽ chỉ ra bài thuộc phần nào và hướng dẫn cách tự làm.
+          </p>
+        </div>
+        <div className="hidden sm:flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-xs font-bold text-emerald-700">
+          <Sparkles size={15} />
+          Gemini tutor
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 xl:grid-cols-[minmax(0,1fr)_360px] gap-4">
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="px-4 py-3 border-b border-gray-100 bg-gray-50 flex items-center gap-2">
+            <div className="w-9 h-9 rounded-xl bg-emerald-600 text-white flex items-center justify-center">
+              <MessageSquare size={16} />
+            </div>
+            <div>
+              <h2 className="font-bold text-gray-900 text-sm">Chat hướng dẫn giải bài tập</h2>
+              <p className="text-xs text-gray-500">Có thể gửi văn bản, ảnh chụp đề hoặc cả hai.</p>
+            </div>
           </div>
-        ))}{" "}
-      </div>{" "}
+
+          <div className="h-[520px] overflow-y-auto bg-slate-50/70 p-4 space-y-3">
+            {messages.map((message, index) => (
+              <div
+                key={`${message.role}-${index}`}
+                className={`max-w-[92%] rounded-2xl px-4 py-3 text-sm leading-relaxed shadow-sm ${
+                  message.role === "student"
+                    ? "ml-auto bg-emerald-600 text-white"
+                    : "mr-auto bg-white text-gray-700 border border-gray-100"
+                }`}
+              >
+                {message.imagePreview && (
+                  <div className="mb-2 overflow-hidden rounded-xl border border-white/40 bg-white/10">
+                    <img
+                      src={message.imagePreview}
+                      alt={message.imageName || "Ảnh bài tập"}
+                      className="max-h-56 w-full object-contain"
+                    />
+                  </div>
+                )}
+                {!message.result && (
+                  <p className="whitespace-pre-line">{cleanHomeworkChatText(message.text)}</p>
+                )}
+                {message.result && (
+                  <div className="space-y-3">
+                    <div>
+                      <p className="text-[11px] font-black uppercase tracking-wide text-emerald-600">
+                        Đề bài trợ lý hiểu được
+                      </p>
+                      <p className="mt-1 text-gray-800">{message.result.detectedProblem}</p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {[message.result.subject, message.result.grade, message.result.textbookArea].map((item) => (
+                        <span
+                          key={item}
+                          className="rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700"
+                        >
+                          {item}
+                        </span>
+                      ))}
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900">Nên xem lại</p>
+                      <ul className="mt-1.5 space-y-1.5">
+                        {message.result.recommendedLessons.map((item, itemIndex) => (
+                          <li key={`${index}-lesson-${itemIndex}`} className="flex gap-2 text-sm">
+                            <BookOpen size={15} className="mt-0.5 text-emerald-600 flex-shrink-0" />
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div>
+                      <p className="font-bold text-gray-900">Cách làm</p>
+                      <ol className="mt-1.5 space-y-2">
+                        {message.result.solutionGuide.map((item, itemIndex) => (
+                          <li key={`${index}-step-${itemIndex}`} className="flex gap-2 text-sm">
+                            <span className="mt-0.5 flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-emerald-100 text-[11px] font-black text-emerald-700">
+                              {itemIndex + 1}
+                            </span>
+                            <span>{item}</span>
+                          </li>
+                        ))}
+                      </ol>
+                    </div>
+                    <div className="rounded-xl bg-amber-50 px-3 py-2 text-amber-800">
+                      <p className="font-bold">Lỗi dễ gặp</p>
+                      <ul className="mt-1 space-y-1">
+                        {message.result.commonMistakes.map((item, itemIndex) => (
+                          <li key={`${index}-mistake-${itemIndex}`}>• {item}</li>
+                        ))}
+                      </ul>
+                    </div>
+                    <div className="rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-emerald-800">
+                      <span className="font-bold">Em thử tiếp: </span>
+                      {message.result.nextQuestion}
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+            {status === "loading" && (
+              <div className="mr-auto flex max-w-[92%] items-center gap-2 rounded-2xl border border-gray-100 bg-white px-4 py-3 text-sm font-semibold text-gray-500 shadow-sm">
+                <LoaderCircle size={16} className="animate-spin text-emerald-600" />
+                Gemini đang đọc đề và soạn hướng dẫn...
+              </div>
+            )}
+          </div>
+        </div>
+
+        <div className="space-y-4">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <h3 className="font-bold text-gray-900 text-sm mb-3">Gửi bài tập</h3>
+            <form
+              className="space-y-3"
+              onSubmit={(event) => {
+                event.preventDefault();
+                askHomeworkQuestion(homeworkInput);
+              }}
+            >
+              <textarea
+                value={homeworkInput}
+                onChange={(event) => setHomeworkInput(event.target.value)}
+                disabled={status === "loading"}
+                rows={7}
+                placeholder="Ví dụ: Giải phương trình 2x + 3 = 11. Bài này thuộc phần nào và em nên làm từng bước ra sao?"
+                className="w-full resize-none rounded-2xl border border-gray-200 bg-gray-50 px-3 py-3 text-sm leading-relaxed focus:outline-none focus:ring-2 focus:ring-emerald-100"
+              />
+
+              {selectedImage ? (
+                <div className="rounded-2xl border border-emerald-100 bg-emerald-50 p-2">
+                  <div className="flex items-center justify-between gap-2 pb-2">
+                    <span className="truncate text-xs font-bold text-emerald-800">
+                      {selectedImage.file.name}
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setSelectedImage(null)}
+                      className="h-7 w-7 rounded-lg bg-white text-gray-500 flex items-center justify-center hover:text-red-600"
+                      title="Bỏ ảnh"
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                  <img
+                    src={selectedImage.preview}
+                    alt={selectedImage.file.name}
+                    className="max-h-44 w-full rounded-xl object-contain bg-white"
+                  />
+                </div>
+              ) : (
+                <label className="flex cursor-pointer items-center justify-center gap-2 rounded-2xl border border-dashed border-gray-300 bg-gray-50 px-3 py-4 text-sm font-bold text-gray-600 hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700">
+                  <ImagePlus size={17} />
+                  Tải ảnh đề bài
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={(event) => handleImageChange(event.target.files?.[0])}
+                    disabled={status === "loading"}
+                  />
+                </label>
+              )}
+
+              {error && (
+                <div className="rounded-xl border border-red-100 bg-red-50 px-3 py-2 text-xs font-semibold text-red-700">
+                  {error}
+                </div>
+              )}
+
+              <button
+                type="submit"
+                disabled={status === "loading" || (!homeworkInput.trim() && !selectedImage)}
+                className="w-full rounded-2xl bg-emerald-600 px-4 py-3 text-sm font-black text-white flex items-center justify-center gap-2 hover:bg-emerald-700 disabled:opacity-50"
+              >
+                {status === "loading" ? <LoaderCircle size={16} className="animate-spin" /> : <Send size={16} />}
+                Gửi cho trợ lý
+              </button>
+            </form>
+          </div>
+
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm p-4">
+            <h3 className="font-bold text-gray-900 text-sm mb-3">Câu hỏi gợi ý</h3>
+            <div className="space-y-2">
+              {HOMEWORK_CHAT_SUGGESTIONS.map((question) => (
+                <button
+                  key={question}
+                  type="button"
+                  onClick={() => {
+                    if (!homeworkInput.trim() && !selectedImage) {
+                      setHomeworkInput(question);
+                    } else {
+                      askHomeworkQuestion(question);
+                    }
+                  }}
+                  disabled={status === "loading"}
+                  className="w-full rounded-xl border border-gray-100 bg-gray-50 px-3 py-2 text-left text-xs font-semibold text-gray-700 hover:border-emerald-200 hover:bg-emerald-50 hover:text-emerald-700"
+                >
+                  {question}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
   );
 };
