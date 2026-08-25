@@ -45,8 +45,8 @@ import {
   CounselorFamilies,
   CounselorFeatureStub,
   CounselorLessons,
-  CounselorReportCollegePlanning,
   CounselorReportEngagement,
+  CounselorReportLessonProgress,
   CounselorReportStudentWork,
   CounselorStudentGroups,
   CounselorStudentList,
@@ -233,64 +233,12 @@ export default function AppShell() {
         );
       case "co-surveys":
         return <CounselorSurveys />;
-      case "co-courses":
-        return (
-          <CounselorFeatureStub
-            title="Course & Diploma"
-            icon="🎓"
-            color="from-violet-500 to-indigo-500"
-            items={[
-              { label: "Khoá học", value: "8", sub: "Đang hoạt động" },
-              { label: "Chứng chỉ", value: "156", sub: "Đã cấp" },
-              { label: "Tỉ lệ hoàn thành", value: "81%", sub: "" },
-            ]}
-          />
-        );
-      case "co-test-scores":
-        return (
-          <CounselorFeatureStub
-            title="Test Scores"
-            icon="📊"
-            color="from-blue-500 to-cyan-500"
-            items={[
-              { label: "Bài test", value: "6", sub: "Loại kiểm tra" },
-              { label: "Đã làm", value: "94 HS", sub: "73%" },
-              { label: "ĐTB", value: "76/100", sub: "Kỹ năng mềm" },
-            ]}
-          />
-        );
       case "co-report-work":
         return <CounselorReportStudentWork />;
       case "co-report-lessons":
-        return (
-          <CounselorFeatureStub
-            title="Lesson Progress"
-            icon="📈"
-            color="from-orange-500 to-amber-400"
-            items={[
-              { label: "Bài học", value: "24", sub: "Tổng cộng" },
-              { label: "Hoàn thành", value: "75%", sub: "96 HS" },
-              { label: "Đang học", value: "18%", sub: "23 HS" },
-            ]}
-          />
-        );
-      case "co-report-assignment":
-        return (
-          <CounselorFeatureStub
-            title="Assignment Report"
-            icon="📋"
-            color="from-teal-500 to-emerald-400"
-            items={[
-              { label: "Nộp đúng hạn", value: "89%", sub: "278 bài" },
-              { label: "Nộp trễ", value: "34", sub: "11%" },
-              { label: "Chưa nộp", value: "12", sub: "Cần nhắc" },
-            ]}
-          />
-        );
+        return <CounselorReportLessonProgress />;
       case "co-report-engagement":
         return <CounselorReportEngagement />;
-      case "co-report-college":
-        return <CounselorReportCollegePlanning />;
       case "co-messenger":
         return (
           <MessengerView

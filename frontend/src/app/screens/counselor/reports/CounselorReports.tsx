@@ -37,7 +37,6 @@ import {
   MapPin,
   BookMarked,
   Trophy,
-  Map,
   Layers,
   Flag,
   PieChart,
@@ -147,6 +146,187 @@ export const CounselorReportBase = ({
 
       {children}
     </div>
+  );
+};
+
+export const CounselorReportLessonProgress = () => {
+  const t = useT();
+  const { studentsInClass } = useAppData();
+  const totalStudents = studentsInClass.length;
+  const averageProgress = totalStudents
+    ? Math.round(
+        studentsInClass.reduce((sum, student) => sum + student.progress, 0) /
+          totalStudents,
+      )
+    : 0;
+  const onTrackCount = studentsInClass.filter(
+    (student) => student.progress >= 90,
+  ).length;
+  const needsAttentionCount = totalStudents - onTrackCount;
+  const classProgress = Array.from(
+    studentsInClass
+      .reduce(
+        (classes, student) => {
+          const current = classes.get(student.className) ?? {
+            name: student.className,
+            students: 0,
+            totalProgress: 0,
+            onTrack: 0,
+          };
+
+          current.students += 1;
+          current.totalProgress += student.progress;
+          if (student.progress >= 90) current.onTrack += 1;
+          classes.set(student.className, current);
+          return classes;
+        },
+        new Map<
+          string,
+          {
+            name: string;
+            students: number;
+            totalProgress: number;
+            onTrack: number;
+          }
+        >(),
+      )
+      .values(),
+  )
+    .map((item) => ({
+      ...item,
+      average: Math.round(item.totalProgress / item.students),
+      needsAttention: item.students - item.onTrack,
+    }))
+    .sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }));
+
+  const summaryCards = [
+    {
+      label: "Học sinh",
+      value: totalStudents.toString(),
+      sub: "Tổng trong database",
+      icon: Users,
+      iconClass: "bg-blue-50 text-blue-600",
+    },
+    {
+      label: "Tiến độ trung bình",
+      value: `${averageProgress}%`,
+      sub: "Theo dữ liệu học sinh",
+      icon: TrendingUp,
+      iconClass: "bg-orange-50 text-orange-600",
+    },
+    {
+      label: "Đạt từ 90%",
+      value: onTrackCount.toString(),
+      sub: totalStudents
+        ? `${Math.round((onTrackCount / totalStudents) * 100)}% học sinh`
+        : "0% học sinh",
+      icon: CheckCircle,
+      iconClass: "bg-emerald-50 text-emerald-600",
+    },
+    {
+      label: "Cần theo dõi",
+      value: needsAttentionCount.toString(),
+      sub: "Tiến độ dưới 90%",
+      icon: AlertTriangle,
+      iconClass: "bg-amber-50 text-amber-600",
+    },
+  ];
+
+  return (
+    <CounselorReportBase title="Tiến độ bài học">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+        {summaryCards.map((card) => (
+          <div
+            key={card.label}
+            className="bg-white border border-gray-100 rounded-2xl p-5 shadow-sm flex items-start gap-3"
+          >
+            <div
+              className={`w-10 h-10 rounded-xl flex items-center justify-center flex-shrink-0 ${card.iconClass}`}
+            >
+              <card.icon size={19} />
+            </div>
+            <div className="min-w-0">
+              <p className="text-xs font-semibold text-gray-500">
+                {t(card.label)}
+              </p>
+              <p className="text-2xl font-black text-gray-900 mt-0.5">
+                {card.value}
+              </p>
+              <p className="text-xs text-gray-500 mt-0.5">{t(card.sub)}</p>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="bg-white border border-gray-100 rounded-2xl shadow-sm overflow-hidden">
+        <div className="px-5 py-4 border-b border-gray-100">
+          <h2 className="font-bold text-gray-800">{t("Tiến độ theo lớp")}</h2>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-gray-50 text-xs text-gray-500">
+              <tr>
+                <th className="text-left font-semibold px-5 py-3">{t("Lớp")}</th>
+                <th className="text-center font-semibold px-5 py-3">
+                  {t("Học sinh")}
+                </th>
+                <th className="text-left font-semibold px-5 py-3 min-w-52">
+                  {t("Tiến độ trung bình")}
+                </th>
+                <th className="text-center font-semibold px-5 py-3">
+                  {t("Đạt từ 90%")}
+                </th>
+                <th className="text-center font-semibold px-5 py-3">
+                  {t("Cần theo dõi")}
+                </th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {classProgress.length ? (
+                classProgress.map((item) => (
+                  <tr key={item.name} className="hover:bg-gray-50/70">
+                    <td className="px-5 py-3 font-bold text-gray-800">
+                      {item.name}
+                    </td>
+                    <td className="px-5 py-3 text-center text-gray-600">
+                      {item.students}
+                    </td>
+                    <td className="px-5 py-3">
+                      <div className="flex items-center gap-3">
+                        <div className="h-2 flex-1 bg-gray-100 rounded-full overflow-hidden">
+                          <div
+                            className="h-full bg-blue-600 rounded-full"
+                            style={{ width: `${item.average}%` }}
+                          />
+                        </div>
+                        <span className="w-10 text-right font-mono font-bold text-gray-700">
+                          {item.average}%
+                        </span>
+                      </div>
+                    </td>
+                    <td className="px-5 py-3 text-center font-semibold text-emerald-700">
+                      {item.onTrack}
+                    </td>
+                    <td className="px-5 py-3 text-center font-semibold text-amber-700">
+                      {item.needsAttention}
+                    </td>
+                  </tr>
+                ))
+              ) : (
+                <tr>
+                  <td
+                    colSpan={5}
+                    className="px-5 py-10 text-center text-sm text-gray-500"
+                  >
+                    {t("Chưa có dữ liệu học sinh")}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </CounselorReportBase>
   );
 };
 
@@ -290,104 +470,6 @@ export const CounselorReportEngagement = () => {
         </div>
       </div>
     </CounselorReportBase>
-  );
-};
-
-export const CounselorReportCollegePlanning = () => {
-  const t = useT();
-
-  return (
-  <CounselorReportBase title="🎓 Kế hoạch đại học">
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
-      <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-        <h3 className="font-bold text-gray-800 mb-4">
-          {t("Xu hướng trường mục tiêu")}
-        </h3>
-
-        <div className="space-y-2.5">
-          {[
-            ["ĐH Bách Khoa HCM", 28],
-            ["ĐH FPT", 22],
-            ["UIT", 18],
-            ["RMIT Vietnam", 12],
-            ["Fulbright", 8],
-          ].map(([s, n]) => (
-            <div key={s as string} className="flex items-center gap-3">
-              <span className="text-xs text-gray-600 w-36 flex-shrink-0 truncate">
-                {s as string}
-              </span>
-
-              <div className="flex-1 h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className="h-2 rounded-full bg-blue-500"
-                  style={{ width: `${((n as number) / 28) * 100}%` }}
-                />
-              </div>
-
-              <span className="text-xs font-mono font-bold text-gray-700 w-5">
-                {n as number}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-        <h3 className="font-bold text-gray-800 mb-4">{t("Phân bố ngành mục tiêu")}</h3>
-
-        <div className="space-y-2.5">
-          {[
-            ["Công nghệ & CNTT", "42%", "#3B82F6"],
-            ["Y tế", "18%", "#EF4444"],
-            ["Kinh tế", "20%", "#10B981"],
-            ["Thiết kế", "10%", "#8B5CF6"],
-            ["Khác", "10%", "#9CA3AF"],
-          ].map(([f, p, c]) => (
-            <div key={f as string} className="flex items-center gap-2">
-              <div
-                className="w-2.5 h-2.5 rounded-full flex-shrink-0"
-                style={{ backgroundColor: c as string }}
-              />
-
-              <span className="text-xs text-gray-600 flex-1">
-                {t(f as string)}
-              </span>
-
-              <span className="text-xs font-bold text-gray-700">
-                {p as string}
-              </span>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm">
-        <h3 className="font-bold text-gray-800 mb-4">{t("Trạng thái hồ sơ ĐH")}</h3>
-
-        <div className="space-y-3">
-          {[
-            ["Chưa bắt đầu", 45, "bg-gray-300"],
-            ["Đang chuẩn bị", 62, "bg-amber-400"],
-            ["Hoàn thiện", 21, "bg-emerald-500"],
-          ].map(([l, n, c]) => (
-            <div key={l as string}>
-              <div className="flex justify-between text-xs mb-1">
-                <span className="text-gray-600">{t(l as string)}</span>
-                <span className="font-bold">{n as number} {t("HS")}</span>
-              </div>
-
-              <div className="h-2 bg-gray-100 rounded-full overflow-hidden">
-                <div
-                  className={`h-2 rounded-full ${c as string}`}
-                  style={{ width: `${((n as number) / 128) * 100}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
-  </CounselorReportBase>
   );
 };
 

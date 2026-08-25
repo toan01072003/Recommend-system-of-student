@@ -6,6 +6,6 @@ export { CounselorFeatureStub, CounselorLessons, CounselorSurveys } from "./crea
 export {
   CounselorReportBase,
   CounselorReportStudentWork,
+  CounselorReportLessonProgress,
   CounselorReportEngagement,
-  CounselorReportCollegePlanning,
 } from "./reports/CounselorReports";

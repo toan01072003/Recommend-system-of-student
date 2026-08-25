@@ -22,13 +22,9 @@ const viewPathMap: Record<string, string> = {
   "co-lessons": "/counselor/lessons",
   "co-assignments": "/counselor/assignments",
   "co-surveys": "/counselor/surveys",
-  "co-courses": "/counselor/courses",
-  "co-test-scores": "/counselor/test-scores",
   "co-report-work": "/counselor/reports/student-work",
   "co-report-lessons": "/counselor/reports/lessons",
-  "co-report-assignment": "/counselor/reports/assignment",
   "co-report-engagement": "/counselor/reports/engagement",
-  "co-report-college": "/counselor/reports/college",
   "co-messenger": "/counselor/messenger",
   "co-advice": "/counselor/advice",
   "co-meeting": "/counselor/meeting",
@@ -54,6 +50,13 @@ const viewPathMap: Record<string, string> = {
 const pathViewMap = Object.fromEntries(
   Object.entries(viewPathMap).map(([view, path]) => [path, view]),
 );
+
+const removedCounselorPaths = new Set([
+  "/counselor/courses",
+  "/counselor/test-scores",
+  "/counselor/reports/assignment",
+  "/counselor/reports/college",
+]);
 
 export const parseAppRoute = (pathname: string): AppRoute => {
   const normalized = pathname === "/" ? "/" : pathname.replace(/\/+$/, "");
@@ -115,6 +118,10 @@ export const parseAppRoute = (pathname: string): AppRoute => {
 
   if (normalized === "/teacher/students") {
     return { view: "student-profile" };
+  }
+
+  if (removedCounselorPaths.has(normalized)) {
+    return { view: "co-dashboard" };
   }
 
   if (pathViewMap[normalized]) {

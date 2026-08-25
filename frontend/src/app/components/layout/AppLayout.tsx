@@ -2,7 +2,6 @@ import { useState } from "react";
 import {
   Activity,
   ArrowRight,
-  Award,
   BarChart2,
   Bell,
   BookMarked,
@@ -13,7 +12,6 @@ import {
   Compass,
   Edit2,
   FileText,
-  Flag,
   FolderOpen,
   GraduationCap,
   Heart,
@@ -72,8 +70,6 @@ const counselorNavGroups: NavGroup[] = [
       { id: "co-lessons", label: "Bài học", icon: BookOpen },
       { id: "co-assignments", label: "Bài tập", icon: ClipboardList },
       { id: "co-surveys", label: "Khảo sát", icon: FileText },
-      { id: "co-courses", label: "Khóa học & Chứng chỉ", icon: GraduationCap },
-      { id: "co-test-scores", label: "Điểm kiểm tra", icon: BarChart2 },
     ],
   },
   {
@@ -82,9 +78,7 @@ const counselorNavGroups: NavGroup[] = [
     items: [
       { id: "co-report-work", label: "Bài làm học sinh", icon: Trophy },
       { id: "co-report-lessons", label: "Tiến độ bài học", icon: TrendingUp },
-      { id: "co-report-assignment", label: "Báo cáo bài tập", icon: Award },
       { id: "co-report-engagement", label: "Tương tác", icon: Activity },
-      { id: "co-report-college", label: "Kế hoạch đại học", icon: Flag },
     ],
   },
   {
